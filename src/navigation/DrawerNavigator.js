@@ -19,13 +19,11 @@ export function DrawerNavigator() {
                 headerTintColor: 'white',
                 drawerStyle: {
                     backgroundColor: '#1A202C',
-                    width: width * 0.75, // Ocupa 75% da largura da tela
+                    width: width * 0.75,
                 },
-                drawerLabelStyle: { fontWeight: 'bold', fontSize: 16 }, // Aumentado
+                drawerLabelStyle: { fontWeight: 'bold', fontSize: 16 },
                 drawerActiveTintColor: '#4FD1C5',
                 drawerInactiveTintColor: '#A0AEC0',
-                drawerPosition: "right",
-                drawerType: "front", // Overlay
             }}
         >
           {/* A tela de início ainda faz parte do drawer para a navegação funcionar, mas o item é removido do menu */}
