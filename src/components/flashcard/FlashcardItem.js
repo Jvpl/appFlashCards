@@ -6,6 +6,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { CardFooter } from '../ui/CardFooter';
 import { katexScript } from '../editor/editorTemplates';
 
+const screenWidth = Dimensions.get('window').width;
+
 export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, onFlip, isFlipped, jsCurrentIndex }) => {
   const rotate = useSharedValue(0);
   const position = useDerivedValue(() => index - currentIndex.value);

@@ -13,6 +13,7 @@ import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 
 const screenWidth = Dimensions.get('window').width;
+const screenHeight = Dimensions.get('window').height;
 
 export const FlashcardScreen = ({ route, navigation }) => {
   const { deckId, subjectId, preloadedCards } = route.params; // Recebe preloadedCards
