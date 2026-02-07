@@ -13,6 +13,7 @@ export const MathToolbar = ({ onInsert, onClose }) => {
   useEffect(() => {
      // Usa withTiming para subida suave sem bounce, mais lenta (350ms)
      translateY.value = withTiming(0, { duration: 350 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => {

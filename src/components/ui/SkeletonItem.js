@@ -11,6 +11,7 @@ export const SkeletonItem = ({ width = '100%', height = 20, style }) => {
             -1,
             true
         );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const animatedStyle = useAnimatedStyle(() => ({

@@ -13,6 +13,7 @@ export function FadeInView({ children, style }) {
     } else {
       opacity.value = 0; // Reseta para 0 quando sai, para animar de novo ao entrar
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFocused]);
 
   const animatedStyle = useAnimatedStyle(() => ({

@@ -18,6 +18,7 @@ export const CustomBottomModal = ({ visible, onClose, children, title }) => {
         }
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const animatedStyle = useAnimatedStyle(() => ({
