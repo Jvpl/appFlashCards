@@ -1,0 +1,234 @@
+════════════════════════════════════════════════════════════════════════════════
+                         ESTRUTURA DO PROJETO ATUALIZADA
+════════════════════════════════════════════════════════════════════════════════
+
+projeto app/
+│
+├── src/
+│   │
+│   ├── navigation/  ✨ NOVOS ARQUIVOS CRIADOS
+│   │   ├── HomeStackNavigator.js      (NEW - 120 linhas)
+│   │   ├── DrawerNavigator.js         (NEW - 63 linhas)
+│   │   ├── AppContent.js              (NEW - 164 linhas)
+│   │   └── [outros arquivos de navegação existentes]
+│   │
+│   ├── screens/
+│   │   ├── DeckListScreen.js          (importado)
+│   │   ├── SubjectListScreen.js       (importado)
+│   │   ├── FlashcardScreen.js         (importado)
+│   │   ├── AddDeckScreen.js           (importado)
+│   │   ├── EditDeckScreen.js          (importado)
+│   │   ├── AddSubjectScreen.js        (importado)
+│   │   ├── ManageFlashcardsScreen.js  (importado)
+│   │   ├── EditFlashcardScreen.js     (importado)
+│   │   ├── EditSubjectScreen.js       (importado)
+│   │   ├── FlashcardHistoryScreen.js  (importado)
+│   │   ├── SettingsScreen.js          (importado)
+│   │   ├── ProgressScreen.js          (importado)
+│   │   └── LojaScreen.js              (importado)
+│   │
+│   ├── components/
+│   │   ├── ui/
+│   │   │   └── FadeInView.js          (utilizado)
+│   │   └── [outros componentes]
+│   │
+│   ├── config/
+│   │   ├── navigation.js              (screenOptions exportado)
+│   │   ├── theme.js                   (AppTheme exportado)
+│   │   └── [outras configurações]
+│   │
+│   ├── services/
+│   │   ├── storage.js                 (getAppData exportado)
+│   │   └── [outros serviços]
+│   │
+│   ├── data/
+│   │   └── [dados da aplicação]
+│   │
+│   └── styles/
+│       └── [estilos globais]
+│
+├── ESTRUTURA_NAVEGACAO_CRIADA.md      (Documentação detalhada)
+├── CRIACAO_NAVEGACAO_RESUMO.txt       (Sumário executivo)
+├── ARQUIVOS_NAVEGACAO_CRIADOS.txt     (Estrutura visual detalhada)
+├── RESUMO_RAPIDO.txt                  (Referência rápida)
+├── ESTRUTURA_PROJETO_ATUALIZADA.txt   (Este arquivo)
+│
+└── teclado atualizado quase funcionando perfeitamente.txt
+                                       (Arquivo original de referência)
+
+════════════════════════════════════════════════════════════════════════════════
+
+ESTRUTURA DE NAVEGAÇÃO IMPLEMENTADA:
+
+AppContent (entry point)
+│
+└─► NavigationContainer
+    │
+    └─► Tab.Navigator (3 abas)
+        │
+        ├─ Tab.Screen "Início" → DrawerNavigator
+        │                       └─► Drawer.Navigator
+        │                           ├─► HomeStackNavigator (10 screens)
+        │                           └─► SettingsScreen
+        │
+        ├─ Tab.Screen "Progresso" → ProgressScreen
+        │
+        └─ Tab.Screen "Loja" → LojaScreen
+
+════════════════════════════════════════════════════════════════════════════════
+
+FLUXO DE NAVEGAÇÃO COMPLETO:
+
+1. App Inicia com AppContent
+   └─► Carrega NavigationContainer com AppTheme
+
+2. User vê Bottom Tab Navigator (3 abas)
+   └─► Padrão: "Início" ativa
+
+3. Clicando em "Início":
+   ├─► Verifica se teclado está visível
+   ├─► Se visível: bloqueia clique
+   ├─► Se invisível: renderiza DrawerNavigator
+   │   └─► Renderiza HomeStackNavigator (com 10 telas)
+
+4. Clicando em "Progresso" ou "Loja":
+   ├─► Desativa DrawerNavigator
+   ├─► Renderiza tela correspondente com animação Fade
+   └─► Botão voltar volta para "Início"
+
+5. Drawer Menu (lado direito):
+   ├─► Ativável via swipe (apenas em DeckList)
+   ├─► Ou via ícone no header
+   ├─► Opções:
+   │   ├─► Início (HomeDrawer/HomeStackNavigator)
+   │   └─► Configurações (SettingsScreen)
+   └─► Posicionado à direita (75% da largura)
+
+6. Stack Navigation (dentro do Home):
+   ├─► Telas:
+   │   ├─► DeckList (raiz)
+   │   ├─► SubjectList
+   │   ├─► Flashcard
+   │   ├─► AddDeck
+   │   ├─► EditDeck
+   │   ├─► AddSubject
+   │   ├─► ManageFlashcards
+   │   ├─► EditFlashcard
+   │   ├─► EditSubject
+   │   └─► FlashcardHistory
+   └─► Transições: Fade (300ms)
+
+════════════════════════════════════════════════════════════════════════════════
+
+DEPENDÊNCIAS E IMPORTS:
+
+❌ Dependências NÃO instaladas (verificar):
+   • @react-navigation/native
+   • @react-navigation/bottom-tabs
+   • @react-navigation/drawer
+   • @react-navigation/stack
+   • react-native-safe-area-context
+   • @expo/vector-icons
+
+✅ Bibliotecas Nativas:
+   • react-native (View, Keyboard, StatusBar, etc)
+
+════════════════════════════════════════════════════════════════════════════════
+
+CONFIGURAÇÕES E CONSTANTES:
+
+Cores Tema:
+   • #1A202C - Fundo principal (muito escuro)
+   • #2D3748 - Headers (escuro)
+   • #4FD1C5 - Ativo/Teal (destaque)
+   • #A0AEC0 - Inativo (cinza claro)
+   • #FFFFFF - Texto (branco)
+
+Animações:
+   • Tipo: Fade (opacidade)
+   • Duração: 300ms
+   • Interpolação: current.progress
+
+Drawer:
+   • Posição: right (direita)
+   • Tipo: front (overlay)
+   • Largura: 75% da tela
+   • Swipe habilitado: apenas em DeckList
+
+Tab Bar:
+   • Altura: 60 + insets.bottom
+   • Padding: Ajustado para SafeArea
+   • Labels: Bold
+   • Icons: Ionicons
+
+════════════════════════════════════════════════════════════════════════════════
+
+FUNCIONALIDADES ESPECIAIS IMPLEMENTADAS:
+
+1. Detecção de Teclado ✓
+   └─► Bloqueia cliques na tab bar quando visível
+
+2. Reset Manual ✓
+   └─► Ao clicar novamente em "Início", reseta estado completo
+
+3. SafeArea Support ✓
+   └─► useSafeAreaInsets para ajustar padding
+
+4. Navegação Profunda ✓
+   └─► Gerencia estado complexo (Tab → Drawer → Stack)
+
+5. Animações Fade ✓
+   └─► Transições personalizadas em todas as navegações
+
+6. Drawer Dinâmico ✓
+   └─► Habilita/desabilita swipe baseado na rota
+
+════════════════════════════════════════════════════════════════════════════════
+
+CHECKLIST DE IMPLEMENTAÇÃO:
+
+✅ AppContent.js criado
+   ├─ NavigationContainer implementado
+   ├─ Tab.Navigator com 3 abas
+   ├─ Detecção de teclado
+   ├─ Reset manual funcionalidade
+   ├─ SafeArea suporte
+   └─ Animações Fade
+
+✅ DrawerNavigator.js criado
+   ├─ Drawer.Navigator com 2 telas
+   ├─ HomeStackNavigator integrado
+   ├─ SettingsScreen integrado
+   ├─ Posicionamento à direita
+   ├─ Swipe condicional
+   └─ Ícones personalizados
+
+✅ HomeStackNavigator.js criado
+   ├─ Stack.Navigator com 10 telas
+   ├─ Transições Fade personalizadas
+   ├─ Header customizado
+   ├─ Ícones de histórico e menu
+   ├─ Navegação de volta removida em DeckList
+   └─ Tema escuro aplicado
+
+════════════════════════════════════════════════════════════════════════════════
+
+PRÓXIMAS AÇÕES:
+
+1. ✓ Criar estrutura de navegação (CONCLUÍDO)
+2. → Instalar dependências de React Navigation
+3. → Validar importações de screens
+4. → Testar navegação com expo start
+5. → Verificar transições e animações
+6. → Testar detecção de teclado
+7. → Verificar drawer navigation
+8. → Otimizar performance
+
+════════════════════════════════════════════════════════════════════════════════
+
+NOTA IMPORTANTE:
+
+Python 3.13 será necessário para testes completos em ambiente de desenvolvimento.
+Sem ele, será necessário testes manuais via expo start e simulador/dispositivo.
+
+════════════════════════════════════════════════════════════════════════════════

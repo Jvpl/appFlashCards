@@ -1,0 +1,227 @@
+════════════════════════════════════════════════════════════════════════════════
+                        ESTRUTURA DE ARQUIVOS CRIADOS
+════════════════════════════════════════════════════════════════════════════════
+
+DIRETÓRIO: src/navigation/
+
+├── HomeStackNavigator.js (4.7 KB | 120 linhas)
+│   ├── Imports:
+│   │   ├── React, createStackNavigator
+│   │   ├── View, TouchableOpacity (React Native)
+│   │   ├── Ionicons
+│   │   ├── screenOptions (config/navigation)
+│   │   └── 10 Screen components
+│   │
+│   ├── Constantes:
+│   │   ├── const HomeStack = createStackNavigator()
+│   │   └── const fadeTransitionSpec (animações personalizadas)
+│   │
+│   ├── Objeto de Configuração:
+│   │   └── navScreenOptions (cores, headers, transições)
+│   │
+│   └── Exports:
+│       ├── export function HomeStackNavigator({navigation})
+│       └── export default HomeStackNavigator
+
+
+├── DrawerNavigator.js (2.6 KB | 63 linhas)
+│   ├── Imports:
+│   │   ├── React, createDrawerNavigator
+│   │   ├── Dimensions
+│   │   ├── Ionicons
+│   │   ├── HomeStackNavigator
+│   │   └── SettingsScreen
+│   │
+│   ├── Constantes:
+│   │   └── const Drawer = createDrawerNavigator()
+│   │
+│   ├── Configurações:
+│   │   ├── Drawer Navigator com 2 telas
+│   │   │   ├── HomeDrawer (Stack principal)
+│   │   │   └── ConfiguracoesDrawer (Configurações)
+│   │   └── Posicionamento: right (75% largura)
+│   │
+│   └── Exports:
+│       ├── export function DrawerNavigator()
+│       └── export default DrawerNavigator
+
+
+└── AppContent.js (6.1 KB | 164 linhas)
+    ├── Imports:
+    │   ├── React, useState, useEffect
+    │   ├── View, Keyboard, StatusBar, TouchableOpacity
+    │   ├── NavigationContainer, CommonActions
+    │   ├── createBottomTabNavigator
+    │   ├── useSafeAreaInsets
+    │   ├── Ionicons
+    │   ├── AppTheme, getAppData
+    │   ├── DrawerNavigator
+    │   ├── ProgressScreen, LojaScreen
+    │   └── FadeInView
+    │
+    ├── Constantes:
+    │   └── const Tab = createBottomTabNavigator()
+    │
+    ├── Estados:
+    │   ├── insets (SafeAreaContext)
+    │   └── isKeyboardVisible
+    │
+    ├── Efeitos Colaterais:
+    │   └── useEffect (detecção de teclado)
+    │
+    ├── Estrutura de Navegação:
+    │   ├── NavigationContainer com AppTheme
+    │   ├── StatusBar customizado
+    │   └── Tab.Navigator com 3 abas:
+    │       ├── Início (home com DrawerNavigator)
+    │       ├── Progresso (stats-chart com ProgressScreen)
+    │       └── Loja (cart com LojaScreen)
+    │
+    ├── Funcionalidades Especiais:
+    │   ├── Bloqueio de taps quando teclado visível
+    │   ├── Reset manual da aba "Início"
+    │   ├── Gerenciamento profundo de estado de navegação
+    │   ├── Suporte a SafeArea
+    │   └── Animações fade customizadas
+    │
+    └── Exports:
+        ├── export function AppContent()
+        └── export default AppContent
+
+
+════════════════════════════════════════════════════════════════════════════════
+
+ESTRUTURA DE NAVEGAÇÃO HIERÁRQUICA:
+
+AppContent (Component Principal)
+│
+└─► NavigationContainer + Tab.Navigator
+    │
+    ├─► Tab.Screen "Início" (unmountOnBlur: true)
+    │   │
+    │   └─► FadeInView
+    │       │
+    │       └─► DrawerNavigator
+    │           │
+    │           └─► Drawer.Navigator (drawerType: "front", position: "right")
+    │               │
+    │               ├─► Drawer.Screen "HomeDrawer"
+    │               │   │
+    │               │   └─► HomeStackNavigator
+    │               │       │
+    │               │       └─► Stack.Navigator (fadeTransitionSpec)
+    │               │           │
+    │               │           ├─► DeckListScreen (DeckList) [root]
+    │               │           ├─► SubjectListScreen (SubjectList)
+    │               │           ├─► FlashcardScreen (Flashcard)
+    │               │           ├─► AddDeckScreen (AddDeck)
+    │               │           ├─► EditDeckScreen (EditDeck)
+    │               │           ├─► AddSubjectScreen (AddSubject)
+    │               │           ├─► ManageFlashcardsScreen (ManageFlashcards)
+    │               │           ├─► EditFlashcardScreen (EditFlashcard)
+    │               │           ├─► EditSubjectScreen (EditSubject)
+    │               │           └─► FlashcardHistoryScreen (FlashcardHistory)
+    │               │
+    │               └─► Drawer.Screen "ConfiguracoesDrawer"
+    │                   │
+    │                   └─► SettingsScreen
+    │
+    ├─► Tab.Screen "Progresso" (unmountOnBlur: false)
+    │   │
+    │   └─► FadeInView
+    │       │
+    │       └─► ProgressScreen
+    │
+    └─► Tab.Screen "Loja" (unmountOnBlur: false)
+        │
+        └─► FadeInView
+            │
+            └─► LojaScreen
+
+
+════════════════════════════════════════════════════════════════════════════════
+
+CONFIGURAÇÕES DE CORES E TEMAS:
+
+Tema Escuro (Dark Theme):
+├── Cor de Fundo Principal: #1A202C (Cinza muito escuro)
+├── Cor de Header: #2D3748 (Cinza escuro)
+├── Cor Ativa (Teal): #4FD1C5
+├── Cor Inativa: #A0AEC0 (Cinza claro)
+└── Cor de Texto: Branca (#FFFFFF)
+
+Animações:
+├── Transição Fade (300ms)
+├── Interpolação de Opacidade
+└── Desabilitado: Gesture e swipe em telas de edição
+
+
+════════════════════════════════════════════════════════════════════════════════
+
+LISTENERS E EVENTOS CUSTOMIZADOS:
+
+Tab.Screen "Início":
+├── listeners.tabPress:
+│   ├── Bloqueia se teclado visível
+│   ├── Valida profundidade de navegação
+│   ├── Reset manual se clicado novamente
+│   └── Dispatch de CommonActions.reset
+
+
+════════════════════════════════════════════════════════════════════════════════
+
+DEPENDÊNCIAS EXTERNAS UTILIZADAS:
+
+React Navigation:
+├── @react-navigation/native (NavigationContainer, CommonActions)
+├── @react-navigation/bottom-tabs (createBottomTabNavigator)
+├── @react-navigation/drawer (createDrawerNavigator)
+└── @react-navigation/stack (createStackNavigator)
+
+React Native:
+├── react-native (View, Keyboard, StatusBar, TouchableOpacity, Dimensions)
+└── react-native-safe-area-context (useSafeAreaInsets)
+
+Expo:
+└── @expo/vector-icons (Ionicons)
+
+Projeto:
+├── ../config/theme (AppTheme)
+├── ../config/navigation (screenOptions)
+├── ../services/storage (getAppData)
+├── ../components/ui/FadeInView (FadeInView)
+└── ../screens/* (13 screens diferentes)
+
+
+════════════════════════════════════════════════════════════════════════════════
+
+VERIFICAÇÃO DE QUALIDADE:
+
+✅ Encoding UTF-8
+✅ Estrutura de imports correta
+✅ Exports duplicados (named + default)
+✅ Sem linhas em branco excessivas
+✅ Indentação consistente
+✅ Comentários preservados
+✅ Caracteres especiais (acentos) preservados
+✅ Todas as 347 linhas de código presentes
+
+
+════════════════════════════════════════════════════════════════════════════════
+
+CAMINHOS ABSOLUTOS:
+
+WINDOWS:
+  C:\Users\joaod\OneDrive\Área de Trabalho\projeto app\src\navigation\HomeStackNavigator.js
+  C:\Users\joaod\OneDrive\Área de Trabalho\projeto app\src\navigation\DrawerNavigator.js
+  C:\Users\joaod\OneDrive\Área de Trabalho\projeto app\src\navigation\AppContent.js
+
+POSIX/WSL:
+  /c/Users/joaod/OneDrive/Área de Trabalho/projeto app/src/navigation/HomeStackNavigator.js
+  /c/Users/joaod/OneDrive/Área de Trabalho/projeto app/src/navigation/DrawerNavigator.js
+  /c/Users/joaod/OneDrive/Área de Trabalho/projeto app/src/navigation/AppContent.js
+
+
+════════════════════════════════════════════════════════════════════════════════
+                               FIM DO RELATÓRIO
+════════════════════════════════════════════════════════════════════════════════
