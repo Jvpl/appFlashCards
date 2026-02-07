@@ -13,7 +13,6 @@ const styles = StyleSheet.create({
   glowTop: { top: 0, left: 0, right: 0, height: 100, width: '100%' },
   cardWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
   itemContainer: { backgroundColor: '#2D3748', padding: 20, marginVertical: 8, marginHorizontal: 16, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  selectedDeckItem: { borderWidth: 2, borderColor: '#4FD1C5' },
   progressSubjectContainer: { backgroundColor: '#2D3748', paddingHorizontal: 20, paddingVertical: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   itemTextContainer: { flex: 1, marginRight: 16 },
   itemTitle: { fontSize: 18, color: '#FFFFFF', fontWeight: 'bold' },
@@ -60,18 +59,18 @@ const styles = StyleSheet.create({
   // Container unificado para MathInput (WebView)
   mathInputContainerUnified: {
     minHeight: 200, // VOLTEI PARA 200 (Era o tamanho original grande)
-    flex: 1, // Garante que ele cres‡a se precisar
+    flex: 1, // Garante que ele cresï¿½a se precisar
     backgroundColor: '#2D3748',
     borderRadius: 8,
     overflow: 'hidden',
-    // BORDA PADRÇO INVISÖVEL (Cor do fundo)
+    // BORDA PADRï¿½O INVISï¿½VEL (Cor do fundo)
     // Isso resolve o problema de parecer ativo sem estar
     borderWidth: 2, 
     borderColor: '#2D3748', 
     marginBottom: 10,
   },
   
-  // Estilo aplicado APENAS quando o MathInput est  focado
+  // Estilo aplicado APENAS quando o MathInput estï¿½ focado
   mathInputContainerFocused: {
     borderColor: '#4FD1C5', // Aqui sim fica verde
   },
@@ -81,36 +80,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#2D3748', // Garante a cor de fundo
     opacity: 0.99, // Hack para evitar piscar em alguns dispositivos
   },
-   // Altura maior na tela de cria‡Æo (Aplicado ao container)
+   // Altura maior na tela de criaï¿½ï¿½o (Aplicado ao container)
   mathInputContainerUnifiedLarge: {
-     minHeight: 180, // Altura m¡nima maior
-     flex: 1, // Continua flex¡vel
+     minHeight: 180, // Altura mï¿½nima maior
+     flex: 1, // Continua flexï¿½vel
   },
-  // Container para agrupar Label + Input na tela de Cria‡Æo
+  // Container para agrupar Label + Input na tela de Criaï¿½ï¿½o
   inputGroup: {
-      marginBottom: 10, // Espa‡o entre os grupos
-      flex: 1, // Ocupa espa‡o vertical dispon¡vel
+      marginBottom: 10, // Espaï¿½o entre os grupos
+      flex: 1, // Ocupa espaï¿½o vertical disponï¿½vel
   },
   // Container para os controles inferiores (f(x) e Salvar)
   bottomControlsContainer: {
      flexDirection: 'row',
      alignItems: 'center',
-     justifyContent: 'space-between', // Espa‡a os botäes
+     justifyContent: 'space-between', // Espaï¿½a os botï¿½es
      marginTop: 15,
-     marginBottom: 10, // Espa‡o antes de talvez a toolbar aparecer
+     marginBottom: 10, // Espaï¿½o antes de talvez a toolbar aparecer
      paddingHorizontal: 5, // Pequeno padding lateral
   },
   saveButtonContainer: {
-      flex: 1, // Ocupa espa‡o restante
-      marginLeft: 15, // Espa‡o entre f(x) e Salvar
+      flex: 1, // Ocupa espaï¿½o restante
+      marginLeft: 15, // Espaï¿½o entre f(x) e Salvar
   },
-  // BotÆo f(x)
+  // Botï¿½o f(x)
   fxButton: {
     backgroundColor: '#4A5568',
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 15,
-    alignSelf: 'center', // Centraliza verticalmente com o botÆo Salvar
+    alignSelf: 'center', // Centraliza verticalmente com o botï¿½o Salvar
   },
   fxButtonActive: {
     backgroundColor: '#4FD1C5',
@@ -125,20 +124,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  // Estilos para o Teclado/Toolbar Matem tica Nativa
+  // Estilos para o Teclado/Toolbar Matemï¿½tica Nativa
   mathKeyboardOverlay: {
     backgroundColor: '#252E3D',
     borderTopWidth: 1,
     borderTopColor: '#4A5568',
     paddingTop: 8,
-    // paddingBottom ser  tratado pelo Safe Area
+    // paddingBottom serï¿½ tratado pelo Safe Area
   },
   mathToolbarContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     paddingHorizontal: 5,
-    paddingBottom: 5, // Espa‡o inferior
+    paddingBottom: 5, // Espaï¿½o inferior
   },
   mathToolbarButton: {
     backgroundColor: '#4A5568',
@@ -163,9 +162,8 @@ const styles = StyleSheet.create({
   scrollContentContainer: {
      flexGrow: 1, // Permite o scroll crescer
      padding: 20, // Padding aplicado aqui
-     justifyContent: 'flex-start', // Come‡a do topo
+     justifyContent: 'flex-start', // Comeï¿½a do topo
   },
-  progressHeader: { alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#2D3748' },
   progressTitle: { fontSize: 24, color: 'white', fontWeight: 'bold' },
   progressValue: { fontSize: 48, color: '#4FD1C5', fontWeight: 'bold', marginVertical: 10 },
   progressSubtitle: { fontSize: 16, color: '#A0AEC0' },
@@ -267,7 +265,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  // Teclado Colaps vel
+  // Teclado Colapsï¿½vel
   keypadContainer: {
     marginTop: 16,
     marginBottom: 16,
@@ -319,7 +317,7 @@ const styles = StyleSheet.create({
     color: '#718096',
   },
 
-  // Botäes Fullwidth do Modal
+  // Botï¿½es Fullwidth do Modal
   modalButtonFullWidth: {
     backgroundColor: '#4FD1C5',
     paddingVertical: 16,
@@ -386,92 +384,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 150,
   },
-  editorContent: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    padding: 10,
-  },
-  
-  // Texto Comum
-  nativeInputText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontFamily: 'serif',
-    paddingVertical: 0,
-    marginVertical: 0, // Reset margin
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-
-  // --- Fra‡Æo ---
-  fractionContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 4,
-  },
-  fractionBox: {
-    minWidth: 24,
-    minHeight: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-    borderRadius: 4,
-  },
-  fractionBoxEmpty: {
-    // S¢ mostra borda e fundo se estiver vazio
-    borderWidth: 1,
-    borderColor: '#606070',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  fractionInput: {
-    color: 'white',
-    fontSize: 14,
-    fontFamily: 'serif',
-    textAlign: 'center',
-    padding: 0,
-    margin: 0,
-    minWidth: 14,
-  },
-  fractionLine: {
-    width: '100%',
-    height: 1.5,
-    backgroundColor: 'white',
-    marginVertical: 2,
-  },
-
-  // --- Raiz Quadrada ---
-  rootContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginRight: 4,
-    marginLeft: 2,
-    marginTop: 4, // Espa‡o extra para o topo
-  },
-  rootSymbol: {
-    color: 'white',
-    fontSize: 24,
-    fontFamily: 'serif',
-    marginBottom: -5, // Ajuste para alinhar o V
-    marginRight: -1,
-  },
-  rootContentWrapper: {
-    borderTopWidth: 1.5,
-    borderTopColor: 'white',
-    paddingTop: 2,
-    paddingLeft: 2,
-    paddingRight: 2,
-    marginBottom: 4,
-  },
-  rootInput: {
-    color: 'white',
-    fontSize: 18,
-    fontFamily: 'serif',
-    padding: 0,
-    margin: 0,
-    minWidth: 10,
-    textAlign: 'center',
-  },
 
   editorContent: {
     flexDirection: 'row',
@@ -491,7 +403,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
 
-  // --- FRA€ÇO ---
+  // --- FRAï¿½ï¿½O ---
   fractionContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -533,12 +445,12 @@ const styles = StyleSheet.create({
   },
   rootSymbolWrapper: {
     justifyContent: 'flex-end',
-    marginBottom: -6, // Ajuste para alinhar a base do s¡mbolo com o texto
+    marginBottom: -6, // Ajuste para alinhar a base do sï¿½mbolo com o texto
     marginRight: -2,  // Conecta com a linha superior
   },
   rootSymbolText: {
     color: 'white',
-    fontSize: 28, // Tamanho maior para o s¡mbolo
+    fontSize: 28, // Tamanho maior para o sï¿½mbolo
     fontFamily: 'serif',
     fontWeight: '300',
   },
@@ -548,7 +460,7 @@ const styles = StyleSheet.create({
     paddingTop: 2,
     paddingLeft: 2,
     paddingRight: 2,
-    marginBottom: 5, // Levanta o conte£do para ficar sob o teto
+    marginBottom: 5, // Levanta o conteï¿½do para ficar sob o teto
   },
   rootInput: {
     color: 'white',
@@ -582,10 +494,10 @@ const styles = StyleSheet.create({
 
 // =================================================================
 // APP ROOT
-// Configura‡Æo da navega‡Æo e renderiza‡Æo principal.
+// Configuraï¿½ï¿½o da navegaï¿½ï¿½o e renderizaï¿½ï¿½o principal.
 // =================================================================
 
-// Mant‚m a tela de splash vis¡vel enquanto as fontes carregam
+// Mantï¿½m a tela de splash visï¿½vel enquanto as fontes carregam
 // SplashScreen.preventAutoHideAsync();
 
 // Tema customizado para evitar o "flash" de tela branca
