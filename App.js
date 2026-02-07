@@ -15,6 +15,11 @@ const styles = StyleSheet.create({
 });
 
 export default function App() {
+  // Initialize global cache
+  if (!global.screenCache) {
+    global.screenCache = {};
+  }
+
   // Carrega fontes e captura erro
   const [fontsLoaded, fontError] = useFonts({
     ...Ionicons.font,
