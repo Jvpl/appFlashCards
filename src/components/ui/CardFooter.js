@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LEVEL_CONFIG } from '../../services/srs';
+import styles from '../../styles/globalStyles';
 
 export const CardFooter = ({level}) => {
     const currentLevel = level || 0;

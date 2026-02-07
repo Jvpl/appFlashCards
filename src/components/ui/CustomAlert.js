@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, TouchableWithoutFeedback } from 'react-native';
+import styles from '../../styles/globalStyles';
 
 export const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
   if (!visible) return null;

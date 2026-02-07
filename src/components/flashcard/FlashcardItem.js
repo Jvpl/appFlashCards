@@ -5,6 +5,12 @@ import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValu
 import { LinearGradient } from 'expo-linear-gradient';
 import { CardFooter } from '../ui/CardFooter';
 import { katexScript } from '../editor/editorTemplates';
+import styles from '../../styles/globalStyles';
+
+const katexStyles = `
+  .katex { font-size: 1.0em !important; }
+  .katex .mfrac { font-size: 1.25em !important; }
+`;
 
 const screenWidth = Dimensions.get('window').width;
 
