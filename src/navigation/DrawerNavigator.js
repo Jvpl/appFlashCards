@@ -1,5 +1,6 @@
 import React from 'react';
-import { createDrawerNavigator, getFocusedRouteNameFromRoute } from '@react-navigation/drawer';
+import { createDrawerNavigator } from '@react-navigation/drawer';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import HomeStackNavigator from './HomeStackNavigator';
