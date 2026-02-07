@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, FlatList, StyleSheet, ScrollView } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAppData } from '../services/storage';
 import { LEVEL_CONFIG } from '../services/srs';
 import styles from '../styles/globalStyles';

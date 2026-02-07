@@ -17,7 +17,12 @@ const styles = StyleSheet.create({
 export default function App() {
   // Initialize global cache
   if (!global.screenCache) {
-    global.screenCache = {};
+    global.screenCache = {
+      flashcards: new Set()
+    };
+  }
+  if (!global.screenCache.flashcards) {
+    global.screenCache.flashcards = new Set();
   }
 
   // Carrega fontes e captura erro
