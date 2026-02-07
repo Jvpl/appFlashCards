@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
-import { isDefaultDeck } from '../config/constants';
+import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { CustomBottomModal } from '../components/ui/CustomBottomModal';
 import styles from '../styles/globalStyles';
 

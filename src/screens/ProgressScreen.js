@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, FlatList, StyleSheet, ScrollView } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { getAppData } from '../services/storage';
 import { LEVEL_CONFIG } from '../services/srs';
 import styles from '../styles/globalStyles';
