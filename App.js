@@ -18,11 +18,15 @@ export default function App() {
   // Initialize global cache
   if (!global.screenCache) {
     global.screenCache = {
-      flashcards: new Set()
+      flashcards: new Set(),
+      manageFlashcards: new Set()
     };
   }
   if (!global.screenCache.flashcards) {
     global.screenCache.flashcards = new Set();
+  }
+  if (!global.screenCache.manageFlashcards) {
+    global.screenCache.manageFlashcards = new Set();
   }
 
   // Carrega fontes e captura erro
