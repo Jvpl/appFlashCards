@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, BackHandler, TextInput, TouchableOpacity, ActivityIndicator, Modal, TouchableWithoutFeedback } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
-import { getAppData } from '../services/storage';
+import { getAppData, saveAppData } from '../services/storage';
 import { LEVEL_CONFIG } from '../services/srs';
+import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
+import { katexScript } from '../components/editor/editorTemplates';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 
