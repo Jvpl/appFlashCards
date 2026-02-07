@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppTheme } from '../config/theme';
 import { getAppData } from '../services/storage';
-import DrawerNavigator from './DrawerNavigator';
+import HomeStackNavigator from './HomeStackNavigator';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { LojaScreen } from '../screens/LojaScreen';
 import { FadeInView } from '../components/ui/FadeInView';
@@ -80,44 +80,26 @@ export function AppContent() {
                   return;
               }
 
-              // Se já estiver na aba, verificamos profundamente o estado (Tab -> Drawer -> Stack)
+              // Se já estiver na aba, verifica se está na raiz da stack
               if (navigation.isFocused()) {
-                  const drawerState = route.state;
-                  
-                  // Se não tem state, assume padrão (HomeDrawer -> DeckList) => Está na Raiz
-                  if (!drawerState) {
+                  const stackState = route.state;
+
+                  // Se o stack está na raiz (index 0), não faz nada
+                  if (!stackState || stackState.index === 0) {
                       e.preventDefault();
                       return;
                   }
-
-                  const activeDrawerRoute = drawerState.routes[drawerState.index];
-
-                  // Se estiver no 'HomeDrawer' (Stack Principal)
-                  if (activeDrawerRoute.name === 'HomeDrawer') {
-                      const stackState = activeDrawerRoute.state;
-                      
-                      // Se o stack não tem state ou index é 0, está no 'DeckList' => Está na Raiz
-                      if (!stackState || stackState.index === 0) {
-                          e.preventDefault();
-                          return;
-                      }
-                  }
-                  
-                  // Se chegou aqui: ou está em outra rota do Drawer (Configs) ou num sub-nível do Stack.
-                  // Deixa o evento prosseguir para o reset manual abaixo.
               }
 
-              // Reset Manual: Intercepta o clique e reinicia a aba 'Início' para o estado original
+              // Reset: Volta para a raiz e recria o componente visual (FadeInView)
               e.preventDefault();
               navigation.dispatch(state => {
-                  // Mapeia as rotas para encontrar 'Início' e limpar seu estado interno
                   const routes = state.routes.map(r => {
                       if (r.name === 'Início') {
-                          // Adiciona um timestamp para forçar a recriação do componente visual (FadeInView)
-                          return { 
-                              name: 'Início', 
-                              key: r.key, 
-                              params: { resetTs: Date.now() } 
+                          return {
+                              name: 'Início',
+                              key: r.key,
+                              params: { resetTs: Date.now() }
                           };
                       }
                       return r;
@@ -135,7 +117,7 @@ export function AppContent() {
             {(props) => (
                 <View style={{ flex: 1, backgroundColor: '#1A202C' }}>
                     <FadeInView key={props.route.params?.resetTs || 'init'}>
-                        <DrawerNavigator />
+                        <HomeStackNavigator />
                     </FadeInView>
                 </View>
             )}
