@@ -70,7 +70,8 @@ export const DeckListScreen = ({ navigation }) => {
       });
       return () => task.cancel();
     }
-  }, [isFocused]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused];
 
   const calculateProgress = (subjects) => {
     if (!subjects || subjects.length === 0) return 0;
