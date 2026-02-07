@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { getAppData, saveAppData } from '../services/storage';
+import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 
 export const AddSubjectScreen = ({ route, navigation }) => {

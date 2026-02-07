@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { getAppData, saveAppData } from '../services/storage';
+import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 
 export const EditDeckScreen = ({ route, navigation }) => {
