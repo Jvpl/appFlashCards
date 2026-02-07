@@ -12,6 +12,8 @@ import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 
+const screenWidth = Dimensions.get('window').width;
+
 export const FlashcardScreen = ({ route, navigation }) => {
   const { deckId, subjectId, preloadedCards } = route.params; // Recebe preloadedCards
   const [cards, setCards] = useState(() => {
