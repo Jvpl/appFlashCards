@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
 import { HybridEditor } from '../components/editor/HybridEditor';
 import { MathToolbar } from '../components/editor/MathToolbar';
+import { IsolatedMathEditor } from '../components/editor/IsolatedMathEditor';
+import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 
 export const EditFlashcardScreen = ({ route, navigation }) => {
