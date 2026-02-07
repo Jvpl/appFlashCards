@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, BackHandler, Alert, InteractionManager } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, BackHandler, Alert, InteractionManager, ActivityIndicator, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS, useAnimatedReaction } from 'react-native-reanimated';
 import { getAppData, saveAppData } from '../services/storage';
 import { calculateCardUpdate } from '../services/srs';
 import { FlashcardItem } from '../components/flashcard/FlashcardItem';
+import { SkeletonItem } from '../components/ui/SkeletonItem';
+import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 
 export const FlashcardScreen = ({ route, navigation }) => {
