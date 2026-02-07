@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { LEVEL_CONFIG } from '../../services/srs';
 
 export const CardFooter = ({level}) => {
