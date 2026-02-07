@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Animated, { useAnimatedStyle, interpolate } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CardFooter } from '../ui/CardFooter';
 import { katexScript } from '../editor/editorTemplates';
