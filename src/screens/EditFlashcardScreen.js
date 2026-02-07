@@ -85,20 +85,25 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
   // Carregar dados do card
   useEffect(() => {
      const fetchCard = async () => {
-         const allData = await getAppData();
-         // Deep find
-         const deck = allData.find(d => d.id === deckId);
-         if (deck) {
-             const subject = deck.subjects.find(s => s.id === subjectId);
-             if (subject) {
-                 const card = subject.flashcards.find(c => c.id === cardId);
-                 if (card) {
-                     setInitialQuestion(card.question);
-                     setInitialAnswer(card.answer);
+         try {
+             const allData = await getAppData();
+             // Deep find
+             const deck = allData.find(d => d.id === deckId);
+             if (deck) {
+                 const subject = deck.subjects.find(s => s.id === subjectId);
+                 if (subject) {
+                     const card = subject.flashcards.find(c => c.id === cardId);
+                     if (card) {
+                         setInitialQuestion(card.question);
+                         setInitialAnswer(card.answer);
+                     }
                  }
              }
+         } catch (error) {
+             console.error('Error loading card:', error);
+         } finally {
+             setLoading(false);
          }
-         setLoading(false);
      };
      fetchCard();
   }, [deckId, subjectId, cardId]);
