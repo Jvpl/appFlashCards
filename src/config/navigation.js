@@ -2,7 +2,7 @@ export const fadeTransitionSpec = {
   open: {
     animation: 'timing',
     config: {
-      duration: 200, // R pido e sutil
+      duration: 200, // Rï¿½pido e sutil
     },
   },
   close: {
@@ -31,8 +31,5 @@ export const screenOptions = {
         open: fadeTransitionSpec.open,
         close: fadeTransitionSpec.close,
     },
-    cardStyle: { backgroundColor: '#1A202C' }, // Evita flash branco nas transi‡äes
+    cardStyle: { backgroundColor: '#1A202C' }, // Evita flash branco nas transiï¿½ï¿½es
 };
-
-
-export { fadeTransitionSpec, screenOptions };
