@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Button } from 'react-native';
+import Animated from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
@@ -8,6 +9,7 @@ import { HybridEditor } from '../components/editor/HybridEditor';
 import { MathToolbar } from '../components/editor/MathToolbar';
 import { IsolatedMathEditor } from '../components/editor/IsolatedMathEditor';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
+import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {

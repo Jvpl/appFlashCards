@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { getAppData } from '../services/storage';
 import { LEVEL_CONFIG } from '../services/srs';
 import styles from '../styles/globalStyles';
