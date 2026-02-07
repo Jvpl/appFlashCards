@@ -5,13 +5,14 @@ const AppTheme = {
   colors: {
     ...DarkTheme.colors,
     background: '#1A202C', // Cor de fundo principal do seu app
-    card: '#2D3748',       // Cor dos cabe‡alhos
+    card: '#2D3748',       // Cor dos cabeï¿½alhos
     text: '#FFFFFF',
     border: 'rgb(30, 30, 30)',
     notification: '#4FD1C5',
   },
 };
 
-// Configura‡Æo de transi‡Æo personalizada para suavizar a "sa¡da"
-// Configura‡Æo de transi‡Æo personalizada para "fade leve" (timing)
+// Configuraï¿½ï¿½o de transiï¿½ï¿½o personalizada para suavizar a "saï¿½da"
+// Configuraï¿½ï¿½o de transiï¿½ï¿½o personalizada para "fade leve" (timing)
+export { AppTheme };
 export default AppTheme;
