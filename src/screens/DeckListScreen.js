@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { CustomBottomModal } from '../components/ui/CustomBottomModal';
+import { SkeletonItem } from '../components/ui/SkeletonItem';
 import styles from '../styles/globalStyles';
 
 export const DeckListScreen = ({ navigation }) => {

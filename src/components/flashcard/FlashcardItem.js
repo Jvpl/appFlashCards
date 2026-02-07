@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Animated, { useAnimatedStyle, interpolate } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';

@@ -1,5 +1,5 @@
 import React, { useRef, useImperativeHandle, useEffect, useState, forwardRef } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { editorHtml } from './editorTemplates';
 
