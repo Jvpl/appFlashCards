@@ -96,7 +96,9 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
             if (data.type === 'EDIT_MATH' && onEditMath) onEditMath(data.id, data.latex);
             if (data.type === 'CONTENT_CHANGE' && onContentChange) onContentChange(data.html);
             if (data.type === 'FOCUS' && onFocus) onFocus();
-          } catch (e) {}
+          } catch (e) {
+            // Silently ignore JSON parse errors
+          }
         }}
       />
     </View>

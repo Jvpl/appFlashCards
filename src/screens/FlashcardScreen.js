@@ -186,7 +186,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
             translateX.value = withSpring(0);
             translateY.value = withSpring(0);
             return;
-          };
+          }
 
           leftGlowOpacity.value = withTiming(0);
           rightGlowOpacity.value = withTiming(0);

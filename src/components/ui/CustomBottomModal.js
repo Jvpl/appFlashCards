@@ -20,11 +20,11 @@ export const CustomBottomModal = ({ visible, onClose, children, title }) => {
     }
   }, [visible]);
 
-  if (!isVisible && !visible) return null;
-
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }]
   }));
+
+  if (!isVisible && !visible) return null;
 
   return (
     <Modal
