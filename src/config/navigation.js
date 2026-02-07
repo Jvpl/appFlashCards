@@ -13,10 +13,6 @@ export const fadeTransitionSpec = {
   },
 };
 
-const HomeStack = createStackNavigator();
-const Tab = createBottomTabNavigator();
-const Drawer = createDrawerNavigator();
-
 export const screenOptions = {
     headerStyle: { backgroundColor: '#2D3748' },
     headerTintColor: '#FFFFFF',
