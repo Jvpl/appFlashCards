@@ -15,6 +15,7 @@ export const LojaScreen = () => {
 
   useEffect(() => {
     if (isFocused) {
+      console.log('📍 LojaScreen focada - iniciando carregamento');
       loadProducts();
       loadPurchasedDecks();
     }
@@ -22,10 +23,13 @@ export const LojaScreen = () => {
 
   const loadProducts = async () => {
     try {
+      console.log('🏪 loadProducts iniciado');
       setLoading(true);
       const productList = await getProducts();
+      console.log('🏪 Produtos recebidos da função getProducts:', productList);
       setProducts(productList);
     } catch (error) {
+      console.error('🏪 Erro em loadProducts:', error);
       Alert.alert('Erro', 'Não foi possível carregar os produtos. Verifique sua conexão.');
       console.error(error);
     } finally {
