@@ -3,7 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, InteractionM
 import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getAppData, saveAppData } from '../services/storage';
+import { getAppData, saveAppData, getPurchasedDecks, getDeckCache } from '../services/storage';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { CustomBottomModal } from '../components/ui/CustomBottomModal';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
@@ -31,22 +31,38 @@ export const DeckListScreen = ({ navigation }) => {
   const loadData = useCallback(async () => {
     // Only show skeleton if we don't have data yet AND it's not cached
     const shouldShowSkeleton = decks.length === 0 && !global.screenCache.decks;
-    
+
     if (shouldShowSkeleton) setLoading(true);
-    
+
     const minDelay = shouldShowSkeleton ? new Promise(resolve => setTimeout(resolve, 500)) : Promise.resolve();
-    
+
     try {
-      const [data] = await Promise.all([
-          getAppData(),
-          minDelay
-      ]);
-      setDecks(data);
-      
+      // Carregar decks do usuário (AsyncStorage)
+      const userDecks = await getAppData();
+
+      // Carregar decks comprados (Firebase cache)
+      const purchasedIds = await getPurchasedDecks();
+      const purchasedDecks = await Promise.all(
+        purchasedIds.map(async (deckId) => {
+          const deck = await getDeckCache(deckId);
+          if (deck) {
+            // Marcar como deck comprado
+            return { ...deck, isPurchased: true };
+          }
+          return null;
+        })
+      );
+
+      // Combinar os dois (filtrar nulls)
+      const allDecks = [...userDecks, ...purchasedDecks.filter(d => d !== null)];
+
+      await minDelay;
+      setDecks(allDecks);
+
       // Load default deck editing preference
       const allowEditing = await canEditDefaultDecks();
       setAllowDefaultDeckEditing(allowEditing);
-      
+
       // Mark decks screen as loaded
       global.screenCache.decks = true;
     } catch (error) {
@@ -107,6 +123,22 @@ export const DeckListScreen = ({ navigation }) => {
         visible: true,
         title: "Atenção",
         message: "Selecione ao menos um deck para apagar.",
+        buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+      });
+      return;
+    }
+
+    // Check if any purchased decks are selected
+    const hasPurchasedDeck = Array.from(selectedDecks).some(id => {
+      const deck = decks.find(d => d.id === id);
+      return deck && deck.isPurchased;
+    });
+
+    if (hasPurchasedDeck) {
+      setAlertConfig({
+        visible: true,
+        title: "Deck Comprado",
+        message: "Decks comprados não podem ser apagados. Eles ficam salvos na sua conta.",
         buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
       });
       return;
@@ -245,6 +277,18 @@ export const DeckListScreen = ({ navigation }) => {
 
   const performDelete = async () => {
     if (!selectedDeck) return;
+
+    // Check if it's a purchased deck
+    if (selectedDeck.isPurchased) {
+      setModalVisible(false);
+      setAlertConfig({
+          visible: true,
+          title: "Deck Comprado",
+          message: "Este deck foi comprado e não pode ser apagado. Ele fica salvo permanentemente na sua conta.",
+          buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+      });
+      return;
+    }
 
     // Check if it's a default deck and protection is enabled
     if (isDefaultDeck(selectedDeck.id)) {
