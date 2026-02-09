@@ -21,15 +21,18 @@ const db = getFirestore(app);
  */
 export const getProducts = async () => {
   try {
+    console.log('🔍 Iniciando busca de produtos...');
     const productsCol = collection(db, 'products');
     const productSnapshot = await getDocs(productsCol);
+    console.log('✅ Snapshot recebido. Documentos:', productSnapshot.docs.length);
     const productList = productSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+    console.log('📦 Produtos carregados:', productList);
     return productList;
   } catch (error) {
-    console.error('Erro ao buscar produtos:', error);
+    console.error('❌ Erro ao buscar produtos:', error);
     throw error;
   }
 };
