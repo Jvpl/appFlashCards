@@ -47,10 +47,13 @@ const PURCHASED_DECKS_KEY = '@purchased_decks';
  */
 export const getPurchasedDecks = async () => {
   try {
+    console.log('📚 Buscando decks comprados...');
     const json = await AsyncStorage.getItem(PURCHASED_DECKS_KEY);
-    return json ? JSON.parse(json) : [];
+    const purchased = json ? JSON.parse(json) : [];
+    console.log('✅ Decks comprados carregados:', purchased);
+    return purchased;
   } catch (e) {
-    console.error("Failed to fetch purchased decks", e);
+    console.warn("Failed to fetch purchased decks (non-blocking):", e);
     return [];
   }
 };
