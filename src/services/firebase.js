@@ -2,14 +2,13 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
 
 // Configuração do Firebase
-// IMPORTANTE: Substitua com suas credenciais do Firebase Console
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAnjK1KLUYhJLe2WE4BsnJfNwftCcyoNgI",
+  authDomain: "flashcards-concurso.firebaseapp.com",
+  projectId: "flashcards-concurso",
+  storageBucket: "flashcards-concurso.firebasestorage.app",
+  messagingSenderId: "333503732641",
+  appId: "1:333503732641:web:6b4b3d1e757bd8a68d49e0"
 };
 
 // Inicializar Firebase
