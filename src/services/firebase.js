@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
 
-// Configuração do Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyAnjK1KLUYhJLe2WE4BsnJfNwftCcyoNgI",
   authDomain: "flashcards-concurso.firebaseapp.com",
@@ -11,71 +10,62 @@ const firebaseConfig = {
   appId: "1:333503732641:web:6b4b3d1e757bd8a68d49e0"
 };
 
-// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 /**
  * Busca todos os produtos disponíveis na loja
- * @returns {Promise<Array>} Lista de produtos
+ * Coleção: /products
  */
 export const getProducts = async () => {
   try {
-    console.log('🔍 Iniciando busca de produtos...');
-    const productsCol = collection(db, 'products');
-    const productSnapshot = await getDocs(productsCol);
-    console.log('✅ Snapshot recebido. Documentos:', productSnapshot.docs.length);
-    const productList = productSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    console.log('📦 Produtos carregados:', productList);
-    return productList;
-  } catch (error) {
-    console.error('❌ Erro ao buscar produtos:', error);
-    throw error;
+    const querySnapshot = await getDocs(collection(db, 'products'));
+    const products = [];
+    querySnapshot.forEach((doc) => {
+      products.push({ id: doc.id, ...doc.data() });
+    });
+    return products;
+  } catch (e) {
+    console.error('Erro ao buscar produtos:', e);
+    return [];
   }
 };
 
 /**
  * Busca um deck específico pelo ID
- * @param {string} deckId - ID do deck
- * @returns {Promise<Object>} Dados do deck
+ * Coleção: /decks/{deckId}
  */
 export const getDeck = async (deckId) => {
   try {
-    const deckRef = doc(db, 'decks', deckId);
-    const deckSnap = await getDoc(deckRef);
-
-    if (deckSnap.exists()) {
-      return {
-        id: deckSnap.id,
-        ...deckSnap.data()
-      };
-    } else {
-      throw new Error(`Deck ${deckId} não encontrado`);
+    const docRef = doc(db, 'decks', deckId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() };
     }
-  } catch (error) {
-    console.error(`Erro ao buscar deck ${deckId}:`, error);
-    throw error;
+    console.warn(`Deck ${deckId} não encontrado`);
+    return null;
+  } catch (e) {
+    console.error(`Erro ao buscar deck ${deckId}:`, e);
+    return null;
   }
 };
 
 /**
- * Busca múltiplos decks pelos IDs
- * @param {Array<string>} deckIds - Array de IDs dos decks
- * @returns {Promise<Array>} Array de decks
+ * Busca detalhes de um produto específico
+ * Coleção: /products/{productId}
  */
-export const getDecks = async (deckIds) => {
+export const getProduct = async (productId) => {
   try {
-    const decks = await Promise.all(
-      deckIds.map(deckId => getDeck(deckId))
-    );
-    return decks.filter(deck => deck !== null);
-  } catch (error) {
-    console.error('Erro ao buscar múltiplos decks:', error);
-    throw error;
+    const docRef = doc(db, 'products', productId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() };
+    }
+    return null;
+  } catch (e) {
+    console.error(`Erro ao buscar produto ${productId}:`, e);
+    return null;
   }
 };
 
-export default { getProducts, getDeck, getDecks };
+export { db };

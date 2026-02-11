@@ -1,143 +1,172 @@
-import { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useIsFocused } from '@react-navigation/native';
-import styles from '../styles/globalStyles';
 import { getProducts, getDeck } from '../services/firebase';
-import { savePurchasedDeck, getPurchasedDecks } from '../services/storage';
+import { getPurchasedDecks, savePurchasedDeck } from '../services/storage';
+import globalStyles from '../styles/globalStyles';
 
-export const LojaScreen = () => {
+export const LojaScreen = ({ navigation }) => {
   const [products, setProducts] = useState([]);
+  const [purchasedIds, setPurchasedIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [purchasedIds, setPurchasedIds] = useState([]);
-  const isFocused = useIsFocused();
+  const [downloading, setDownloading] = useState(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [productsData, purchased] = await Promise.all([
+        getProducts(),
+        getPurchasedDecks(),
+      ]);
+      setProducts(productsData);
+      setPurchasedIds(purchased);
+    } catch (e) {
+      console.error('Erro ao carregar loja:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (isFocused) {
-      console.log('📍 LojaScreen focada - iniciando carregamento');
-      loadProducts();
-      loadPurchasedDecks();
-    }
-  }, [isFocused]);
+    loadData();
+  }, [loadData]);
 
-  const loadProducts = async () => {
-    try {
-      console.log('🏪 loadProducts iniciado');
-      setLoading(true);
-      const productList = await getProducts();
-      console.log('🏪 Produtos recebidos da função getProducts:', productList);
-      setProducts(productList);
-    } catch (error) {
-      console.error('🏪 Erro em loadProducts:', error);
-      Alert.alert('Erro', 'Não foi possível carregar os produtos. Verifique sua conexão.');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPurchasedDecks = async () => {
-    try {
-      const purchased = await getPurchasedDecks();
-      setPurchasedIds(purchased);
-    } catch (error) {
-      console.error('Erro ao carregar decks comprados:', error);
-    }
-  };
-
-  const onRefresh = async () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
-    await loadProducts();
-    await loadPurchasedDecks();
-    setRefreshing(false);
-  };
+    loadData();
+  }, [loadData]);
 
-  const handlePurchase = async (product) => {
-    // Verificar se já foi comprado
-    if (purchasedIds.includes(product.deckId)) {
-      Alert.alert('Já possui', 'Você já possui este deck!');
-      return;
-    }
+  const handleDownload = async (product) => {
+    if (downloading) return;
 
-    Alert.alert(
-      'Comprar Deck',
-      `Deseja adquirir "${product.name}" por R$ ${product.price.toFixed(2)}?\n\n⚠️ DEMO: Compra simulada (gratuita)`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Comprar',
-          onPress: () => simulatePurchase(product)
-        }
-      ]
-    );
-  };
-
-  const simulatePurchase = async (product) => {
+    setDownloading(product.id);
     try {
-      setLoading(true);
-
-      // Buscar deck do Firebase
-      const deck = await getDeck(product.deckId);
-
-      // Salvar no cache local
-      await savePurchasedDeck(product.deckId, deck);
-
-      // Atualizar lista de comprados
-      setPurchasedIds([...purchasedIds, product.deckId]);
-
-      Alert.alert(
-        'Compra realizada! 🎉',
-        `Deck "${product.name}" adicionado com sucesso! Acesse em "Meus Decks".`
-      );
-    } catch (error) {
-      Alert.alert('Erro', 'Não foi possível completar a compra. Tente novamente.');
-      console.error(error);
+      const deckData = await getDeck(product.deckId);
+      if (deckData) {
+        await savePurchasedDeck(product.deckId, deckData);
+        setPurchasedIds(prev => [...prev, product.deckId]);
+        Alert.alert(
+          'Download Concluido',
+          `O deck "${product.name}" foi baixado com sucesso! Acesse seus flashcards na tela inicial.`
+        );
+      } else {
+        Alert.alert('Erro', 'Deck nao encontrado no servidor.');
+      }
+    } catch (e) {
+      console.error('Erro ao baixar deck:', e);
+      Alert.alert('Erro', 'Falha ao baixar o deck. Tente novamente.');
     } finally {
-      setLoading(false);
+      setDownloading(null);
+    }
+  };
+
+  const isPurchased = (product) => {
+    return purchasedIds.includes(product.deckId);
+  };
+
+  const getIconForType = (type) => {
+    switch (type) {
+      case 'full': return 'library';
+      case 'subject': return 'book';
+      default: return 'document-text';
     }
   };
 
   const renderProduct = ({ item }) => {
-    const isPurchased = purchasedIds.includes(item.deckId);
+    const purchased = isPurchased(item);
+    const isDownloading = downloading === item.id;
 
     return (
       <TouchableOpacity
-        style={[localStyles.productCard, isPurchased && localStyles.purchasedCard]}
-        onPress={() => !isPurchased && handlePurchase(item)}
-        disabled={isPurchased}
+        style={[lojaStyles.productCard, purchased && lojaStyles.productCardPurchased]}
+        onPress={() => {
+          if (purchased) {
+            Alert.alert('Ja baixado', 'Este deck ja esta disponivel na sua tela inicial.');
+          } else {
+            Alert.alert(
+              item.name,
+              `${item.description || 'Deck de flashcards'}\n\n` +
+              `Materias: ${item.subjectCount || '?'}\n` +
+              `Cards: ${item.cardCount || '?'}\n` +
+              `Preco: ${item.price ? `R$ ${item.price.toFixed(2)}` : 'Gratis'}`,
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: item.price ? 'Comprar (em breve)' : 'Baixar Gratis',
+                  onPress: () => {
+                    if (item.price) {
+                      Alert.alert('Em breve', 'O sistema de pagamento sera adicionado em breve.');
+                    } else {
+                      handleDownload(item);
+                    }
+                  }
+                },
+              ]
+            );
+          }
+        }}
+        activeOpacity={0.7}
       >
-        <View style={localStyles.productHeader}>
+        <View style={lojaStyles.productIconContainer}>
           <Ionicons
-            name={item.type === 'full' ? 'book' : 'document-text'}
+            name={item.icon || getIconForType(item.type)}
             size={32}
-            color={isPurchased ? '#48BB78' : '#4299E1'}
+            color={purchased ? '#48BB78' : '#4FD1C5'}
           />
-          {isPurchased && (
-            <View style={localStyles.purchasedBadge}>
-              <Ionicons name="checkmark-circle" size={20} color="#48BB78" />
-              <Text style={localStyles.purchasedText}>Comprado</Text>
-            </View>
-          )}
         </View>
 
-        <Text style={localStyles.productName}>{item.name}</Text>
+        <View style={lojaStyles.productInfo}>
+          <View style={lojaStyles.productHeader}>
+            <Text style={lojaStyles.productName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {item.type === 'full' && (
+              <View style={lojaStyles.badge}>
+                <Text style={lojaStyles.badgeText}>COMPLETO</Text>
+              </View>
+            )}
+          </View>
 
-        {item.description && (
-          <Text style={localStyles.productDescription} numberOfLines={2}>
-            {item.description}
+          <Text style={lojaStyles.productDescription} numberOfLines={2}>
+            {item.description || 'Deck de flashcards para concurso'}
           </Text>
-        )}
 
-        <View style={localStyles.productFooter}>
-          <Text style={localStyles.productPrice}>
-            R$ {item.price.toFixed(2)}
-          </Text>
+          <View style={lojaStyles.productMeta}>
+            {item.subjectCount > 0 && (
+              <View style={lojaStyles.metaItem}>
+                <Ionicons name="folder-outline" size={14} color="#A0AEC0" />
+                <Text style={lojaStyles.metaText}>{item.subjectCount} materias</Text>
+              </View>
+            )}
+            {item.cardCount > 0 && (
+              <View style={lojaStyles.metaItem}>
+                <Ionicons name="layers-outline" size={14} color="#A0AEC0" />
+                <Text style={lojaStyles.metaText}>{item.cardCount} cards</Text>
+              </View>
+            )}
+          </View>
+        </View>
 
-          {!isPurchased && (
-            <View style={localStyles.buyButton}>
-              <Text style={localStyles.buyButtonText}>Comprar</Text>
-              <Ionicons name="cart" size={16} color="#FFF" />
+        <View style={lojaStyles.productAction}>
+          {isDownloading ? (
+            <ActivityIndicator size="small" color="#4FD1C5" />
+          ) : purchased ? (
+            <Ionicons name="checkmark-circle" size={28} color="#48BB78" />
+          ) : (
+            <View style={lojaStyles.priceContainer}>
+              <Text style={lojaStyles.priceText}>
+                {item.price ? `R$${item.price.toFixed(2)}` : 'Gratis'}
+              </Text>
             </View>
           )}
         </View>
@@ -145,56 +174,58 @@ export const LojaScreen = () => {
     );
   };
 
-  if (loading && !refreshing) {
+  if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#4299E1" />
-        <Text style={[styles.noCardsText, { marginTop: 20 }]}>
-          Carregando produtos...
+      <View style={globalStyles.centered}>
+        <ActivityIndicator size="large" color="#4FD1C5" />
+        <Text style={[globalStyles.noCardsText, { marginTop: 16 }]}>
+          Carregando loja...
         </Text>
       </View>
     );
   }
 
-  if (!loading && products.length === 0) {
+  if (products.length === 0) {
     return (
-      <View style={styles.centered}>
+      <View style={globalStyles.centered}>
         <Ionicons name="cart-outline" size={64} color="#A0AEC0" />
-        <Text style={[styles.noCardsText, { marginTop: 20 }]}>
-          Nenhum produto disponível
+        <Text style={[globalStyles.noCardsText, { marginTop: 20 }]}>
+          Nenhum produto disponivel
         </Text>
-        <Text style={styles.itemSubtitle}>
-          Os produtos aparecerão aqui em breve.
+        <Text style={globalStyles.itemSubtitle}>
+          Novos decks serao adicionados em breve!
         </Text>
         <TouchableOpacity
-          style={[styles.addButton, { marginTop: 20 }]}
-          onPress={loadProducts}
+          style={lojaStyles.refreshButton}
+          onPress={onRefresh}
         >
-          <Text style={styles.fxButtonText}>Tentar novamente</Text>
+          <Ionicons name="refresh" size={20} color="#4FD1C5" />
+          <Text style={lojaStyles.refreshButtonText}>Atualizar</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={globalStyles.baseContainer}>
       <FlatList
         data={products}
         renderItem={renderProduct}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={localStyles.listContainer}
+        contentContainerStyle={lojaStyles.listContainer}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#4299E1']}
+            tintColor="#4FD1C5"
+            colors={['#4FD1C5']}
           />
         }
         ListHeaderComponent={
-          <View style={localStyles.header}>
-            <Text style={localStyles.headerTitle}>Decks Disponíveis</Text>
-            <Text style={localStyles.headerSubtitle}>
-              Escolha os decks para seus estudos
+          <View style={lojaStyles.header}>
+            <Text style={lojaStyles.headerTitle}>Decks de Concursos</Text>
+            <Text style={lojaStyles.headerSubtitle}>
+              {products.length} {products.length === 1 ? 'deck disponivel' : 'decks disponiveis'}
             </Text>
           </View>
         }
@@ -203,90 +234,122 @@ export const LojaScreen = () => {
   );
 };
 
-const localStyles = StyleSheet.create({
+const lojaStyles = StyleSheet.create({
   listContainer: {
-    padding: 16,
+    paddingBottom: 20,
   },
   header: {
-    marginBottom: 20,
+    padding: 20,
+    paddingBottom: 10,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#E2E8F0',
-    marginBottom: 4,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   headerSubtitle: {
     fontSize: 14,
     color: '#A0AEC0',
+    marginTop: 4,
   },
   productCard: {
     backgroundColor: '#2D3748',
+    marginHorizontal: 16,
+    marginVertical: 6,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  purchasedCard: {
+  productCardPurchased: {
+    borderWidth: 1,
     borderColor: '#48BB78',
-    opacity: 0.7,
+    opacity: 0.8,
+  },
+  productIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#1A202C',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  productInfo: {
+    flex: 1,
+    marginRight: 10,
   },
   productHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  purchasedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#22543D',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  purchasedText: {
-    color: '#48BB78',
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
+    marginBottom: 4,
   },
   productName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#E2E8F0',
-    marginBottom: 8,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  badge: {
+    backgroundColor: '#4FD1C5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  badgeText: {
+    color: '#1A202C',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   productDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#A0AEC0',
-    marginBottom: 16,
-    lineHeight: 20,
+    marginBottom: 6,
   },
-  productFooter: {
+  productMeta: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  productPrice: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#4299E1',
-  },
-  buyButton: {
+  metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4299E1',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    marginRight: 14,
+  },
+  metaText: {
+    fontSize: 12,
+    color: '#A0AEC0',
+    marginLeft: 4,
+  },
+  productAction: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  priceContainer: {
+    backgroundColor: '#4FD1C5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
-    gap: 8,
   },
-  buyButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
+  priceText: {
+    color: '#1A202C',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4FD1C5',
+  },
+  refreshButtonText: {
+    color: '#4FD1C5',
+    marginLeft: 8,
+    fontWeight: 'bold',
   },
 });
 
