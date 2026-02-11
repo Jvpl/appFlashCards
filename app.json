@@ -24,10 +24,16 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A202C"
-      }
+      },
+      "package": "com.gleidson123.flashcardsconcurso"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0842040f-d594-4e45-914b-0195790ea2f9"
+      }
     }
   }
 }
