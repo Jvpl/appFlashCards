@@ -37,16 +37,16 @@ export function AppContent() {
       <Tab.Navigator
         screenOptions={({ route, navigation }) => ({
           tabBarButton: (props) => (
-             <TouchableOpacity
-               {...props}
-               onPress={(e) => {
-                 if (isKeyboardVisible) {
-                   // Bloqueia clique se teclado visível
-                   return;
-                 }
-                 if (props.onPress) props.onPress(e);
-               }}
-             />
+            <TouchableOpacity
+              {...props}
+              onPress={(e) => {
+                if (isKeyboardVisible) {
+                  // Bloqueia clique se teclado visível
+                  return;
+                }
+                if (props.onPress) props.onPress(e);
+              }}
+            />
           ),
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
@@ -65,7 +65,7 @@ export function AppContent() {
             paddingTop: 5,
           },
           tabBarLabelStyle: {
-             fontWeight: 'bold' // Adicionado
+            fontWeight: 'bold' // Adicionado
           },
           headerShown: false,
         })}
@@ -76,67 +76,67 @@ export function AppContent() {
           listeners={({ navigation, route }) => ({
             tabPress: (e) => {
               if (isKeyboardVisible) {
-                  e.preventDefault();
-                  return;
+                e.preventDefault();
+                return;
               }
 
               // Se já estiver na aba, verifica se está na raiz da stack
               if (navigation.isFocused()) {
-                  const stackState = route.state;
+                const stackState = route.state;
 
-                  // Se o stack está na raiz (index 0), não faz nada
-                  if (!stackState || stackState.index === 0) {
-                      e.preventDefault();
-                      return;
-                  }
+                // Se o stack está na raiz (index 0), não faz nada
+                if (!stackState || stackState.index === 0) {
+                  e.preventDefault();
+                  return;
+                }
               }
 
               // Reset: Volta para a raiz e recria o componente visual (FadeInView)
               e.preventDefault();
               navigation.dispatch(state => {
-                  const routes = state.routes.map(r => {
-                      if (r.name === 'Início') {
-                          return {
-                              name: 'Início',
-                              key: r.key,
-                              params: { resetTs: Date.now() }
-                          };
-                      }
-                      return r;
-                  });
+                const routes = state.routes.map(r => {
+                  if (r.name === 'Início') {
+                    return {
+                      name: 'Início',
+                      key: r.key,
+                      params: { resetTs: Date.now() }
+                    };
+                  }
+                  return r;
+                });
 
-                  return CommonActions.reset({
-                      ...state,
-                      routes,
-                      index: state.routes.findIndex(r => r.name === 'Início'),
-                  });
+                return CommonActions.reset({
+                  ...state,
+                  routes,
+                  index: state.routes.findIndex(r => r.name === 'Início'),
+                });
               });
             },
           })}
         >
-            {(props) => (
-                <View style={{ flex: 1, backgroundColor: '#1A202C' }}>
-                    <FadeInView key={props.route.params?.resetTs || 'init'}>
-                        <HomeStackNavigator />
-                    </FadeInView>
-                </View>
-            )}
+          {(props) => (
+            <View style={{ flex: 1, backgroundColor: '#1A202C' }}>
+              <FadeInView key={props.route.params?.resetTs || 'init'}>
+                <HomeStackNavigator />
+              </FadeInView>
+            </View>
+          )}
         </Tab.Screen>
 
         <Tab.Screen name="Progresso">
-            {() => (
-                <FadeInView>
-                    <ProgressScreen />
-                </FadeInView>
-            )}
+          {() => (
+            <FadeInView>
+              <ProgressScreen />
+            </FadeInView>
+          )}
         </Tab.Screen>
 
         <Tab.Screen name="Loja">
-            {() => (
-                <FadeInView>
-                    <LojaScreen />
-                </FadeInView>
-            )}
+          {() => (
+            <FadeInView>
+              <LojaScreen />
+            </FadeInView>
+          )}
         </Tab.Screen>
       </Tab.Navigator>
     </NavigationContainer>
