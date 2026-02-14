@@ -7,7 +7,7 @@ import { WebView } from 'react-native-webview';
 import { getAppData, saveAppData } from '../services/storage';
 import { LEVEL_CONFIG } from '../services/srs';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
-import { katexScript } from '../components/editor/editorTemplates';
+import { katexScript, katexStyles } from '../components/editor/editorTemplates';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 
