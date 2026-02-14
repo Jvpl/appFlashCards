@@ -361,7 +361,7 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                                         }
                                         .katex { font-size: 1.0em; }
                                         .katex .mfrac { font-size: 1.25em; }
-                                        .invisible-char { display: none; }
+                                        .invisible-char, .sentinela-anti-caps { display: none; }
                                     </style>
                                 </head>
                                 <body>

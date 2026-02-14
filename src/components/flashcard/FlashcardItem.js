@@ -131,7 +131,7 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
                     font-size: 1.1em;
                 }
                 img { max-width: 100%; height: auto; }
-                .invisible-char { display: none; }
+                .invisible-char, .sentinela-anti-caps { display: none; }
             </style>
             <script>${katexScript}</script>
             </head>

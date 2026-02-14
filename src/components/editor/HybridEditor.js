@@ -30,29 +30,21 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
         (function() {
            const atom = document.querySelector('.math-atom[data-id="${id}"]');
            if (atom) {
-              // Remove até 2 irmãos seguintes se forem artefatos nossos (invisible-char ou espaço)
-              // Fazemos um loop para pegar em qualquer ordem
-              let sibling = atom.nextSibling;
-              let count = 0;
-              while (sibling && count < 3) {
-                  const nextAndSafe = sibling.nextSibling; // Salva o próximo antes de possivelmente remover este
-                  
-                  // Se for o span invisível
-                  if (sibling.nodeType === 1 && sibling.classList.contains('invisible-char')) {
-                      sibling.remove();
-                  }
-                  // Se for nó de texto com espaço apenas
-                  else if (sibling.nodeType === 3 && sibling.textContent.trim() === '') {
-                       sibling.remove();
-                  }
-                  // Se for span com espaço (caso o browser tenha normalizado assim)
-                  else if (sibling.nodeType === 1 && sibling.textContent.trim() === '') {
-                       sibling.remove();
-                  }
-                  
-                  sibling = nextAndSafe;
-                  count++;
+              // Remove sentinela + espaço após fórmula
+              let next = atom.nextSibling;
+              
+              // Remove sentinela (ou invisible-char legado) se houver
+              if (next && next.classList && (next.classList.contains('sentinela-anti-caps') || next.classList.contains('invisible-char'))) {
+                const temp = next.nextSibling;
+                next.remove();
+                next = temp;
               }
+              
+              // Remove espaço se houver
+              if (next && next.nodeType === 3 && next.textContent.trim() === '') {
+                next.remove();
+              }
+              
               atom.remove();
            }
            checkPlaceholder();
