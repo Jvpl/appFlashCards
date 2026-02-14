@@ -1021,13 +1021,17 @@ window.insertFormula = function(latex, id) {
   
   // --- COPY HANDLER ---
   editor.addEventListener('copy', (e) => {
+    // CRÍTICO: Impede que a extensão KaTeX Copy-Tex (no document) sobrescreva
+    // nosso clipboard com texto que inclui \u3164 (sentinela) causando espaçamento estranho no paste
+    e.stopPropagation();
+
     const sel = window.getSelection();
     if (!sel.rangeCount) return;
-    
+
     const range = sel.getRangeAt(0);
     const div = document.createElement('div');
     div.appendChild(range.cloneContents());
-    
+
     // Remove sentinela spans antes de extrair texto
     div.querySelectorAll('.sentinela-anti-caps').forEach(el => el.remove());
 
@@ -1041,11 +1045,10 @@ window.insertFormula = function(latex, id) {
       }
     });
 
-    // Get the plain text with LaTeX preserved
-    const text = div.textContent || '';
+    // Get the plain text with LaTeX preserved (limpa \u3164 residual por segurança)
+    const text = (div.textContent || '').replace(/\u3164/g, '');
 
     if (e.clipboardData) {
-      // FIX: Use textContent (from old working code) instead of innerText
       e.clipboardData.setData('text/plain', text);
       debugLog('📋', 'COPY: "' + text.substring(0, 50) + '"');
       e.preventDefault();
@@ -1054,11 +1057,12 @@ window.insertFormula = function(latex, id) {
   
   // --- CUT HANDLER ---
   editor.addEventListener('cut', (e) => {
+      // Impede KaTeX Copy-Tex de sobrescrever clipboard (mesmo que hoje só intercepte 'copy')
+      e.stopPropagation();
+
       const sel = window.getSelection();
       if (!sel.rangeCount) return;
-      
-      // Delay para garantir que o Android preencha o clipboard se possível,
-      // mas como bloqueamos input, temos que fazer manual.
+
       const range = sel.getRangeAt(0);
       const div = document.createElement('div');
       div.appendChild(range.cloneContents());
@@ -1075,11 +1079,10 @@ window.insertFormula = function(latex, id) {
           }
       });
 
-      // Get the plain text with LaTeX preserved
-      const text = div.textContent || '';
+      // Get the plain text with LaTeX preserved (limpa \u3164 residual)
+      const text = (div.textContent || '').replace(/\u3164/g, '');
 
       if (e.clipboardData) {
-          // FIX: Use textContent (from old working code) instead of innerText
           e.clipboardData.setData('text/plain', text);
           e.preventDefault();
       }
@@ -1128,6 +1131,10 @@ window.insertFormula = function(latex, id) {
 
     var text = clipboardData.getData('text/plain') || clipboardData.getData('text') || '';
     if (!text) return;
+
+    // Remove \u3164 (Hangul Filler) que pode vazar da sentinela anti-caps
+    // via KaTeX Copy-Tex ou clipboard nativo do Android
+    text = text.replace(/\u3164/g, '');
 
     debugLog('📋', 'PASTE: "' + text.substring(0, 100) + '"');
 
@@ -1350,4 +1357,3 @@ window.insertFormula = function(latex, id) {
 
 export { katexScript, editorHtml, katexStyles };
 export default { katexScript, editorHtml, katexStyles };
-
