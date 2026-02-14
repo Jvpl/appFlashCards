@@ -31,8 +31,13 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
   const [currentMathId, setCurrentMathId] = useState(null);
   const [currentLatex, setCurrentLatex] = useState('');
-  const [editValue1, setEditValue1] = useState(''); 
+  const [editValue1, setEditValue1] = useState('');
   const [editValue2, setEditValue2] = useState('');
+
+  // Estados para limite de caracteres
+  const [questionCharCount, setQuestionCharCount] = useState(0);
+  const [answerCharCount, setAnswerCharCount] = useState(0);
+  const CHAR_LIMIT = 800;
 
   // ========== Helper Functions for Modal ==========
   // Valores compartilhados para animação de shake (reanimated v2/v3)
@@ -78,6 +83,33 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
       ]}>
         {current}/{max}
       </Text>
+    );
+  };
+
+  // Função para calcular peso de fórmula (espelho do WebView)
+  const calculateFormulaWeight = (latex) => {
+    if (!latex) return 5;
+    let cleaned = latex
+      .replace(/\\(frac|sqrt|log|Box|text|mathrm|mathbf|mathit)/g, '')
+      .replace(/\\times/g, '\u00D7').replace(/\\div/g, '\u00F7').replace(/\\cdot/g, '\u00B7')
+      .replace(/\\pm/g, '\u00B1').replace(/\\leq/g, '\u2264').replace(/\\geq/g, '\u2265')
+      .replace(/\\neq/g, '\u2260').replace(/\\infty/g, '\u221E').replace(/\\theta/g, '\u03B8')
+      .replace(/\\pi/g, '\u03C0').replace(/\\[a-zA-Z]+/g, '')
+      .replace(/[{}\\_^\s]/g, '');
+    return Math.max(5, cleaned.length);
+  };
+
+  // Componente: Contador de caracteres do editor (texto livre)
+  const EditorCharCounter = ({ count, max }) => {
+    const percentage = (count / max) * 100;
+    const color = percentage >= 95 ? '#EF4444' : percentage >= 80 ? '#F59E0B' : '#718096';
+
+    return (
+      <View style={{ alignSelf: 'flex-end', marginTop: 3, backgroundColor: '#2D3748', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: percentage >= 95 ? '#EF444440' : percentage >= 80 ? '#F59E0B30' : '#4A5568' }}>
+        <Text style={{ fontSize: 11, fontWeight: '600', color, fontVariant: ['tabular-nums'] }}>
+          {count}/{max}
+        </Text>
+      </View>
     );
   };
   // ================================================
@@ -143,6 +175,10 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
   };
 
   const handleInsertMath = (cmd) => {
+      // Pre-check: bloqueia inserção se exceder limite de caracteres
+      const charCount = activeEditor === 'answer' ? answerCharCount : questionCharCount;
+      if (charCount + 5 > CHAR_LIMIT) return; // Fórmula padrão tem peso mínimo 5
+
       const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
       if (target) {
           if (cmd === '\\\\frac') target.insertFrac();
@@ -280,14 +316,17 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
 
                     <View style={styles.inputGroup}>
                         <View style={{ borderWidth: 2, borderColor: activeEditor === 'question' ? '#4db6ac' : '#444', borderRadius: 8, height: 200, padding: 4, backgroundColor: '#2D3748', overflow: 'hidden' }}>
-                            <IsolatedMathEditor 
+                            <IsolatedMathEditor
                                 editorRef={questionEditorRef}
                                 initialValue={initialQuestion}
                                 onContentChange={(html) => onContentChange('question', html)}
                                 onFocusCallback={() => setActiveEditor('question')}
                                 onEditMath={handleEditMath}
+                                onCharCount={(count) => setQuestionCharCount(count)}
+                                maxChars={CHAR_LIMIT}
                             />
                         </View>
+                        <EditorCharCounter count={questionCharCount} max={CHAR_LIMIT} />
                     </View>
 
                     <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
@@ -296,14 +335,17 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
 
                     <View style={styles.inputGroup}>
                         <View style={{ borderWidth: 2, borderColor: activeEditor === 'answer' ? '#4db6ac' : '#444', borderRadius: 8, height: 200, padding: 4, backgroundColor: '#2D3748', overflow: 'hidden' }}>
-                            <IsolatedMathEditor 
+                            <IsolatedMathEditor
                                 editorRef={answerEditorRef}
                                 initialValue={initialAnswer}
                                 onContentChange={(html) => onContentChange('answer', html)}
                                 onFocusCallback={() => { setActiveEditor('answer'); setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 150); }}
                                 onEditMath={handleEditMath}
+                                onCharCount={(count) => setAnswerCharCount(count)}
+                                maxChars={CHAR_LIMIT}
                             />
                         </View>
+                        <EditorCharCounter count={answerCharCount} max={CHAR_LIMIT} />
                     </View>
 
                     <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
@@ -399,7 +441,23 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                             else if (currentLatex.includes('sqrt')) newLatex = (val2 && val2 !== '\\\\Box') ? `\\\\sqrt[${val2}]{${val1}}` : `\\\\sqrt{${val1}}`;
                             else if (currentLatex.includes('^')) newLatex = `${val1}^{${(val2 === '' || val2 === '\\Box' ? '\\Box' : val2)}}`;
                             else if (currentLatex.includes('log')) newLatex = `\\\\log_{${val1}}{${val2}}`;
-                            
+
+                            // Verifica se a fórmula editada excede o limite de caracteres
+                            const newWeight = calculateFormulaWeight(newLatex);
+                            const oldWeight = calculateFormulaWeight(currentLatex);
+                            const charCount = activeEditor === 'answer' ? answerCharCount : questionCharCount;
+                            const projected = charCount - oldWeight + newWeight;
+
+                            if (projected > CHAR_LIMIT) {
+                              setAlertConfig({
+                                visible: true,
+                                title: 'Limite Excedido',
+                                message: 'A fórmula excede o limite de caracteres. Simplifique o conteúdo.',
+                                buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+                              });
+                              return;
+                            }
+
                             (activeEditor === 'answer' ? answerEditorRef : questionEditorRef).current?.updateFormula(currentMathId, newLatex);
                             setEditModalVisible(false);
                         }}>

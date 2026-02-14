@@ -86,6 +86,7 @@ ${katexStyles}
       outline: none;
       border: none;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       position: relative; /* Fix: permite que placeholder absolute se posicione corretamente */
       box-sizing: border-box; /* Inclui padding no cálculo da altura */
 
@@ -94,6 +95,20 @@ ${katexStyles}
       word-wrap: break-word;      /* Padrão antigo */
       overflow-wrap: anywhere;    /* FORÇA a quebra em qualquer lugar para caber na linha */
       word-break: break-word;     /* Garante que palavras longas quebrem */
+    }
+
+    #editor::-webkit-scrollbar {
+      width: 4px;
+    }
+    #editor::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #editor::-webkit-scrollbar-thumb {
+      background: #4A5568;
+      border-radius: 4px;
+    }
+    #editor::-webkit-scrollbar-thumb:hover {
+      background: #718096;
     }
 
     /* CSS NOVO: Usa classe .is-empty em vez da pseudo-classe :empty */
@@ -292,8 +307,9 @@ ${katexStyles}
   
   // ATUALIZADO: Chama o checkPlaceholder a cada input
   editor.addEventListener('input', () => {
-      checkPlaceholder(); // <--- AQUI
+      checkPlaceholder();
       sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+      notifyCharCount();
   });
 
   // Garante que roda no início também
@@ -742,6 +758,14 @@ ${katexStyles}
 
 
 window.insertFormula = function(latex, id) {
+    // CHAR LIMIT: Bloqueia inserção se não cabe
+    try {
+      var peso = calculateFormulaWeight(latex);
+      if (countEquivalentChars() + peso > MAX_CHARS) {
+        sendToApp('CHAR_LIMIT_BLOCKED', { type: 'formula' });
+        return;
+      }
+    } catch(e) {}
     if (!id) id = 'math_' + Date.now();
     
     const span = document.createElement('span');
@@ -786,8 +810,9 @@ window.insertFormula = function(latex, id) {
     }
     
     sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+    notifyCharCount();
     checkPlaceholder();
-    
+
     if (latex.includes('Box')) {
       setTimeout(() => sendToApp('EDIT_MATH', { id, latex }), 100);
     }
@@ -910,12 +935,14 @@ window.insertFormula = function(latex, id) {
       }
 
       sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+      notifyCharCount();
     }
   }
 
 
-  window.insertSymbol = function(s) { 
-      editor.focus(); 
+  window.insertSymbol = function(s) {
+      try { if (countEquivalentChars() + s.length > MAX_CHARS) return; } catch(e) {}
+      editor.focus();
       document.execCommand('insertText', false, s);
   }
 
@@ -1117,6 +1144,7 @@ window.insertFormula = function(latex, id) {
       
       checkPlaceholder();
       sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+      notifyCharCount();
   });
 
 
@@ -1148,6 +1176,16 @@ window.insertFormula = function(latex, id) {
     var range = sel.getRangeAt(0);
     range.deleteContents();
 
+    // CHAR LIMIT: Trunca texto colado para caber no limite
+    try {
+      var currentCount = countEquivalentChars();
+      var remaining = MAX_CHARS - currentCount;
+      if (remaining <= 0) return;
+      if (text.length > remaining) {
+        text = text.substring(0, remaining);
+      }
+    } catch(e) {}
+
     var textNode = document.createTextNode(text);
     range.insertNode(textNode);
 
@@ -1161,11 +1199,65 @@ window.insertFormula = function(latex, id) {
     detectAndConvertFormula();
 
     sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+    notifyCharCount();
   });
 
 
+  // --- SISTEMA DE LIMITE DE CARACTERES ---
+  var MAX_CHARS = 800;
+
+  function calculateFormulaWeight(latex) {
+    if (!latex) return 5;
+    var cleaned = latex
+      .replace(/\\\\(frac|sqrt|log|Box|text|mathrm|mathbf|mathit)/g, '')
+      .replace(/\\\\times/g, '×').replace(/\\\\div/g, '÷').replace(/\\\\cdot/g, '·')
+      .replace(/\\\\pm/g, '±').replace(/\\\\leq/g, '≤').replace(/\\\\geq/g, '≥')
+      .replace(/\\\\neq/g, '≠').replace(/\\\\infty/g, '∞').replace(/\\\\theta/g, 'θ')
+      .replace(/\\\\pi/g, 'π').replace(/\\\\[a-zA-Z]+/g, '')
+      .replace(/[{}\\\\_ ^\\s]/g, '');
+    return Math.max(5, cleaned.length);
+  }
+
+  function countEquivalentChars() {
+    try {
+      var count = 0;
+      var formulas = editor.querySelectorAll('.math-atom');
+      for (var i = 0; i < formulas.length; i++) {
+        count += calculateFormulaWeight(formulas[i].getAttribute('data-latex'));
+      }
+      var walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, function(node) {
+        if (node.parentNode.closest && node.parentNode.closest('.math-atom')) return NodeFilter.FILTER_REJECT;
+        if (node.parentNode.closest && node.parentNode.closest('.sentinela-anti-caps')) return NodeFilter.FILTER_REJECT;
+        if (node.parentNode.classList && node.parentNode.classList.contains('sentinela-anti-caps')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      });
+      var n;
+      while (n = walker.nextNode()) {
+        count += n.textContent.replace(/[\u200B\u3164]/g, '').length;
+      }
+      return count;
+    } catch(e) {
+      return 0;
+    }
+  }
+
+  function notifyCharCount() {
+    try {
+      var count = countEquivalentChars();
+      sendToApp('CHAR_COUNT', { count: count, max: MAX_CHARS });
+      return count;
+    } catch(e) {
+      return 0;
+    }
+  }
+
+  window.setMaxChars = function(max) {
+    MAX_CHARS = max;
+    notifyCharCount();
+  };
+
   // --- CORREÇÃO COMPLETA: Sanitização + Composição para sugestão do teclado Android ---
-  
+
   // Função de limpeza para remover spans invisíveis e caracteres fantasmas
   function getCleanText(element) {
     // Pega o texto puro (sem tags HTML)
@@ -1314,6 +1406,38 @@ window.insertFormula = function(latex, id) {
   }
 
 
+  // --- CHAR LIMIT: Bloqueia digitação quando limite atingido ---
+  editor.addEventListener('beforeinput', function(e) {
+    try {
+      if (!e.inputType) return;
+      if (e.inputType.startsWith('delete') || e.inputType.startsWith('format') || e.inputType.startsWith('history')) return;
+
+      var currentCount = countEquivalentChars();
+
+      if (e.inputType === 'insertText') {
+        var incomingLength = (e.data || '').length;
+        if (currentCount + incomingLength > MAX_CHARS) {
+          e.preventDefault();
+          return;
+        }
+      }
+
+      if (e.inputType === 'insertCompositionText') {
+        if (currentCount >= MAX_CHARS) {
+          e.preventDefault();
+          return;
+        }
+      }
+
+      if (e.inputType.startsWith('insert') && e.inputType !== 'insertText' && e.inputType !== 'insertCompositionText') {
+        if (currentCount >= MAX_CHARS) {
+          e.preventDefault();
+          return;
+        }
+      }
+    } catch(e2) {}
+  });
+
   // Flag para controle de composição (sugestões do teclado)
   let isComposing = false;
   
@@ -1347,6 +1471,7 @@ window.insertFormula = function(latex, id) {
         el.textContent = '\u3164';
       });
       checkPlaceholder();
+      notifyCharCount();
   }
   window.blurEditor = function() { editor.blur(); }
   window.focusEditor = function() { editor.focus(); }

@@ -31,6 +31,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const [editValue1, setEditValue1] = useState('');
   const [editValue2, setEditValue2] = useState('');
 
+  // Estados para limite de caracteres
+  const [questionCharCount, setQuestionCharCount] = useState(0);
+  const [answerCharCount, setAnswerCharCount] = useState(0);
+  const CHAR_LIMIT = 800;
+
   // Estados para teclado colapsável do modal
   const [showLettersPanel, setShowLettersPanel] = useState(false);
   const [showSymbolsPanel, setShowSymbolsPanel] = useState(false);
@@ -204,6 +209,33 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       ]}>
         {current}/{max}
       </Text>
+    );
+  };
+
+  // Função para calcular peso de fórmula (espelho do WebView)
+  const calculateFormulaWeight = (latex) => {
+    if (!latex) return 5;
+    let cleaned = latex
+      .replace(/\\(frac|sqrt|log|Box|text|mathrm|mathbf|mathit)/g, '')
+      .replace(/\\times/g, '\u00D7').replace(/\\div/g, '\u00F7').replace(/\\cdot/g, '\u00B7')
+      .replace(/\\pm/g, '\u00B1').replace(/\\leq/g, '\u2264').replace(/\\geq/g, '\u2265')
+      .replace(/\\neq/g, '\u2260').replace(/\\infty/g, '\u221E').replace(/\\theta/g, '\u03B8')
+      .replace(/\\pi/g, '\u03C0').replace(/\\[a-zA-Z]+/g, '')
+      .replace(/[{}\\_^\s]/g, '');
+    return Math.max(5, cleaned.length);
+  };
+
+  // Componente: Contador de caracteres do editor (texto livre)
+  const EditorCharCounter = ({ count, max }) => {
+    const percentage = (count / max) * 100;
+    const color = percentage >= 95 ? '#EF4444' : percentage >= 80 ? '#F59E0B' : '#718096';
+
+    return (
+      <View style={{ alignSelf: 'flex-end', marginTop: 3, backgroundColor: '#2D3748', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: percentage >= 95 ? '#EF444440' : percentage >= 80 ? '#F59E0B30' : '#4A5568' }}>
+        <Text style={{ fontSize: 11, fontWeight: '600', color, fontVariant: ['tabular-nums'] }}>
+          {count}/{max}
+        </Text>
+      </View>
     );
   };
 
@@ -432,6 +464,10 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   };
 
   const handleInsertMath = (cmd) => {
+      // Pre-check: bloqueia inserção se exceder limite de caracteres
+      const charCount = activeEditor === 'answer' ? answerCharCount : questionCharCount;
+      if (charCount + 5 > CHAR_LIMIT) return; // Fórmula padrão tem peso mínimo 5
+
       const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
       if (target) {
           if (cmd === '\\\\frac') target.insertFrac();
@@ -640,7 +676,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                <View style={{ flex: 1 }}>
                     {/* Área clicável acima do primeiro input (Label) */}
                     <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                        <View style={{ marginBottom: 4, width: '100%' }}>
+                        <View style={{ marginBottom: 2, width: '100%' }}>
                             <Text style={styles.formLabel}>Frente</Text>
                         </View>
                     </TouchableWithoutFeedback>
@@ -659,19 +695,22 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                             }}
                         >
                             <View pointerEvents="box-none" style={{ flex: 1 }}>
-                                <IsolatedMathEditor 
+                                <IsolatedMathEditor
                                     editorRef={questionEditorRef}
                                     initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.question || ""}
                                     onContentChange={(html) => updateDraft('question', html)}
                                     onFocusCallback={() => setActiveEditor('question')}
                                     onEditMath={handleEditMath}
+                                    onCharCount={(count) => setQuestionCharCount(count)}
+                                    maxChars={CHAR_LIMIT}
                                 />
                             </View>
                         </View>
+                        <EditorCharCounter count={questionCharCount} max={CHAR_LIMIT} />
                     </View>
 
                     <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                        <View style={{ marginBottom: 4, width: '100%', paddingTop: 16 }}>
+                        <View style={{ marginBottom: 2, width: '100%', paddingTop: 6 }}>
                             <Text style={styles.formLabel}>Verso</Text>
                         </View>
                     </TouchableWithoutFeedback>
@@ -690,7 +729,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                             }}
                         >
                             <View pointerEvents="box-none" style={{ flex: 1 }}>
-                                <IsolatedMathEditor 
+                                <IsolatedMathEditor
                                     editorRef={answerEditorRef}
                                     initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.answer || ""}
                                     onContentChange={(html) => updateDraft('answer', html)}
@@ -701,14 +740,17 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                                         }, 150);
                                     }}
                                     onEditMath={handleEditMath}
+                                    onCharCount={(count) => setAnswerCharCount(count)}
+                                    maxChars={CHAR_LIMIT}
                                 />
                             </View>
                         </View>
+                        <EditorCharCounter count={answerCharCount} max={CHAR_LIMIT} />
                     </View>
 
                     {/* Área extensiva clicável cobrindo o fundo e botões */}
                     <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                         <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 26, paddingBottom: 20 }]}>
+                         <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 14, paddingBottom: 10 }]}>
                             <TouchableOpacity
                                 style={[styles.fxButton, isMathToolbarVisible && styles.fxButtonActive ]}
                                 onPress={(e) => { e.stopPropagation(); toggleMathToolbar(); }}
@@ -905,6 +947,22 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       newLatex = `${val1}^{${exp}}`;
                     } else if (currentLatex.includes('log')) {
                       newLatex = `\\\\log_{${val1}}{${val2}}`;
+                    }
+
+                    // Verifica se a fórmula editada excede o limite de caracteres
+                    const newWeight = calculateFormulaWeight(newLatex);
+                    const oldWeight = calculateFormulaWeight(currentLatex);
+                    const charCount = activeEditor === 'answer' ? answerCharCount : questionCharCount;
+                    const projected = charCount - oldWeight + newWeight;
+
+                    if (projected > CHAR_LIMIT) {
+                      setAlertConfig({
+                        visible: true,
+                        title: 'Limite Excedido',
+                        message: 'A fórmula excede o limite de caracteres. Simplifique o conteúdo.',
+                        buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+                      });
+                      return;
                     }
 
                     const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;

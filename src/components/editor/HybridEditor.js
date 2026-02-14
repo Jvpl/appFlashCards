@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { editorHtml } from './editorTemplates';
 
-export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentChange, onEditMath, style }, ref) => {
+export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentChange, onEditMath, onCharCount, maxChars, style }, ref) => {
   const webviewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,6 +52,7 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
            // Isso garante que o rascunho (draft) seja atualizado e a fórmula não volte.
            if (window.sendToApp) {
                window.sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+               notifyCharCount();
            }
         })();
         true;
@@ -59,7 +60,9 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
     }
   }));
 
-  const initScript = "window.setHtml(" + JSON.stringify(initialHtml || '') + "); true;";
+  const initScript = "window.setHtml(" + JSON.stringify(initialHtml || '') + ");" +
+    (maxChars ? " try{window.setMaxChars(" + maxChars + ")}catch(e){}" : "") +
+    " true;";
 
   return (
     <View style={[{ flex: 1 }, style]}>
@@ -88,6 +91,7 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
             if (data.type === 'EDIT_MATH' && onEditMath) onEditMath(data.id, data.latex);
             if (data.type === 'CONTENT_CHANGE' && onContentChange) onContentChange(data.html);
             if (data.type === 'FOCUS' && onFocus) onFocus();
+            if (data.type === 'CHAR_COUNT' && onCharCount) onCharCount(data.count, data.max);
           } catch (e) {
             // Silently ignore JSON parse errors
           }
