@@ -31,10 +31,17 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const [editValue1, setEditValue1] = useState('');
   const [editValue2, setEditValue2] = useState('');
 
+  // Estados para limite de caracteres
+  const [questionCharCount, setQuestionCharCount] = useState(0);
+  const [answerCharCount, setAnswerCharCount] = useState(0);
+  const CHAR_LIMIT = 800;
+
   // Estados para teclado colapsável do modal
   const [showLettersPanel, setShowLettersPanel] = useState(false);
   const [showSymbolsPanel, setShowSymbolsPanel] = useState(false);
   const [focusedInput, setFocusedInput] = useState(1); // 1 ou 2
+  const [helpModalVisible, setHelpModalVisible] = useState(false);
+  const [helpPage, setHelpPage] = useState(0); // 0 = página 1, 1 = página 2
 
   // Refs para inputs do modal
   const modalInput1Ref = useRef(null);
@@ -58,6 +65,12 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const validateInput = (currentText, newChar) => {
     const text = currentText || '';
 
+    // VALIDAÇÃO ESTRITA: Lista branca de caracteres permitidos
+    const allowedChars = /^[0-9a-zA-Z+\-×÷^_(),.\s]$/;
+    if (!allowedChars.test(newChar)) {
+      return { valid: false, reason: 'characterNotAllowed' };
+    }
+
     // Contadores
     const letterCount = (text.match(/[a-zA-Z]/g) || []).length;
     const numberCount = (text.match(/[0-9]/g) || []).length;
@@ -70,14 +83,18 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       '_': (text.match(/_/g) || []).length,
       '(': (text.match(/\(/g) || []).length,
       ')': (text.match(/\)/g) || []).length,
+      ',': (text.match(/,/g) || []).length,
+      '.': (text.match(/\./g) || []).length,
     };
 
     const lastChar = text.slice(-1);
     const isLetter = /[a-zA-Z]/.test(newChar);
-    const isNumber = /[0-9.]/.test(newChar);
+    const isNumber = /[0-9]/.test(newChar);
+    const isDecimalSep = /[,.]/.test(newChar);
     const isSymbol = /[+\-×÷^_()]/.test(newChar);
     const lastIsNumber = /[0-9]/.test(lastChar);
     const lastIsSymbol = /[+\-×÷^_()]/.test(lastChar);
+    const lastIsDecimal = /[,.]/.test(lastChar);
 
     // Regra 1: Num → Letra BLOQUEADO (precisa de símbolo entre eles)
     if (isLetter && lastIsNumber) {
@@ -89,9 +106,28 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       return { valid: false, reason: 'noConsecutiveSymbols' };
     }
 
-    // Regra 3: Símbolo no início (apenas + e - permitidos)
-    if (isSymbol && text.length === 0 && newChar !== '-' && newChar !== '+') {
+    // Regra 3: Símbolo no início (apenas +, -, ( e ) permitidos)
+    if (isSymbol && text.length === 0 && newChar !== '-' && newChar !== '+' && newChar !== '(' && newChar !== ')') {
       return { valid: false, reason: 'invalidStart' };
+    }
+
+    // NOVO: Separadores decimais (vírgula e ponto)
+    if (isDecimalSep) {
+      // Não pode começar com separador
+      if (text.length === 0) {
+        return { valid: false, reason: 'decimalAtStart' };
+      }
+
+      // Não pode ter dois separadores consecutivos
+      if (lastIsDecimal) {
+        return { valid: false, reason: 'consecutiveDecimals' };
+      }
+
+      // Máximo 2 separadores no total (soma de vírgulas e pontos)
+      const totalSeparators = symbolCounts[','] + symbolCounts['.'];
+      if (totalSeparators >= 2) {
+        return { valid: false, reason: 'maxDecimals' };
+      }
     }
 
     // Regra 4: Limite de letras (máx 2)
@@ -105,8 +141,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       return { valid: false, reason: 'maxNumbers' };
     }
 
-    // Regra 6: Limite de símbolos (máx 2 de cada tipo)
-    if (isSymbol && symbolCounts[newChar] !== undefined && symbolCounts[newChar] >= 2) {
+    // Regra 6: Limite de símbolos (máx 2 de cada tipo, incluindo decimais)
+    if ((isSymbol || isDecimalSep) && symbolCounts[newChar] !== undefined && symbolCounts[newChar] >= 2) {
       return { valid: false, reason: 'maxSymbols' };
     }
 
@@ -176,6 +212,33 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     );
   };
 
+  // Função para calcular peso de fórmula (espelho do WebView)
+  const calculateFormulaWeight = (latex) => {
+    if (!latex) return 5;
+    let cleaned = latex
+      .replace(/\\(frac|sqrt|log|Box|text|mathrm|mathbf|mathit)/g, '')
+      .replace(/\\times/g, '\u00D7').replace(/\\div/g, '\u00F7').replace(/\\cdot/g, '\u00B7')
+      .replace(/\\pm/g, '\u00B1').replace(/\\leq/g, '\u2264').replace(/\\geq/g, '\u2265')
+      .replace(/\\neq/g, '\u2260').replace(/\\infty/g, '\u221E').replace(/\\theta/g, '\u03B8')
+      .replace(/\\pi/g, '\u03C0').replace(/\\[a-zA-Z]+/g, '')
+      .replace(/[{}\\_^\s]/g, '');
+    return Math.max(5, cleaned.length);
+  };
+
+  // Componente: Contador de caracteres do editor (texto livre)
+  const EditorCharCounter = ({ count, max }) => {
+    const percentage = (count / max) * 100;
+    const color = percentage >= 95 ? '#EF4444' : percentage >= 80 ? '#F59E0B' : '#718096';
+
+    return (
+      <View style={{ alignSelf: 'flex-end', marginTop: 3, backgroundColor: '#2D3748', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: percentage >= 95 ? '#EF444440' : percentage >= 80 ? '#F59E0B30' : '#4A5568' }}>
+        <Text style={{ fontSize: 11, fontWeight: '600', color, fontVariant: ['tabular-nums'] }}>
+          {count}/{max}
+        </Text>
+      </View>
+    );
+  };
+
   // Componente: Contador Segmentado (Num | Let | Sim)
   const SegmentedCounter = ({ text }) => {
     const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
@@ -210,7 +273,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Componente: Teclado Colapsável (Abc | Símbolos)
   const CollapsibleKeypad = ({ inputNumber }) => {
     const letters = ['x', 'y', 'z', 'a', 'b', 'c', 'n', 'm', 'k', 't'];
-    const symbols = ['+', '-', '×', '÷', '(', ')', '^', '_'];
+    // Reorganizado: () no início, depois +/-, depois ×÷
+    const symbols = ['(', ')', '+', '-', '×', '÷', '^', '_', ',', '.'];
 
     const currentValue = inputNumber === 1 ? editValue1 : editValue2;
     const buttonStates = getButtonStates(currentValue);
@@ -222,7 +286,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     // Verifica se um símbolo específico está permitido
     const isSymbolAllowed = (symbol) => {
       if (buttonStates.symbolsDisabled) return false;
-      if (buttonStates.onlyPlusMinusAllowed && symbol !== '+' && symbol !== '-') return false;
+      // Permitir ( e ) no início junto com + e -
+      if (buttonStates.onlyPlusMinusAllowed && symbol !== '+' && symbol !== '-' && symbol !== '(' && symbol !== ')') return false;
       return true;
     };
 
@@ -399,6 +464,10 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   };
 
   const handleInsertMath = (cmd) => {
+      // Pre-check: bloqueia inserção se exceder limite de caracteres
+      const charCount = activeEditor === 'answer' ? answerCharCount : questionCharCount;
+      if (charCount + 5 > CHAR_LIMIT) return; // Fórmula padrão tem peso mínimo 5
+
       const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
       if (target) {
           if (cmd === '\\\\frac') target.insertFrac();
@@ -607,7 +676,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                <View style={{ flex: 1 }}>
                     {/* Área clicável acima do primeiro input (Label) */}
                     <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                        <View style={{ marginBottom: 4, width: '100%' }}>
+                        <View style={{ marginBottom: 2, width: '100%' }}>
                             <Text style={styles.formLabel}>Frente</Text>
                         </View>
                     </TouchableWithoutFeedback>
@@ -626,19 +695,22 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                             }}
                         >
                             <View pointerEvents="box-none" style={{ flex: 1 }}>
-                                <IsolatedMathEditor 
+                                <IsolatedMathEditor
                                     editorRef={questionEditorRef}
                                     initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.question || ""}
                                     onContentChange={(html) => updateDraft('question', html)}
                                     onFocusCallback={() => setActiveEditor('question')}
                                     onEditMath={handleEditMath}
+                                    onCharCount={(count) => setQuestionCharCount(count)}
+                                    maxChars={CHAR_LIMIT}
                                 />
                             </View>
                         </View>
+                        <EditorCharCounter count={questionCharCount} max={CHAR_LIMIT} />
                     </View>
 
                     <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                        <View style={{ marginBottom: 4, width: '100%', paddingTop: 16 }}>
+                        <View style={{ marginBottom: 2, width: '100%', paddingTop: 6 }}>
                             <Text style={styles.formLabel}>Verso</Text>
                         </View>
                     </TouchableWithoutFeedback>
@@ -657,7 +729,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                             }}
                         >
                             <View pointerEvents="box-none" style={{ flex: 1 }}>
-                                <IsolatedMathEditor 
+                                <IsolatedMathEditor
                                     editorRef={answerEditorRef}
                                     initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.answer || ""}
                                     onContentChange={(html) => updateDraft('answer', html)}
@@ -668,14 +740,17 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                                         }, 150);
                                     }}
                                     onEditMath={handleEditMath}
+                                    onCharCount={(count) => setAnswerCharCount(count)}
+                                    maxChars={CHAR_LIMIT}
                                 />
                             </View>
                         </View>
+                        <EditorCharCounter count={answerCharCount} max={CHAR_LIMIT} />
                     </View>
 
                     {/* Área extensiva clicável cobrindo o fundo e botões */}
                     <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                         <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 26, paddingBottom: 20 }]}>
+                         <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 14, paddingBottom: 10 }]}>
                             <TouchableOpacity
                                 style={[styles.fxButton, isMathToolbarVisible && styles.fxButtonActive ]}
                                 onPress={(e) => { e.stopPropagation(); toggleMathToolbar(); }}
@@ -720,22 +795,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                 <Text style={styles.modalTitleFullscreen}>Editar Fórmula</Text>
                 <TouchableOpacity
                   onPress={() => {
-                    setAlertConfig({
-                      visible: true,
-                      title: 'Regras de Edição',
-                      message:
-                        '🔢 NÚMEROS:\n' +
-                        '• Sem letras: até 10 dígitos\n' +
-                        '• Com letras: até 3 dígitos\n\n' +
-                        '🔤 LETRAS:\n' +
-                        '• Máximo 2 letras\n' +
-                        '• Número antes de letra precisa de símbolo (1+a ✓, 1a ✗)\n\n' +
-                        '➕ SÍMBOLOS:\n' +
-                        '• Máximo 2 de cada tipo\n' +
-                        '• Sem símbolos consecutivos (++ ✗)\n' +
-                        '• No início: apenas + ou -',
-                      buttons: [{ text: 'Entendi', onPress: () => setAlertConfig((prev) => ({ ...prev, visible: false })) }],
-                    });
+                    setHelpModalVisible(true);
+                    setHelpPage(0);  // Sempre começa na página 1
                   }}
                   style={styles.helpIcon}
                 >
@@ -853,6 +914,21 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   style={styles.modalButtonFullWidth}
                   onPress={() => {
+                    // Valida se inputs terminam com separador decimal
+                    const val1Check = editValue1.trim();
+                    const val2Check = editValue2.trim();
+
+                    if (val1Check.endsWith(',') || val1Check.endsWith('.') ||
+                        val2Check.endsWith(',') || val2Check.endsWith('.')) {
+                      setAlertConfig({
+                        visible: true,
+                        title: 'Entrada Inválida',
+                        message: 'O número não pode terminar com vírgula ou ponto.',
+                        buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+                      });
+                      return;
+                    }
+
                     const val1 = editValue1.trim() === '' ? '\\\\Box' : editValue1;
                     const val2 = editValue2.trim() === '' ? '\\\\Box' : editValue2;
 
@@ -871,6 +947,22 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       newLatex = `${val1}^{${exp}}`;
                     } else if (currentLatex.includes('log')) {
                       newLatex = `\\\\log_{${val1}}{${val2}}`;
+                    }
+
+                    // Verifica se a fórmula editada excede o limite de caracteres
+                    const newWeight = calculateFormulaWeight(newLatex);
+                    const oldWeight = calculateFormulaWeight(currentLatex);
+                    const charCount = activeEditor === 'answer' ? answerCharCount : questionCharCount;
+                    const projected = charCount - oldWeight + newWeight;
+
+                    if (projected > CHAR_LIMIT) {
+                      setAlertConfig({
+                        visible: true,
+                        title: 'Limite Excedido',
+                        message: 'A fórmula excede o limite de caracteres. Simplifique o conteúdo.',
+                        buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+                      });
+                      return;
                     }
 
                     const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
@@ -903,6 +995,190 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         </KeyboardAvoidingView>
       </Modal>
       {/* ========== FIM DO MODAL ========== */}
+
+      {/* ========== HELP MODAL (Custom) ========== */}
+      <Modal
+        visible={helpModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setHelpModalVisible(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20
+        }}>
+          <View style={{
+            backgroundColor: '#1A202C',
+            borderRadius: 12,
+            padding: 24,
+            width: '90%',
+            maxWidth: 500,
+            borderWidth: 1,
+            borderColor: '#2D3748'
+          }}>
+            {/* Header */}
+            <View style={{ borderBottomWidth: 1, borderBottomColor: '#2D3748', paddingBottom: 12, marginBottom: 16 }}>
+              <Text style={{
+                fontSize: 20,
+                fontWeight: 'bold',
+                color: '#4FD1C5',
+                textAlign: 'center'
+              }}>Regras de Edição</Text>
+            </View>
+
+            {/* Conteúdo Paginado */}
+            <ScrollView style={{ maxHeight: 400 }}>
+              {helpPage === 0 ? (
+                // Página 1: Regras Básicas
+                <View>
+                  <Text style={{
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: '#E2E8F0',
+                    marginBottom: 8
+                  }}>🔢 NÚMEROS</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Sem letras: até 10 dígitos</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Com letras: até 3 dígitos</Text>
+
+                  <Text style={{
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: '#E2E8F0',
+                    marginTop: 16,
+                    marginBottom: 8
+                  }}>🔤 LETRAS</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 letras por entrada</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Número antes de letra precisa de símbolo</Text>
+                  <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  Exemplo: 1+a ✓  |  1a ✗</Text>
+
+                  <Text style={{
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: '#E2E8F0',
+                    marginTop: 16,
+                    marginBottom: 8
+                  }}>➕ SÍMBOLOS BÁSICOS</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 de cada tipo (+, -, ×, ÷, ^, _, (, ))</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Sem símbolos consecutivos</Text>
+                  <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  Exemplo: 2++3 ✗</Text>
+                </View>
+              ) : (
+                // Página 2: Regras Avançadas
+                <View>
+                  <Text style={{
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: '#E2E8F0',
+                    marginBottom: 8
+                  }}>🎯 INÍCIO DA ENTRADA</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Pode começar com: +, -, (, )</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com: vírgula, ponto</Text>
+
+                  <Text style={{
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: '#E2E8F0',
+                    marginTop: 16,
+                    marginBottom: 8
+                  }}>🔣 SEPARADORES (vírgula e ponto)</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 separadores no total</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com separador</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode terminar com separador</Text>
+                  <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8, marginTop: 4 }}>  Exemplos:</Text>
+                  <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  3,14 ✓  |  0,5 ✓</Text>
+                  <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  ,5 ✗  |  5, ✗  |  3,1,4 ✗</Text>
+
+                  <Text style={{
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: '#E2E8F0',
+                    marginTop: 16,
+                    marginBottom: 8
+                  }}>🚫 BLOQUEIOS</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Ponto e vírgula (;) não permitido</Text>
+                  <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Confirmação bloqueada se terminar com , ou .</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Navegação e Botões */}
+            <View style={{ marginTop: 16 }}>
+              {/* Indicador de Página */}
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12 }}>
+                <View style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: helpPage === 0 ? '#4FD1C5' : '#4A5568',
+                  marginHorizontal: 4
+                }} />
+                <View style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: helpPage === 1 ? '#4FD1C5' : '#4A5568',
+                  marginHorizontal: 4
+                }} />
+              </View>
+
+              {/* Botões */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+                {helpPage === 0 ? (
+                  <TouchableOpacity
+                    onPress={() => setHelpPage(1)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#2D3748',
+                      paddingVertical: 10,
+                      paddingHorizontal: 16,
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Text style={{ color: '#E2E8F0', fontSize: 15, fontWeight: '600' }}>Mais Detalhes ➡️</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setHelpPage(0)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#2D3748',
+                      paddingVertical: 10,
+                      paddingHorizontal: 16,
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Text style={{ color: '#E2E8F0', fontSize: 15, fontWeight: '600' }}>⬅️ Voltar</Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  onPress={() => setHelpModalVisible(false)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#4FD1C5',
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>Entendi</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* ========== FIM DO HELP MODAL ========== */}
+
     <CustomAlert 
         {...alertConfig} 
         onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} 

@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { editorHtml } from './editorTemplates';
 
-export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentChange, onEditMath, style }, ref) => {
+export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentChange, onEditMath, onCharCount, maxChars, style }, ref) => {
   const webviewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -30,29 +30,21 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
         (function() {
            const atom = document.querySelector('.math-atom[data-id="${id}"]');
            if (atom) {
-              // Remove até 2 irmãos seguintes se forem artefatos nossos (invisible-char ou espaço)
-              // Fazemos um loop para pegar em qualquer ordem
-              let sibling = atom.nextSibling;
-              let count = 0;
-              while (sibling && count < 3) {
-                  const nextAndSafe = sibling.nextSibling; // Salva o próximo antes de possivelmente remover este
-                  
-                  // Se for o span invisível
-                  if (sibling.nodeType === 1 && sibling.classList.contains('invisible-char')) {
-                      sibling.remove();
-                  }
-                  // Se for nó de texto com espaço apenas
-                  else if (sibling.nodeType === 3 && sibling.textContent.trim() === '') {
-                       sibling.remove();
-                  }
-                  // Se for span com espaço (caso o browser tenha normalizado assim)
-                  else if (sibling.nodeType === 1 && sibling.textContent.trim() === '') {
-                       sibling.remove();
-                  }
-                  
-                  sibling = nextAndSafe;
-                  count++;
+              // Remove sentinela + espaço após fórmula
+              let next = atom.nextSibling;
+              
+              // Remove sentinela (ou invisible-char legado) se houver
+              if (next && next.classList && (next.classList.contains('sentinela-anti-caps') || next.classList.contains('invisible-char'))) {
+                const temp = next.nextSibling;
+                next.remove();
+                next = temp;
               }
+              
+              // Remove espaço se houver
+              if (next && next.nodeType === 3 && next.textContent.trim() === '') {
+                next.remove();
+              }
+              
               atom.remove();
            }
            checkPlaceholder();
@@ -60,6 +52,7 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
            // Isso garante que o rascunho (draft) seja atualizado e a fórmula não volte.
            if (window.sendToApp) {
                window.sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+               notifyCharCount();
            }
         })();
         true;
@@ -67,7 +60,9 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
     }
   }));
 
-  const initScript = "window.setHtml(" + JSON.stringify(initialHtml || '') + "); true;";
+  const initScript = "window.setHtml(" + JSON.stringify(initialHtml || '') + ");" +
+    (maxChars ? " try{window.setMaxChars(" + maxChars + ")}catch(e){}" : "") +
+    " true;";
 
   return (
     <View style={[{ flex: 1 }, style]}>
@@ -96,6 +91,7 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
             if (data.type === 'EDIT_MATH' && onEditMath) onEditMath(data.id, data.latex);
             if (data.type === 'CONTENT_CHANGE' && onContentChange) onContentChange(data.html);
             if (data.type === 'FOCUS' && onFocus) onFocus();
+            if (data.type === 'CHAR_COUNT' && onCharCount) onCharCount(data.count, data.max);
           } catch (e) {
             // Silently ignore JSON parse errors
           }
