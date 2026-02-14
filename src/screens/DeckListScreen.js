@@ -47,7 +47,7 @@ export const DeckListScreen = ({ navigation }) => {
           const deck = await getDeckCache(deckId);
           if (deck) {
             // Marcar como deck comprado
-            return { ...deck, isPurchased: true };
+            return { ...deck, isPurchased: true, name: deck.name || deckId };
           }
           return null;
         })
@@ -383,8 +383,8 @@ export const DeckListScreen = ({ navigation }) => {
               </View>
             )}
             <View style={styles.itemTextContainer}>
-              <Text style={styles.itemTitle}>{item.name}</Text>
-              <Text style={styles.itemSubtitle}>{item.subjects.length} matéria(s)</Text>
+              <Text style={styles.itemTitle}>{item.name || 'Deck sem nome'}</Text>
+              <Text style={styles.itemSubtitle}>{item.subjects?.length || 0} matéria(s)</Text>
             </View>
             {!multiSelectMode && (
               allowDefaultDeckEditing ? (
@@ -466,8 +466,8 @@ export const DeckListScreen = ({ navigation }) => {
               <Ionicons name="person-outline" size={16} color="#4FD1C5" style={{marginRight: 8}} />
             )}
             <View style={styles.itemTextContainer}>
-                <Text style={styles.itemTitle}>{item.name}</Text>
-                <Text style={styles.itemSubtitle}>{item.subjects.length} matéria(s)</Text>
+                <Text style={styles.itemTitle}>{item.name || 'Deck sem nome'}</Text>
+                <Text style={styles.itemSubtitle}>{item.subjects?.length || 0} matéria(s)</Text>
             </View>
             {!multiSelectMode && (
               <View style={styles.subjectRightContainer}>

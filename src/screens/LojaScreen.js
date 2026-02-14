@@ -53,7 +53,11 @@ export const LojaScreen = ({ navigation }) => {
     try {
       const deckData = await getDeck(product.deckId);
       if (deckData) {
-        await savePurchasedDeck(product.deckId, deckData);
+        await savePurchasedDeck(product.deckId, {
+          ...deckData,
+          name: product.name,
+          isPurchased: true,
+        });
         setPurchasedIds(prev => [...prev, product.deckId]);
         Alert.alert(
           'Download Concluido',
