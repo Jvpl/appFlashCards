@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, InteractionManager, KeyboardAvoidingView, ScrollView, Modal, TouchableWithoutFeedback, TextInput, Platform, BackHandler, Dimensions } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View as SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';

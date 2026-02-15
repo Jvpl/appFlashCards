@@ -9,12 +9,14 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getProducts, getDeck } from '../services/firebase';
 import { getPurchasedDecks, savePurchasedDeck } from '../services/storage';
 import globalStyles from '../styles/globalStyles';
 
 export const LojaScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [products, setProducts] = useState([]);
   const [purchasedIds, setPurchasedIds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -211,7 +213,7 @@ export const LojaScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={globalStyles.baseContainer}>
+    <View style={[globalStyles.baseContainer, { paddingTop: insets.top }]}>
       <FlatList
         data={products}
         renderItem={renderProduct}
