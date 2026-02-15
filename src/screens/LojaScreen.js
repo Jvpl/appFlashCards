@@ -270,16 +270,47 @@ export const LojaScreen = ({ navigation }) => {
             <Text style={lojaStyles.headerSubtitle}>
               {products.length} {products.length === 1 ? 'deck disponivel' : 'decks disponiveis'}
             </Text>
+            <Text style={lojaStyles.restoreInfo}>
+              💡 Se você já comprou decks em outro device, clique em "Restaurar compras"
+            </Text>
             <TouchableOpacity
               style={lojaStyles.restoreButton}
               onPress={async () => {
-                const result = await restorePurchases();
-                if (result.success) {
-                  Alert.alert('Compras Restauradas', 'Suas compras anteriores foram restauradas com sucesso!');
-                  loadData();
-                } else {
-                  Alert.alert('Erro', 'Nao foi possivel restaurar as compras.');
-                }
+                Alert.alert(
+                  '📱 Restaurar compras',
+                  'Certifique-se de estar logado na mesma conta Google Play com a qual fez as compras.',
+                  [
+                    {
+                      text: 'Cancelar',
+                      style: 'cancel'
+                    },
+                    {
+                      text: 'Restaurar',
+                      onPress: async () => {
+                        const result = await restorePurchases();
+                        if (result.success) {
+                          Alert.alert(
+                            '✅ Sucesso!',
+                            'Suas compras anteriores foram restauradas com sucesso! Acesse seus decks na tela inicial.'
+                          );
+                          loadData();
+                        } else {
+                          Alert.alert(
+                            '⚠️ Nenhuma compra encontrada',
+                            'Possíveis causas:\n\n' +
+                            '• Você está logado em outra conta Google Play\n' +
+                            '• Nunca fez compras nesta conta\n' +
+                            '• Conexão de internet indisponível\n\n' +
+                            'Dica: Verifique suas configurações de Google Play e tente novamente.',
+                            [
+                              { text: 'Ok', style: 'cancel' }
+                            ]
+                          );
+                        }
+                      }
+                    }
+                  ]
+                );
               }}
             >
               <Ionicons name="refresh-circle-outline" size={16} color="#A0AEC0" />
@@ -418,6 +449,12 @@ const lojaStyles = StyleSheet.create({
     color: '#A0AEC0',
     fontSize: 13,
     marginLeft: 4,
+  },
+  restoreInfo: {
+    fontSize: 12,
+    color: '#4FD1C5',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
 });
 

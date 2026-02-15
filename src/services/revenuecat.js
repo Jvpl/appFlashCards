@@ -2,14 +2,22 @@ import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 
 const API_KEY_ANDROID = 'test_XminOJMcZRQAKBbdDlTOUmXhEiV';
 
+let _isConfigured = false;
+
+const ensureConfigured = async () => {
+  if (_isConfigured) return;
+  Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+  await Purchases.configure({ apiKey: API_KEY_ANDROID });
+  _isConfigured = true;
+};
+
 /**
  * Inicializa o SDK do RevenueCat
  * Deve ser chamado no App.js ao iniciar o app
  */
 export const initializeRevenueCat = async () => {
   try {
-    Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-    await Purchases.configure({ apiKey: API_KEY_ANDROID });
+    await ensureConfigured();
     console.log('✅ RevenueCat inicializado com sucesso');
   } catch (e) {
     console.error('❌ Erro ao inicializar RevenueCat:', e);
@@ -38,6 +46,7 @@ export const getProducts = async (productIds) => {
  */
 export const purchaseProduct = async (productId) => {
   try {
+    await ensureConfigured();
     const products = await Purchases.getProducts([productId]);
     if (products.length === 0) {
       throw new Error('Produto não encontrado');
@@ -59,6 +68,7 @@ export const purchaseProduct = async (productId) => {
  */
 export const checkEntitlement = async (entitlementId) => {
   try {
+    await ensureConfigured();
     const customerInfo = await Purchases.getCustomerInfo();
     return customerInfo.entitlements.active[entitlementId] !== undefined;
   } catch (e) {
@@ -72,6 +82,7 @@ export const checkEntitlement = async (entitlementId) => {
  */
 export const restorePurchases = async () => {
   try {
+    await ensureConfigured();
     const customerInfo = await Purchases.restorePurchases();
     return { success: true, customerInfo };
   } catch (e) {
@@ -85,6 +96,7 @@ export const restorePurchases = async () => {
  */
 export const getActiveEntitlements = async () => {
   try {
+    await ensureConfigured();
     const customerInfo = await Purchases.getCustomerInfo();
     return customerInfo.entitlements.active;
   } catch (e) {
