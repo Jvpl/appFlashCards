@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getProducts, getDeck } from '../services/firebase';
 import { getPurchasedDecks, savePurchasedDeck } from '../services/storage';
+import { purchaseProduct, restorePurchases } from '../services/revenuecat';
 import globalStyles from '../styles/globalStyles';
 
 export const LojaScreen = ({ navigation }) => {
@@ -47,6 +48,42 @@ export const LojaScreen = ({ navigation }) => {
     setRefreshing(true);
     loadData();
   }, [loadData]);
+
+  const handlePurchase = async (product) => {
+    if (downloading) return;
+
+    setDownloading(product.id);
+    try {
+      const result = await purchaseProduct(product.playStoreId || product.id);
+
+      if (result.cancelled) {
+        return;
+      }
+
+      if (result.success) {
+        const deckData = await getDeck(product.deckId);
+        if (deckData) {
+          await savePurchasedDeck(product.deckId, {
+            ...deckData,
+            name: product.name,
+            isPurchased: true,
+          });
+          setPurchasedIds(prev => [...prev, product.deckId]);
+          Alert.alert(
+            'Compra Realizada!',
+            `O deck "${product.name}" foi comprado e baixado com sucesso! Acesse seus flashcards na tela inicial.`
+          );
+        }
+      } else {
+        Alert.alert('Erro', result.error || 'Falha ao processar pagamento. Tente novamente.');
+      }
+    } catch (e) {
+      console.error('Erro na compra:', e);
+      Alert.alert('Erro', 'Falha ao processar pagamento. Tente novamente.');
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const handleDownload = async (product) => {
     if (downloading) return;
@@ -108,10 +145,10 @@ export const LojaScreen = ({ navigation }) => {
               [
                 { text: 'Cancelar', style: 'cancel' },
                 {
-                  text: item.price ? 'Comprar (em breve)' : 'Baixar Gratis',
+                  text: item.price ? 'Comprar' : 'Baixar Gratis',
                   onPress: () => {
                     if (item.price) {
-                      Alert.alert('Em breve', 'O sistema de pagamento sera adicionado em breve.');
+                      handlePurchase(item);
                     } else {
                       handleDownload(item);
                     }
@@ -233,6 +270,21 @@ export const LojaScreen = ({ navigation }) => {
             <Text style={lojaStyles.headerSubtitle}>
               {products.length} {products.length === 1 ? 'deck disponivel' : 'decks disponiveis'}
             </Text>
+            <TouchableOpacity
+              style={lojaStyles.restoreButton}
+              onPress={async () => {
+                const result = await restorePurchases();
+                if (result.success) {
+                  Alert.alert('Compras Restauradas', 'Suas compras anteriores foram restauradas com sucesso!');
+                  loadData();
+                } else {
+                  Alert.alert('Erro', 'Nao foi possivel restaurar as compras.');
+                }
+              }}
+            >
+              <Ionicons name="refresh-circle-outline" size={16} color="#A0AEC0" />
+              <Text style={lojaStyles.restoreButtonText}>Restaurar compras</Text>
+            </TouchableOpacity>
           </View>
         }
       />
@@ -356,6 +408,16 @@ const lojaStyles = StyleSheet.create({
     color: '#4FD1C5',
     marginLeft: 8,
     fontWeight: 'bold',
+  },
+  restoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  restoreButtonText: {
+    color: '#A0AEC0',
+    fontSize: 13,
+    marginLeft: 4,
   },
 });
 

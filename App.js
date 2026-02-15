@@ -7,6 +7,7 @@ import AppContent from './src/navigation/AppContent';
 import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import * as Ionicons from '@expo/vector-icons/Ionicons';
+import { initializeRevenueCat } from './src/services/revenuecat';
 
 const styles = StyleSheet.create({
   flexOne: {
@@ -33,6 +34,11 @@ export default function App() {
   const [fontsLoaded, fontError] = useFonts({
     ...Ionicons.font,
   });
+
+  // Inicializa RevenueCat ao abrir o app
+  useEffect(() => {
+    initializeRevenueCat();
+  }, []);
 
   // Hook useEffect para gerenciar a tela de splash
   useEffect(() => {
