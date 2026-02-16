@@ -61,14 +61,9 @@ export function HomeStackNavigator({navigation}) {
           title: 'Início',
           headerLeft: () => null, // Remove a seta de voltar
           headerRight: () => (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <TouchableOpacity onPress={() => navigation.navigate('FlashcardHistory')} style={{ marginRight: 15 }}>
-                      <Ionicons name="time-outline" size={28} color="white" />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => navigation.openDrawer()} style={{ marginRight: 15 }}>
-                      <Ionicons name="menu" size={28} color="white" />
-                  </TouchableOpacity>
-              </View>
+              <TouchableOpacity onPress={() => navigation.openDrawer()} style={{ marginRight: 15 }}>
+                  <Ionicons name="menu" size={28} color="white" />
+              </TouchableOpacity>
           ),
       }} />
       <HomeStack.Screen 

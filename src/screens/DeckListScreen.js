@@ -89,6 +89,27 @@ export const DeckListScreen = ({ navigation }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFocused]);
 
+  // Controla swipe: desabilita ao sair de DeckList (blur) e reabilita ao retornar (focus)
+  useEffect(() => {
+    const drawerNav = navigation.getParent();
+    if (!drawerNav) return;
+    const unsubFocus = navigation.addListener('focus', () => {
+      drawerNav.setOptions({ swipeEnabled: true });
+    });
+    const unsubBlur = navigation.addListener('blur', () => {
+      drawerNav.setOptions({ swipeEnabled: false });
+    });
+    return () => { unsubFocus(); unsubBlur(); };
+  }, [navigation]);
+
+  // Desabilita swipe durante seleção múltipla (somente quando DeckList está em foco)
+  useEffect(() => {
+    const drawerNav = navigation.getParent();
+    if (drawerNav && isFocused) {
+      drawerNav.setOptions({ swipeEnabled: !multiSelectMode });
+    }
+  }, [multiSelectMode, navigation, isFocused]);
+
   const calculateProgress = (subjects) => {
     if (!subjects || subjects.length === 0) return 0;
     let totalMaxLevel = 0;
@@ -239,11 +260,12 @@ export const DeckListScreen = ({ navigation }) => {
 
   // Update header based on multiSelectMode and deck conditions
   useEffect(() => {
+    const drawerNav = navigation.getParent();
     navigation.setOptions({
       title: multiSelectMode ? `${selectedDecks.size} selecionado(s)` : 'Início',
-      headerRight: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 15 }}>
-          <TouchableOpacity onPress={() => navigation.openDrawer()}>
+      headerRight: multiSelectMode ? () => null : () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => drawerNav?.openDrawer()} style={{ marginRight: 15 }}>
             <Ionicons name="menu" size={28} color="white" />
           </TouchableOpacity>
         </View>
@@ -254,7 +276,6 @@ export const DeckListScreen = ({ navigation }) => {
          </TouchableOpacity>
       ) : undefined,
     });
-
   }, [multiSelectMode, selectedDecks, navigation]);
 
   // Handle back button press for multi-selection mode
