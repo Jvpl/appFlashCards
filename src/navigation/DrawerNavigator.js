@@ -1,6 +1,5 @@
 import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import HomeStackNavigator from './HomeStackNavigator';
@@ -26,22 +25,17 @@ export function DrawerNavigator() {
                 drawerInactiveTintColor: '#A0AEC0',
                 drawerPosition: 'right',
                 drawerType: 'front',
+                swipeEnabled: false, // Controlado por DeckListScreen via eventos focus/blur
             }}
         >
           {/* A tela de início ainda faz parte do drawer para a navegação funcionar, mas o item é removido do menu */}
           <Drawer.Screen
             name="HomeDrawer"
             component={HomeStackNavigator}
-            options={({ route }) => {
-                const routeName = getFocusedRouteNameFromRoute(route) ?? 'DeckList';
-                // Só permite swipe na tela inicial (DeckList)
-                const isSwipeEnabled = routeName === 'DeckList';
-                return {
-                    title: "Início",
-                    headerShown: false,
-                    drawerItemStyle: { display: 'none' }, // Oculta este item do menu
-                    swipeEnabled: isSwipeEnabled,
-                };
+            options={{
+                title: "Início",
+                headerShown: false,
+                drawerItemStyle: { display: 'none' }, // Oculta este item do menu
             }}
           />
           <Drawer.Screen

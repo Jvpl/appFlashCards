@@ -80,14 +80,23 @@ export function AppContent() {
                 return;
               }
 
-              // Se já estiver na aba, verifica se está na raiz da stack
+              // Se já estiver na aba, verifica se está na raiz do HomeStack
               if (navigation.isFocused()) {
-                const stackState = route.state;
+                // route.state é o state do Drawer
+                const drawerState = route.state;
+                const drawerIndex = drawerState?.index ?? 0;
 
-                // Se o stack está na raiz (index 0), não faz nada
-                if (!stackState || stackState.index === 0) {
-                  e.preventDefault();
-                  return;
+                // Só bloqueia o reset se o Drawer estiver em HomeDrawer (index 0)
+                // Se estiver em Configurações (index != 0), cai no reset abaixo
+                if (drawerIndex === 0) {
+                  const homeDrawerRoute = drawerState?.routes?.[0];
+                  const stackState = homeDrawerRoute?.state;
+
+                  // Se o HomeStack está na raiz (index 0 = DeckList), não faz nada
+                  if (!stackState || stackState.index === 0) {
+                    e.preventDefault();
+                    return;
+                  }
                 }
               }
 
