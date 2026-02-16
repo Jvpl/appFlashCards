@@ -24,6 +24,8 @@ export function DrawerNavigator() {
                 drawerLabelStyle: { fontWeight: 'bold', fontSize: 16 },
                 drawerActiveTintColor: '#4FD1C5',
                 drawerInactiveTintColor: '#A0AEC0',
+                drawerPosition: 'right',
+                drawerType: 'front',
             }}
         >
           {/* A tela de início ainda faz parte do drawer para a navegação funcionar, mas o item é removido do menu */}

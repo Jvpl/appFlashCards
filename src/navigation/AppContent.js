@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppTheme } from '../config/theme';
 import { getAppData } from '../services/storage';
-import HomeStackNavigator from './HomeStackNavigator';
+import { DrawerNavigator } from './DrawerNavigator';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { LojaScreen } from '../screens/LojaScreen';
 import { FadeInView } from '../components/ui/FadeInView';
@@ -117,7 +117,7 @@ export function AppContent() {
           {(props) => (
             <View style={{ flex: 1, backgroundColor: '#1A202C' }}>
               <FadeInView key={props.route.params?.resetTs || 'init'}>
-                <HomeStackNavigator />
+                <DrawerNavigator />
               </FadeInView>
             </View>
           )}
