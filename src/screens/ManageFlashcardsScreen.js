@@ -32,7 +32,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const [currentLatex, setCurrentLatex] = useState('');
   const [editValue1, setEditValue1] = useState('');
   const [editValue2, setEditValue2] = useState('');
-  const [editValue3, setEditValue3] = useState('');
 
   // Estados para limite de caracteres
   const [questionCharCount, setQuestionCharCount] = useState(0);
@@ -42,8 +41,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Estados para teclado colapsável do modal
   const [showLettersPanel, setShowLettersPanel] = useState(false);
   const [showSymbolsPanel, setShowSymbolsPanel] = useState(false);
-  const [focusedInput, setFocusedInput] = useState(1); // 1, 2 ou 3
-  const [advancedFrac, setAdvancedFrac] = useState(false); // Modo avançado da fração
+  const [focusedInput, setFocusedInput] = useState(1); // 1 ou 2 (editValue3 removido)
   const [builderVisible, setBuilderVisible] = useState(false); // Montador de fórmula livre
   const [builderInitialLatex, setBuilderInitialLatex] = useState(''); // LaTeX inicial (edição)
   const [helpModalVisible, setHelpModalVisible] = useState(false);
@@ -52,13 +50,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Refs para inputs do modal
   const modalInput1Ref = useRef(null);
   const modalInput2Ref = useRef(null);
-  const modalInput3Ref = useRef(null);
 
   // ========== Helper Functions for Modal ==========
   // Valores compartilhados para animação de shake (reanimated v2/v3)
   const shakeAnim1 = useSharedValue(0);
   const shakeAnim2 = useSharedValue(0);
-  const shakeAnim3 = useSharedValue(0);
 
   // Estilos animados para shake
   const shakeStyle1 = useAnimatedStyle(() => ({
@@ -66,9 +62,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   }));
   const shakeStyle2 = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeAnim2.value }]
-  }));
-  const shakeStyle3 = useAnimatedStyle(() => ({
-    transform: [{ translateX: shakeAnim3.value }]
   }));
 
   // ========== SISTEMA DE VALIDAÇÃO ROBUSTO ==========
@@ -182,11 +175,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     };
   };
 
-  // Handler de inserção com validação
+  // Handler de inserção com validação (ADAPTADO: apenas 2 inputs)
   const handleValidatedInsert = (char, inputNumber) => {
-    const currentValue = inputNumber === 1 ? editValue1 : inputNumber === 2 ? editValue2 : editValue3;
-    const setValue = inputNumber === 1 ? setEditValue1 : inputNumber === 2 ? setEditValue2 : setEditValue3;
-    const shakeAnim = inputNumber === 1 ? shakeAnim1 : inputNumber === 2 ? shakeAnim2 : shakeAnim3;
+    const currentValue = inputNumber === 1 ? editValue1 : editValue2;
+    const setValue = inputNumber === 1 ? setEditValue1 : setEditValue2;
+    const shakeAnim = inputNumber === 1 ? shakeAnim1 : shakeAnim2;
 
     const validation = validateInput(currentValue, char);
 
@@ -286,12 +279,13 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Componente: Teclado Colapsável (Abc | Símbolos)
   const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
 
+  // Componente: Teclado Colapsável (Abc | Símbolos) - ADAPTADO para 2 campos
   const CollapsibleKeypad = ({ inputNumber }) => {
     const letters = ['x', 'y', 'z', 'a', 'b', 'c', 'n', 'm', 'k', 't'];
     // Reorganizado: () no início, depois +/-, depois ×÷, depois constantes e relações
     const symbols = ['(', ')', '+', '-', '×', '÷', '^', '_', ',', '.', 'π', 'θ', '∞', '≠', '≥', '≤'];
 
-    const currentValue = inputNumber === 1 ? editValue1 : inputNumber === 2 ? editValue2 : editValue3;
+    const currentValue = inputNumber === 1 ? editValue1 : editValue2; // ADAPTADO: sem editValue3
     const buttonStates = getButtonStates(currentValue);
 
     const handleInsert = (char) => {
@@ -985,71 +979,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     </>
                   )}
 
-                {/* ===== BOTÃO MODO AVANÇADO (só para fração) ===== */}
-                {currentLatex.includes('frac') && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      tap();
-                      setAdvancedFrac(!advancedFrac);
-                      if (advancedFrac) setEditValue3(''); // Limpa ao desativar
-                    }}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      paddingVertical: 8,
-                      paddingHorizontal: 20,
-                      marginTop: 10,
-                      borderRadius: 8,
-                      backgroundColor: advancedFrac ? 'rgba(79, 209, 197, 0.12)' : 'rgba(74, 85, 104, 0.25)',
-                      borderWidth: 1,
-                      borderColor: advancedFrac ? '#4FD1C5' : '#4A5568',
-                      alignSelf: 'center',
-                    }}
-                  >
-                    <Text style={{ color: advancedFrac ? '#4FD1C5' : '#A0AEC0', fontSize: 13, fontWeight: '600' }}>
-                      {advancedFrac ? '▲ Modo Simples' : '▼ Modo Avançado  (  )ⁿ'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* ===== INPUT 3 — Expoente (modo avançado da fração) ===== */}
-                {advancedFrac && currentLatex.includes('frac') && (
-                  <>
-                    <Text style={[styles.formLabel, { marginTop: 12 }]}>Expoente</Text>
-                    <Animated.View style={shakeStyle3}>
-                      <TextInput
-                        ref={modalInput3Ref}
-                        style={[
-                          styles.modalInputWithFocus,
-                          focusedInput === 3 && styles.modalInputFocusedGreen,
-                        ]}
-                        value={editValue3}
-                        onChangeText={(text) => {
-                          if (text.length > editValue3.length) {
-                            const newChar = text.slice(-1);
-                            const validation = validateInput(editValue3, newChar);
-                            if (validation.valid) {
-                              setEditValue3(text);
-                            } else {
-                              triggerShake(shakeAnim3);
-                            }
-                          } else {
-                            setEditValue3(text);
-                          }
-                        }}
-                        onFocus={() => setFocusedInput(3)}
-                        placeholder="Ex: 2, n, n-1, (a+b)..."
-                        placeholderTextColor="#666"
-                        keyboardType="numeric"
-                        autoComplete="off"
-                        importantForAutofill="no"
-                      />
-                    </Animated.View>
-                    <SegmentedCounter text={editValue3} />
-                  </>
-                )}
-
                 {/* ===== TECLADO COLAPSÁVEL ===== */}
                 <CollapsibleKeypad inputNumber={focusedInput} />
               </ScrollView>
@@ -1093,11 +1022,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
                     let newLatex = val1;
 
-                    if (advancedFrac && currentLatex.includes('frac')) {
-                      // Modo avançado: fração entre parênteses com potência — \left(\frac{num}{den}\right)^{exp}
-                      const val3 = editValue3.trim() === '' ? '\\Box' : processVal(editValue3);
-                      newLatex = `\\left(\\frac{${val1}}{${val2}}\\right)^{${val3}}`;
-                    } else if (currentLatex.includes('frac')) {
+                    if (currentLatex.includes('frac')) {
                       newLatex = `\\frac{${val1}}{${val2}}`;
                     } else if (currentLatex.includes('sqrt')) {
                       if (val2 && val2 !== '\\Box' && editValue2.trim() !== '') {
@@ -1137,8 +1062,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
-                    setEditValue3('');
-                    setAdvancedFrac(false);
                   }}
                 >
                   <Text style={styles.modalButtonTextFullWidth}>Confirmar</Text>
@@ -1155,8 +1078,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
-                    setEditValue3('');
-                    setAdvancedFrac(false);
                   }}
                 >
                   <Text style={styles.modalButtonTextFullWidth}>Cancelar</Text>
