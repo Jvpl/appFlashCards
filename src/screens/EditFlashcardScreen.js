@@ -679,12 +679,8 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                     <Text style={styles.modalTitleFullscreen}>Editar Fórmula</Text>
                                     <TouchableOpacity
                                         onPress={() => {
-                                            setAlertConfig({
-                                                visible: true,
-                                                title: 'Regras de Edição',
-                                                message: '📊 NÚMEROS: Até 10 caracteres\n(Ex: 123, 3.14, -5, 999999999)\n\n📝 LETRAS: Até 2 caracteres\n(Ex: x, y, ab, π)\n\n💡 O sistema detecta automaticamente o tipo!',
-                                                buttons: [{ text: 'Entendi', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-                                            });
+                                            setHelpPage(0); // Reset para primeira página
+                                            setHelpModalVisible(true);
                                         }}
                                         style={styles.helpIcon}
                                     >
@@ -873,6 +869,189 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                     setBuilderInitialLatex('');
                 }}
             />
+
+            {/* ========== HELP MODAL (sincronizado com ManageFlashcardsScreen) ========== */}
+            <Modal
+                visible={helpModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setHelpModalVisible(false)}
+            >
+                <View style={{
+                    flex: 1,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    padding: 20
+                }}>
+                    <View style={{
+                        backgroundColor: '#1A202C',
+                        borderRadius: 12,
+                        padding: 24,
+                        width: '90%',
+                        maxWidth: 500,
+                        borderWidth: 1,
+                        borderColor: '#2D3748'
+                    }}>
+                        {/* Header */}
+                        <View style={{ borderBottomWidth: 1, borderBottomColor: '#2D3748', paddingBottom: 12, marginBottom: 16 }}>
+                            <Text style={{
+                                fontSize: 20,
+                                fontWeight: 'bold',
+                                color: '#4FD1C5',
+                                textAlign: 'center'
+                            }}>Regras de Edição</Text>
+                        </View>
+
+                        {/* Conteúdo Paginado */}
+                        <ScrollView style={{ maxHeight: 400 }}>
+                            {helpPage === 0 ? (
+                                // Página 1: Regras Básicas
+                                <View>
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginBottom: 8
+                                    }}>🔢 NÚMEROS</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Sem letras: até 10 dígitos</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Com letras: até 3 dígitos</Text>
+
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginTop: 16,
+                                        marginBottom: 8
+                                    }}>🔤 LETRAS</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 letras por entrada</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Número antes de letra precisa de símbolo</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  Exemplo: 1+a ✓  |  1a ✗</Text>
+
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginTop: 16,
+                                        marginBottom: 8
+                                    }}>➕ SÍMBOLOS BÁSICOS</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 de cada tipo (+, -, ×, ÷, ^, _, (, ))</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Sem símbolos consecutivos</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  Exemplo: 2++3 ✗</Text>
+                                </View>
+                            ) : (
+                                // Página 2: Regras Avançadas
+                                <View>
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginBottom: 8
+                                    }}>🎯 INÍCIO DA ENTRADA</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Pode começar com: +, -, (, )</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com: vírgula, ponto</Text>
+
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginTop: 16,
+                                        marginBottom: 8
+                                    }}>🔣 SEPARADORES (vírgula e ponto)</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 separadores no total</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com separador</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode terminar com separador</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8, marginTop: 4 }}>  Exemplos:</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  3,14 ✓  |  0,5 ✓</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  ,5 ✗  |  5, ✗  |  3,1,4 ✗</Text>
+
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginTop: 16,
+                                        marginBottom: 8
+                                    }}>🚫 BLOQUEIOS</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Ponto e vírgula (;) não permitido</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Confirmação bloqueada se terminar com , ou .</Text>
+                                </View>
+                            )}
+                        </ScrollView>
+
+                        {/* Navegação e Botões */}
+                        <View style={{ marginTop: 16 }}>
+                            {/* Indicador de Página */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12 }}>
+                                <View style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 4,
+                                    backgroundColor: helpPage === 0 ? '#4FD1C5' : '#4A5568',
+                                    marginHorizontal: 4
+                                }} />
+                                <View style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 4,
+                                    backgroundColor: helpPage === 1 ? '#4FD1C5' : '#4A5568',
+                                    marginHorizontal: 4
+                                }} />
+                            </View>
+
+                            {/* Botões */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+                                {helpPage === 0 ? (
+                                    <TouchableOpacity
+                                        onPress={() => setHelpPage(1)}
+                                        style={{
+                                            flex: 1,
+                                            backgroundColor: '#2D3748',
+                                            paddingVertical: 10,
+                                            paddingHorizontal: 16,
+                                            borderRadius: 8,
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        <Text style={{ color: '#E2E8F0', fontSize: 15, fontWeight: '600' }}>Mais Detalhes ➡️</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity
+                                        onPress={() => setHelpPage(0)}
+                                        style={{
+                                            flex: 1,
+                                            backgroundColor: '#2D3748',
+                                            paddingVertical: 10,
+                                            paddingHorizontal: 16,
+                                            borderRadius: 8,
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        <Text style={{ color: '#E2E8F0', fontSize: 15, fontWeight: '600' }}>⬅️ Voltar</Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                <TouchableOpacity
+                                    onPress={() => setHelpModalVisible(false)}
+                                    style={{
+                                        flex: 1,
+                                        backgroundColor: '#4FD1C5',
+                                        paddingVertical: 10,
+                                        paddingHorizontal: 16,
+                                        borderRadius: 8,
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}
+                                >
+                                    <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>Entendi</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+            {/* ========== FIM DO HELP MODAL ========== */}
 
             < CustomAlert {...alertConfig} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
         </View >
