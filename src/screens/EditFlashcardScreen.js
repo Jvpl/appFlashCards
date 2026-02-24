@@ -257,6 +257,98 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
     // Helper para vibração (sincronizado com ManageFlashcardsScreen)
     const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
 
+    // Componente: Teclado Colapsável (Abc | Símbolos) - sincronizado com ManageFlashcardsScreen, ADAPTADO para 2 campos
+    const CollapsibleKeypad = ({ inputNumber }) => {
+        const letters = ['x', 'y', 'z', 'a', 'b', 'c', 'n', 'm', 'k', 't'];
+        const symbols = ['(', ')', '+', '-', '×', '÷', '^', '_', ',', '.', 'π', 'θ', '∞', '≠', '≥', '≤'];
+
+        const currentValue = inputNumber === 1 ? editValue1 : editValue2; // ADAPTADO: sem editValue3
+        const buttonStates = getButtonStates(currentValue);
+
+        const handleInsert = (char) => {
+            handleValidatedInsert(char, inputNumber);
+        };
+
+        const isSymbolAllowed = (symbol) => {
+            if (['π', 'θ', '∞'].includes(symbol)) return true;
+            if (buttonStates.symbolsDisabled) return false;
+            if (buttonStates.onlyPlusMinusAllowed && symbol !== '+' && symbol !== '-' && symbol !== '(' && symbol !== ')') return false;
+            return true;
+        };
+
+        return (
+            <View style={styles.keypadContainer}>
+                <View style={styles.keypadToggleRow}>
+                    <TouchableOpacity
+                        style={[styles.keypadToggle, showLettersPanel && styles.keypadToggleActive]}
+                        onPress={() => {
+                            tap();
+                            setShowLettersPanel(!showLettersPanel);
+                            if (showSymbolsPanel) setShowSymbolsPanel(false);
+                        }}
+                    >
+                        <Text style={styles.keypadToggleText}>Abc</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.keypadToggle, showSymbolsPanel && styles.keypadToggleActive]}
+                        onPress={() => {
+                            tap();
+                            setShowSymbolsPanel(!showSymbolsPanel);
+                            if (showLettersPanel) setShowLettersPanel(false);
+                        }}
+                    >
+                        <Text style={styles.keypadToggleText}>+-×</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {showLettersPanel && (
+                    <View style={styles.keypadPanel}>
+                        {letters.map(letter => (
+                            <TouchableOpacity
+                                key={letter}
+                                style={[
+                                    styles.keypadButton,
+                                    buttonStates.lettersDisabled && styles.keypadButtonDisabled
+                                ]}
+                                onPress={() => { if (!buttonStates.lettersDisabled) { tap(); handleInsert(letter); } }}
+                                disabled={buttonStates.lettersDisabled}
+                            >
+                                <Text style={[
+                                    styles.keypadButtonText,
+                                    buttonStates.lettersDisabled && styles.keypadButtonTextDisabled
+                                ]}>{letter}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
+
+                {showSymbolsPanel && (
+                    <View style={styles.keypadPanel}>
+                        {symbols.map(symbol => {
+                            const allowed = isSymbolAllowed(symbol);
+                            return (
+                                <TouchableOpacity
+                                    key={symbol}
+                                    style={[
+                                        styles.keypadButton,
+                                        !allowed && styles.keypadButtonDisabled
+                                    ]}
+                                    onPress={() => { if (allowed) { tap(); handleInsert(symbol); } }}
+                                    disabled={!allowed}
+                                >
+                                    <Text style={[
+                                        styles.keypadButtonText,
+                                        !allowed && styles.keypadButtonTextDisabled
+                                    ]}>{symbol}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                )}
+            </View>
+        );
+    };
+
     // Função para calcular peso de fórmula (espelho do WebView)
     const calculateFormulaWeight = (latex) => {
         if (!latex) return 5;
@@ -601,55 +693,73 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                 </View>
 
                                 <Text style={styles.formLabel}>{currentLatex.includes('frac') ? 'Numerador' : (currentLatex.includes('^') ? 'Base' : (currentLatex.includes('log') ? 'Base' : 'Valor'))}</Text>
-                                <Animated.View style={[styles.inputWrapper, shakeStyle1]}>
+                                <Animated.View style={shakeStyle1}>
                                     <TextInput
-                                        style={[styles.formInput, styles.formInputWithCounter, styles.modalInputFocused]}
+                                        ref={modalInput1Ref}
+                                        style={[
+                                            styles.modalInputWithFocus,
+                                            focusedInput === 1 && styles.modalInputFocusedGreen,
+                                        ]}
                                         value={editValue1}
                                         onChangeText={(text) => {
-                                            const maxLen = isNumericContent(text) ? 10 : 2;
-                                            if (text.length <= maxLen) {
-                                                setEditValue1(text);
+                                            if (text.length > editValue1.length) {
+                                                const newChar = text.slice(-1);
+                                                const validation = validateInput(editValue1, newChar);
+                                                if (validation.valid) {
+                                                    setEditValue1(text);
+                                                } else {
+                                                    triggerShake(shakeAnim1);
+                                                }
                                             } else {
-                                                triggerShake(shakeAnim1);
+                                                setEditValue1(text);
                                             }
                                         }}
-                                        placeholder="Valor..."
-                                        autoFocus={true}
+                                        onFocus={() => setFocusedInput(1)}
+                                        placeholder="Toque para editar..."
+                                        placeholderTextColor="#718096"
                                         autoComplete="off"
                                         importantForAutofill="no"
                                     />
-                                    <CharacterCounter
-                                        current={editValue1.length}
-                                        max={isNumericContent(editValue1) ? 10 : 2}
-                                    />
                                 </Animated.View>
+                                <SegmentedCounter text={editValue1} />
 
                                 {(currentLatex.includes('frac') || currentLatex.includes('log') || currentLatex.includes('sqrt') || currentLatex.includes('^')) && (
                                     <>
-                                        <Text style={styles.formLabel}>{currentLatex.includes('log') ? 'Logaritmando' : (currentLatex.includes('sqrt') ? 'Índice' : (currentLatex.includes('^') ? 'Expoente' : 'Denominador'))}</Text>
-                                        <Animated.View style={[styles.inputWrapper, shakeStyle2]}>
+                                        <Text style={[styles.formLabel, { marginTop: 12 }]}>{currentLatex.includes('log') ? 'Logaritmando' : (currentLatex.includes('sqrt') ? 'Índice' : (currentLatex.includes('^') ? 'Expoente' : 'Denominador'))}</Text>
+                                        <Animated.View style={shakeStyle2}>
                                             <TextInput
-                                                style={[styles.formInput, styles.formInputWithCounter, styles.modalInputFocused]}
+                                                ref={modalInput2Ref}
+                                                style={[
+                                                    styles.modalInputWithFocus,
+                                                    focusedInput === 2 && styles.modalInputFocusedGreen,
+                                                ]}
                                                 value={editValue2}
                                                 onChangeText={(text) => {
-                                                    const maxLen = isNumericContent(text) ? 10 : 2;
-                                                    if (text.length <= maxLen) {
-                                                        setEditValue2(text);
+                                                    if (text.length > editValue2.length) {
+                                                        const newChar = text.slice(-1);
+                                                        const validation = validateInput(editValue2, newChar);
+                                                        if (validation.valid) {
+                                                            setEditValue2(text);
+                                                        } else {
+                                                            triggerShake(shakeAnim2);
+                                                        }
                                                     } else {
-                                                        triggerShake(shakeAnim2);
+                                                        setEditValue2(text);
                                                     }
                                                 }}
-                                                placeholder="Valor..."
+                                                onFocus={() => setFocusedInput(2)}
+                                                placeholder="Toque para editar..."
+                                                placeholderTextColor="#718096"
                                                 autoComplete="off"
                                                 importantForAutofill="no"
                                             />
-                                            <CharacterCounter
-                                                current={editValue2.length}
-                                                max={isNumericContent(editValue2) ? 10 : 2}
-                                            />
                                         </Animated.View>
+                                        <SegmentedCounter text={editValue2} />
                                     </>
                                 )}
+
+                                {/* Teclado colapsável sincronizado com ManageFlashcardsScreen */}
+                                <CollapsibleKeypad inputNumber={focusedInput} />
                             </ScrollView>
 
                             <View style={{ marginTop: 16 }}>
