@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Modal, TouchableWithoutFeedback, TextInput, Button, Keyboard } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Modal, TouchableWithoutFeedback, TextInput, Button, Keyboard, Vibration } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
@@ -36,14 +36,23 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
     const [editValue1, setEditValue1] = useState('');
     const [editValue2, setEditValue2] = useState('');
 
-    const [builderVisible, setBuilderVisible] = useState(false); // Montador de fórmula livre
-    const [builderInitialLatex, setBuilderInitialLatex] = useState('');
-
-
     // Estados para limite de caracteres
     const [questionCharCount, setQuestionCharCount] = useState(0);
     const [answerCharCount, setAnswerCharCount] = useState(0);
     const CHAR_LIMIT = 800;
+
+    // Estados para teclado colapsável do modal (sincronizado com ManageFlashcardsScreen)
+    const [showLettersPanel, setShowLettersPanel] = useState(false);
+    const [showSymbolsPanel, setShowSymbolsPanel] = useState(false);
+    const [focusedInput, setFocusedInput] = useState(1); // 1 ou 2 (sem 3 - removido editValue3)
+    const [builderVisible, setBuilderVisible] = useState(false); // Montador de fórmula livre
+    const [builderInitialLatex, setBuilderInitialLatex] = useState(''); // LaTeX inicial (edição)
+    const [helpModalVisible, setHelpModalVisible] = useState(false);
+    const [helpPage, setHelpPage] = useState(0); // 0 = página 1, 1 = página 2
+
+    // Refs para inputs do modal (sincronizado com ManageFlashcardsScreen, sem modalInput3Ref)
+    const modalInput1Ref = useRef(null);
+    const modalInput2Ref = useRef(null);
 
 
 
@@ -78,6 +87,126 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
         );
     };
 
+    // ========== SISTEMA DE VALIDAÇÃO ROBUSTO (sincronizado com ManageFlashcardsScreen) ==========
+    // Valida se um novo caractere pode ser inserido
+    const validateInput = (currentText, newChar) => {
+        const text = currentText || '';
+
+        // VALIDAÇÃO ESTRITA: Lista branca de caracteres permitidos
+        const allowedChars = /^[0-9a-zA-Z+\-×÷^_(),.\sπθ≠≥≤∞]$/;
+        if (!allowedChars.test(newChar)) {
+            return { valid: false, reason: 'characterNotAllowed' };
+        }
+
+        // Contadores
+        const letterCount = (text.match(/[a-zA-Z]/g) || []).length;
+        const numberCount = (text.match(/[0-9]/g) || []).length;
+        const symbolCounts = {
+            '+': (text.match(/\+/g) || []).length,
+            '-': (text.match(/-/g) || []).length,
+            '×': (text.match(/×/g) || []).length,
+            '÷': (text.match(/÷/g) || []).length,
+            '^': (text.match(/\^/g) || []).length,
+            '_': (text.match(/_/g) || []).length,
+            '(': (text.match(/\(/g) || []).length,
+            ')': (text.match(/\)/g) || []).length,
+            ',': (text.match(/,/g) || []).length,
+            '.': (text.match(/\./g) || []).length,
+        };
+
+        const lastChar = text.slice(-1);
+        const isLetter = /[a-zA-Z]/.test(newChar);
+        const isNumber = /[0-9]/.test(newChar);
+        const isDecimalSep = /[,.]/.test(newChar);
+        const isSymbol = /[+\-×÷^_()≠≥≤]/.test(newChar);
+        const lastIsNumber = /[0-9]/.test(lastChar);
+        const lastIsSymbol = /[+\-×÷^_()≠≥≤]/.test(lastChar);
+        const lastIsDecimal = /[,.]/.test(lastChar);
+
+        // Regra 1: Num → Letra BLOQUEADO (precisa de símbolo entre eles)
+        if (isLetter && lastIsNumber) {
+            return { valid: false, reason: 'needsSymbol' };
+        }
+
+        // Regra 2: Símbolos consecutivos — bloqueia, exceto combinações matematicamente válidas
+        if (isSymbol && lastIsSymbol) {
+            if (newChar === '(') return { valid: true };
+            if (lastChar === ')') return { valid: true };
+            return { valid: false, reason: 'noConsecutiveSymbols' };
+        }
+
+        // Regra 3: Símbolo no início (apenas +, -, ( e ) permitidos)
+        if (isSymbol && text.length === 0 && newChar !== '-' && newChar !== '+' && newChar !== '(' && newChar !== ')') {
+            return { valid: false, reason: 'invalidStart' };
+        }
+
+        // Separadores decimais (vírgula e ponto)
+        if (isDecimalSep) {
+            if (text.length === 0) {
+                return { valid: false, reason: 'decimalAtStart' };
+            }
+            if (lastIsDecimal) {
+                return { valid: false, reason: 'consecutiveDecimals' };
+            }
+            const totalSeparators = symbolCounts[','] + symbolCounts['.'];
+            if (totalSeparators >= 2) {
+                return { valid: false, reason: 'maxDecimals' };
+            }
+        }
+
+        // Regra 4: Limite de letras (máx 6)
+        if (isLetter && letterCount >= 6) {
+            return { valid: false, reason: 'maxLetters' };
+        }
+
+        // Regra 5: Limite dinâmico de números
+        const maxNumbers = letterCount > 0 ? 5 : 15;
+        if (isNumber && numberCount >= maxNumbers) {
+            return { valid: false, reason: 'maxNumbers' };
+        }
+
+        // Regra 6: Limite de símbolos (máx 4 de cada tipo)
+        if ((isSymbol || isDecimalSep) && symbolCounts[newChar] !== undefined && symbolCounts[newChar] >= 4) {
+            return { valid: false, reason: 'maxSymbols' };
+        }
+
+        return { valid: true };
+    };
+
+    // Retorna estados dos botões do teclado customizado
+    const getButtonStates = (text) => {
+        const lastChar = (text || '').slice(-1);
+        const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
+        const numberCount = ((text || '').match(/[0-9]/g) || []).length;
+        const lastIsNumber = /[0-9]/.test(lastChar);
+        const lastIsSymbol = /[+\-×÷^_()≠≥≤]/.test(lastChar);
+        const isEmpty = (text || '').length === 0;
+
+        const maxNumbers = letterCount > 0 ? 5 : 15;
+
+        return {
+            lettersDisabled: lastIsNumber || letterCount >= 6,
+            numbersDisabled: numberCount >= maxNumbers,
+            symbolsDisabled: lastIsSymbol,
+            onlyPlusMinusAllowed: isEmpty,
+        };
+    };
+
+    // Handler de inserção com validação (ADAPTADO: apenas 2 campos, sem editValue3)
+    const handleValidatedInsert = (char, inputNumber) => {
+        const currentValue = inputNumber === 1 ? editValue1 : editValue2;
+        const setValue = inputNumber === 1 ? setEditValue1 : setEditValue2;
+        const shakeAnim = inputNumber === 1 ? shakeAnim1 : shakeAnim2;
+
+        const validation = validateInput(currentValue, char);
+
+        if (validation.valid) {
+            setValue(currentValue + char);
+        } else {
+            triggerShake(shakeAnim);
+        }
+    };
+
     const CharacterCounter = ({ current, max }) => {
         const percentage = (current / max) * 100;
         const isWarning = percentage >= 70;
@@ -94,7 +223,39 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
         );
     };
 
+    // Componente: Contador Segmentado (Num | Let | Sim) - sincronizado com ManageFlashcardsScreen
+    const SegmentedCounter = ({ text }) => {
+        const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
+        const numberCount = ((text || '').match(/[0-9]/g) || []).length;
+        const symbolCount = ((text || '').match(/[+\-×÷^_()]/g) || []).length;
+        const maxNumbers = letterCount > 0 ? 5 : 15;
 
+        const getColor = (current, max) => {
+            const pct = (current / max) * 100;
+            if (pct >= 100) return '#EF4444';
+            if (pct >= 70) return '#F59E0B';
+            return '#A0AEC0';
+        };
+
+        return (
+            <View style={styles.segmentedCounterContainer}>
+                <Text style={[styles.segmentedCounterText, { color: getColor(numberCount, maxNumbers) }]}>
+                    Num: {numberCount}/{maxNumbers}
+                </Text>
+                <Text style={styles.segmentedCounterDivider}>|</Text>
+                <Text style={[styles.segmentedCounterText, { color: getColor(letterCount, 6) }]}>
+                    Let: {letterCount}/6
+                </Text>
+                <Text style={styles.segmentedCounterDivider}>|</Text>
+                <Text style={[styles.segmentedCounterText, { color: getColor(symbolCount, 6) }]}>
+                    Sim: {symbolCount}/6
+                </Text>
+            </View>
+        );
+    };
+
+    // Helper para vibração (sincronizado com ManageFlashcardsScreen)
+    const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
 
     // Função para calcular peso de fórmula (espelho do WebView)
     const calculateFormulaWeight = (latex) => {
