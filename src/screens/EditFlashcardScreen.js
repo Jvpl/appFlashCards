@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Modal, TouchableWithoutFeedback, TextInput, Button, Keyboard } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Modal, TouchableWithoutFeedback, TextInput, Button, Keyboard, Vibration } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
@@ -9,6 +9,9 @@ import { MathToolbar } from '../components/editor/MathToolbar';
 import { IsolatedMathEditor } from '../components/editor/IsolatedMathEditor';
 import { FormulaBuilderModal } from '../components/editor/FormulaBuilderModal';
 import { CustomAlert } from '../components/ui/CustomAlert';
+import { SegmentedCounter } from '../components/editor/SegmentedCounter';
+import { CollapsibleKeypad } from '../components/editor/CollapsibleKeypad';
+import { validateInput, getButtonStates } from '../utils/inputValidation';
 import styles from '../styles/globalStyles';
 
 export const EditFlashcardScreen = ({ route, navigation }) => {
@@ -36,14 +39,23 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
     const [editValue1, setEditValue1] = useState('');
     const [editValue2, setEditValue2] = useState('');
 
-    const [builderVisible, setBuilderVisible] = useState(false); // Montador de fórmula livre
-    const [builderInitialLatex, setBuilderInitialLatex] = useState('');
-
-
     // Estados para limite de caracteres
     const [questionCharCount, setQuestionCharCount] = useState(0);
     const [answerCharCount, setAnswerCharCount] = useState(0);
     const CHAR_LIMIT = 800;
+
+    // Estados para teclado colapsável do modal (sincronizado com ManageFlashcardsScreen)
+    const [showLettersPanel, setShowLettersPanel] = useState(false);
+    const [showSymbolsPanel, setShowSymbolsPanel] = useState(false);
+    const [focusedInput, setFocusedInput] = useState(1); // 1 ou 2 (sem 3 - removido editValue3)
+    const [builderVisible, setBuilderVisible] = useState(false); // Montador de fórmula livre
+    const [builderInitialLatex, setBuilderInitialLatex] = useState(''); // LaTeX inicial (edição)
+    const [helpModalVisible, setHelpModalVisible] = useState(false);
+    const [helpPage, setHelpPage] = useState(0); // 0 = página 1, 1 = página 2
+
+    // Refs para inputs do modal (sincronizado com ManageFlashcardsScreen, sem modalInput3Ref)
+    const modalInput1Ref = useRef(null);
+    const modalInput2Ref = useRef(null);
 
 
 
@@ -78,6 +90,24 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
         );
     };
 
+    // ========== HELPER FUNCTIONS (importados de shared) ==========
+    // validateInput e getButtonStates agora vêm de src/utils/inputValidation.js
+
+    // Handler de inserção com validação (ADAPTADO: apenas 2 campos, sem editValue3)
+    const handleValidatedInsert = (char, inputNumber) => {
+        const currentValue = inputNumber === 1 ? editValue1 : editValue2;
+        const setValue = inputNumber === 1 ? setEditValue1 : setEditValue2;
+        const shakeAnim = inputNumber === 1 ? shakeAnim1 : shakeAnim2;
+
+        const validation = validateInput(currentValue, char);
+
+        if (validation.valid) {
+            setValue(currentValue + char);
+        } else {
+            triggerShake(shakeAnim);
+        }
+    };
+
     const CharacterCounter = ({ current, max }) => {
         const percentage = (current / max) * 100;
         const isWarning = percentage >= 70;
@@ -94,7 +124,9 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
         );
     };
 
-
+    // SegmentedCounter e CollapsibleKeypad agora vêm de componentes compartilhados
+    // Helper para vibração
+    const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
 
     // Função para calcular peso de fórmula (espelho do WebView)
     const calculateFormulaWeight = (latex) => {
@@ -426,12 +458,8 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                     <Text style={styles.modalTitleFullscreen}>Editar Fórmula</Text>
                                     <TouchableOpacity
                                         onPress={() => {
-                                            setAlertConfig({
-                                                visible: true,
-                                                title: 'Regras de Edição',
-                                                message: '📊 NÚMEROS: Até 10 caracteres\n(Ex: 123, 3.14, -5, 999999999)\n\n📝 LETRAS: Até 2 caracteres\n(Ex: x, y, ab, π)\n\n💡 O sistema detecta automaticamente o tipo!',
-                                                buttons: [{ text: 'Entendi', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-                                            });
+                                            setHelpPage(0); // Reset para primeira página
+                                            setHelpModalVisible(true);
                                         }}
                                         style={styles.helpIcon}
                                     >
@@ -440,55 +468,81 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                 </View>
 
                                 <Text style={styles.formLabel}>{currentLatex.includes('frac') ? 'Numerador' : (currentLatex.includes('^') ? 'Base' : (currentLatex.includes('log') ? 'Base' : 'Valor'))}</Text>
-                                <Animated.View style={[styles.inputWrapper, shakeStyle1]}>
+                                <Animated.View style={shakeStyle1}>
                                     <TextInput
-                                        style={[styles.formInput, styles.formInputWithCounter, styles.modalInputFocused]}
+                                        ref={modalInput1Ref}
+                                        style={[
+                                            styles.modalInputWithFocus,
+                                            focusedInput === 1 && styles.modalInputFocusedGreen,
+                                        ]}
                                         value={editValue1}
                                         onChangeText={(text) => {
-                                            const maxLen = isNumericContent(text) ? 10 : 2;
-                                            if (text.length <= maxLen) {
-                                                setEditValue1(text);
+                                            if (text.length > editValue1.length) {
+                                                const newChar = text.slice(-1);
+                                                const validation = validateInput(editValue1, newChar);
+                                                if (validation.valid) {
+                                                    setEditValue1(text);
+                                                } else {
+                                                    triggerShake(shakeAnim1);
+                                                }
                                             } else {
-                                                triggerShake(shakeAnim1);
+                                                setEditValue1(text);
                                             }
                                         }}
-                                        placeholder="Valor..."
-                                        autoFocus={true}
+                                        onFocus={() => setFocusedInput(1)}
+                                        placeholder="Toque para editar..."
+                                        placeholderTextColor="#718096"
                                         autoComplete="off"
                                         importantForAutofill="no"
                                     />
-                                    <CharacterCounter
-                                        current={editValue1.length}
-                                        max={isNumericContent(editValue1) ? 10 : 2}
-                                    />
                                 </Animated.View>
+                                <SegmentedCounter text={editValue1} />
 
                                 {(currentLatex.includes('frac') || currentLatex.includes('log') || currentLatex.includes('sqrt') || currentLatex.includes('^')) && (
                                     <>
-                                        <Text style={styles.formLabel}>{currentLatex.includes('log') ? 'Logaritmando' : (currentLatex.includes('sqrt') ? 'Índice' : (currentLatex.includes('^') ? 'Expoente' : 'Denominador'))}</Text>
-                                        <Animated.View style={[styles.inputWrapper, shakeStyle2]}>
+                                        <Text style={[styles.formLabel, { marginTop: 12 }]}>{currentLatex.includes('log') ? 'Logaritmando' : (currentLatex.includes('sqrt') ? 'Índice' : (currentLatex.includes('^') ? 'Expoente' : 'Denominador'))}</Text>
+                                        <Animated.View style={shakeStyle2}>
                                             <TextInput
-                                                style={[styles.formInput, styles.formInputWithCounter, styles.modalInputFocused]}
+                                                ref={modalInput2Ref}
+                                                style={[
+                                                    styles.modalInputWithFocus,
+                                                    focusedInput === 2 && styles.modalInputFocusedGreen,
+                                                ]}
                                                 value={editValue2}
                                                 onChangeText={(text) => {
-                                                    const maxLen = isNumericContent(text) ? 10 : 2;
-                                                    if (text.length <= maxLen) {
-                                                        setEditValue2(text);
+                                                    if (text.length > editValue2.length) {
+                                                        const newChar = text.slice(-1);
+                                                        const validation = validateInput(editValue2, newChar);
+                                                        if (validation.valid) {
+                                                            setEditValue2(text);
+                                                        } else {
+                                                            triggerShake(shakeAnim2);
+                                                        }
                                                     } else {
-                                                        triggerShake(shakeAnim2);
+                                                        setEditValue2(text);
                                                     }
                                                 }}
-                                                placeholder="Valor..."
+                                                onFocus={() => setFocusedInput(2)}
+                                                placeholder="Toque para editar..."
+                                                placeholderTextColor="#718096"
                                                 autoComplete="off"
                                                 importantForAutofill="no"
                                             />
-                                            <CharacterCounter
-                                                current={editValue2.length}
-                                                max={isNumericContent(editValue2) ? 10 : 2}
-                                            />
                                         </Animated.View>
+                                        <SegmentedCounter text={editValue2} />
                                     </>
                                 )}
+
+                                {/* Teclado colapsável sincronizado com ManageFlashcardsScreen */}
+                                <CollapsibleKeypad
+                                    inputNumber={focusedInput}
+                                    currentValue={focusedInput === 1 ? editValue1 : editValue2}
+                                    onInsert={(char) => handleValidatedInsert(char, focusedInput)}
+                                    showLettersPanel={showLettersPanel}
+                                    setShowLettersPanel={setShowLettersPanel}
+                                    showSymbolsPanel={showSymbolsPanel}
+                                    setShowSymbolsPanel={setShowSymbolsPanel}
+                                />
                             </ScrollView>
 
                             <View style={{ marginTop: 16 }}>
@@ -602,6 +656,189 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                     setBuilderInitialLatex('');
                 }}
             />
+
+            {/* ========== HELP MODAL (sincronizado com ManageFlashcardsScreen) ========== */}
+            <Modal
+                visible={helpModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setHelpModalVisible(false)}
+            >
+                <View style={{
+                    flex: 1,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    padding: 20
+                }}>
+                    <View style={{
+                        backgroundColor: '#1A202C',
+                        borderRadius: 12,
+                        padding: 24,
+                        width: '90%',
+                        maxWidth: 500,
+                        borderWidth: 1,
+                        borderColor: '#2D3748'
+                    }}>
+                        {/* Header */}
+                        <View style={{ borderBottomWidth: 1, borderBottomColor: '#2D3748', paddingBottom: 12, marginBottom: 16 }}>
+                            <Text style={{
+                                fontSize: 20,
+                                fontWeight: 'bold',
+                                color: '#4FD1C5',
+                                textAlign: 'center'
+                            }}>Regras de Edição</Text>
+                        </View>
+
+                        {/* Conteúdo Paginado */}
+                        <ScrollView style={{ maxHeight: 400 }}>
+                            {helpPage === 0 ? (
+                                // Página 1: Regras Básicas
+                                <View>
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginBottom: 8
+                                    }}>🔢 NÚMEROS</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Sem letras: até 10 dígitos</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Com letras: até 3 dígitos</Text>
+
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginTop: 16,
+                                        marginBottom: 8
+                                    }}>🔤 LETRAS</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 letras por entrada</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Número antes de letra precisa de símbolo</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  Exemplo: 1+a ✓  |  1a ✗</Text>
+
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginTop: 16,
+                                        marginBottom: 8
+                                    }}>➕ SÍMBOLOS BÁSICOS</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 de cada tipo (+, -, ×, ÷, ^, _, (, ))</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Sem símbolos consecutivos</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  Exemplo: 2++3 ✗</Text>
+                                </View>
+                            ) : (
+                                // Página 2: Regras Avançadas
+                                <View>
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginBottom: 8
+                                    }}>🎯 INÍCIO DA ENTRADA</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Pode começar com: +, -, (, )</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com: vírgula, ponto</Text>
+
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginTop: 16,
+                                        marginBottom: 8
+                                    }}>🔣 SEPARADORES (vírgula e ponto)</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 separadores no total</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com separador</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode terminar com separador</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8, marginTop: 4 }}>  Exemplos:</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  3,14 ✓  |  0,5 ✓</Text>
+                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  ,5 ✗  |  5, ✗  |  3,1,4 ✗</Text>
+
+                                    <Text style={{
+                                        fontSize: 16,
+                                        fontWeight: 'bold',
+                                        color: '#E2E8F0',
+                                        marginTop: 16,
+                                        marginBottom: 8
+                                    }}>🚫 BLOQUEIOS</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Ponto e vírgula (;) não permitido</Text>
+                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Confirmação bloqueada se terminar com , ou .</Text>
+                                </View>
+                            )}
+                        </ScrollView>
+
+                        {/* Navegação e Botões */}
+                        <View style={{ marginTop: 16 }}>
+                            {/* Indicador de Página */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12 }}>
+                                <View style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 4,
+                                    backgroundColor: helpPage === 0 ? '#4FD1C5' : '#4A5568',
+                                    marginHorizontal: 4
+                                }} />
+                                <View style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 4,
+                                    backgroundColor: helpPage === 1 ? '#4FD1C5' : '#4A5568',
+                                    marginHorizontal: 4
+                                }} />
+                            </View>
+
+                            {/* Botões */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+                                {helpPage === 0 ? (
+                                    <TouchableOpacity
+                                        onPress={() => setHelpPage(1)}
+                                        style={{
+                                            flex: 1,
+                                            backgroundColor: '#2D3748',
+                                            paddingVertical: 10,
+                                            paddingHorizontal: 16,
+                                            borderRadius: 8,
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        <Text style={{ color: '#E2E8F0', fontSize: 15, fontWeight: '600' }}>Mais Detalhes ➡️</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity
+                                        onPress={() => setHelpPage(0)}
+                                        style={{
+                                            flex: 1,
+                                            backgroundColor: '#2D3748',
+                                            paddingVertical: 10,
+                                            paddingHorizontal: 16,
+                                            borderRadius: 8,
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        <Text style={{ color: '#E2E8F0', fontSize: 15, fontWeight: '600' }}>⬅️ Voltar</Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                <TouchableOpacity
+                                    onPress={() => setHelpModalVisible(false)}
+                                    style={{
+                                        flex: 1,
+                                        backgroundColor: '#4FD1C5',
+                                        paddingVertical: 10,
+                                        paddingHorizontal: 16,
+                                        borderRadius: 8,
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}
+                                >
+                                    <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>Entendi</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+            {/* ========== FIM DO HELP MODAL ========== */}
 
             < CustomAlert {...alertConfig} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
         </View >

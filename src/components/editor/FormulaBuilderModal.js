@@ -272,8 +272,8 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
     // Aplica os ajustes ESPECÍFICOS para ∫, ∑ e vírgula (não afeta outros símbolos):
     sanitized = sanitized.replace(/\\int\s/g, `{${INT_SIZE}\\int} `);
     sanitized = sanitized.replace(/\\sum\s/g, `{${SUM_SIZE}\\sum} `);
-    // Para ∫: usa \\raisebox para baixar o cursor e compensar a altura do símbolo
-    sanitized = sanitized.replace(new RegExp(`(\\{${INT_SIZE.replace(/\\/g, '\\\\')}\\\\int\\}\\s)\\\\mathclose\\{\\\\color\\{#4FD1C5\\}\\|\\}`, 'g'), `$1\\mkern${INT_CURSOR_SPACE}\\raisebox{-0.35ex}{\\color{#4FD1C5}|}`);
+    // Para ∫: ajusta cursor verticalmente para compensar baseline do \footnotesize
+    sanitized = sanitized.replace(new RegExp(`(\\{${INT_SIZE.replace(/\\/g, '\\\\')}\\\\int\\}\\s)\\\\mathclose\\{\\\\color\\{#4FD1C5\\}\\|\\}`, 'g'), `$1\\mkern${INT_CURSOR_SPACE}\\raisebox{-0.1ex}{\\color{#4FD1C5}|}`);
     sanitized = sanitized.replace(new RegExp(`(\\{${SUM_SIZE.replace(/\\/g, '\\\\')}\\\\sum\\}\\s)\\\\mathclose\\{\\\\color\\{#4FD1C5\\}\\|\\}`, 'g'), `$1\\mkern${SUM_CURSOR_SPACE}\\mathclose{\\color{#4FD1C5}|}`);
     sanitized = sanitized.replace(/,\\mathclose\{\\color\{#4FD1C5\}\|\}/g, `,\\mkern${COMMA_CURSOR_SPACE}\\mathclose{\\color{#4FD1C5}|}`);
 

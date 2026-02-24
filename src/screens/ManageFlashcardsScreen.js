@@ -11,10 +11,13 @@ import { FormulaBuilderModal } from '../components/editor/FormulaBuilderModal';
 import { IsolatedMathEditor } from '../components/editor/IsolatedMathEditor';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
+import { SegmentedCounter } from '../components/editor/SegmentedCounter';
+import { CollapsibleKeypad } from '../components/editor/CollapsibleKeypad';
+import { validateInput, getButtonStates } from '../utils/inputValidation';
 import styles from '../styles/globalStyles';
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, preloadedCards } = route.params;
+  const { deckId, subjectId, preloadedCards, cardId } = route.params; // cardId opcional para modo edição
 
   const questionEditorRef = useRef(null);
   const answerEditorRef = useRef(null);
@@ -32,7 +35,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const [currentLatex, setCurrentLatex] = useState('');
   const [editValue1, setEditValue1] = useState('');
   const [editValue2, setEditValue2] = useState('');
-  const [editValue3, setEditValue3] = useState('');
 
   // Estados para limite de caracteres
   const [questionCharCount, setQuestionCharCount] = useState(0);
@@ -42,8 +44,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Estados para teclado colapsável do modal
   const [showLettersPanel, setShowLettersPanel] = useState(false);
   const [showSymbolsPanel, setShowSymbolsPanel] = useState(false);
-  const [focusedInput, setFocusedInput] = useState(1); // 1, 2 ou 3
-  const [advancedFrac, setAdvancedFrac] = useState(false); // Modo avançado da fração
+  const [focusedInput, setFocusedInput] = useState(1); // 1 ou 2 (editValue3 removido)
   const [builderVisible, setBuilderVisible] = useState(false); // Montador de fórmula livre
   const [builderInitialLatex, setBuilderInitialLatex] = useState(''); // LaTeX inicial (edição)
   const [helpModalVisible, setHelpModalVisible] = useState(false);
@@ -52,13 +53,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Refs para inputs do modal
   const modalInput1Ref = useRef(null);
   const modalInput2Ref = useRef(null);
-  const modalInput3Ref = useRef(null);
 
   // ========== Helper Functions for Modal ==========
   // Valores compartilhados para animação de shake (reanimated v2/v3)
   const shakeAnim1 = useSharedValue(0);
   const shakeAnim2 = useSharedValue(0);
-  const shakeAnim3 = useSharedValue(0);
 
   // Estilos animados para shake
   const shakeStyle1 = useAnimatedStyle(() => ({
@@ -67,126 +66,15 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const shakeStyle2 = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeAnim2.value }]
   }));
-  const shakeStyle3 = useAnimatedStyle(() => ({
-    transform: [{ translateX: shakeAnim3.value }]
-  }));
 
-  // ========== SISTEMA DE VALIDAÇÃO ROBUSTO ==========
-  // Valida se um novo caractere pode ser inserido
-  const validateInput = (currentText, newChar) => {
-    const text = currentText || '';
+  // ========== HELPER FUNCTIONS (importados de shared) ==========
+  // validateInput e getButtonStates agora vêm de src/utils/inputValidation.js
 
-    // VALIDAÇÃO ESTRITA: Lista branca de caracteres permitidos
-    const allowedChars = /^[0-9a-zA-Z+\-×÷^_(),.\sπθ≠≥≤∞]$/;
-    if (!allowedChars.test(newChar)) {
-      return { valid: false, reason: 'characterNotAllowed' };
-    }
-
-    // Contadores
-    const letterCount = (text.match(/[a-zA-Z]/g) || []).length;
-    const numberCount = (text.match(/[0-9]/g) || []).length;
-    const symbolCounts = {
-      '+': (text.match(/\+/g) || []).length,
-      '-': (text.match(/-/g) || []).length,
-      '×': (text.match(/×/g) || []).length,
-      '÷': (text.match(/÷/g) || []).length,
-      '^': (text.match(/\^/g) || []).length,
-      '_': (text.match(/_/g) || []).length,
-      '(': (text.match(/\(/g) || []).length,
-      ')': (text.match(/\)/g) || []).length,
-      ',': (text.match(/,/g) || []).length,
-      '.': (text.match(/\./g) || []).length,
-    };
-
-    const lastChar = text.slice(-1);
-    const isLetter = /[a-zA-Z]/.test(newChar);
-    const isNumber = /[0-9]/.test(newChar);
-    const isDecimalSep = /[,.]/.test(newChar);
-    const isSymbol = /[+\-×÷^_()≠≥≤]/.test(newChar);
-    const lastIsNumber = /[0-9]/.test(lastChar);
-    const lastIsSymbol = /[+\-×÷^_()≠≥≤]/.test(lastChar);
-    const lastIsDecimal = /[,.]/.test(lastChar);
-
-    // Regra 1: Num → Letra BLOQUEADO (precisa de símbolo entre eles)
-    if (isLetter && lastIsNumber) {
-      return { valid: false, reason: 'needsSymbol' };
-    }
-
-    // Regra 2: Símbolos consecutivos — bloqueia, exceto combinações matematicamente válidas
-    if (isSymbol && lastIsSymbol) {
-      if (newChar === '(') return { valid: true };   // ex: ×(, +(, -(
-      if (lastChar === ')') return { valid: true };  // ex: )^, )×, )+
-      return { valid: false, reason: 'noConsecutiveSymbols' };
-    }
-
-    // Regra 3: Símbolo no início (apenas +, -, ( e ) permitidos)
-    if (isSymbol && text.length === 0 && newChar !== '-' && newChar !== '+' && newChar !== '(' && newChar !== ')') {
-      return { valid: false, reason: 'invalidStart' };
-    }
-
-    // NOVO: Separadores decimais (vírgula e ponto)
-    if (isDecimalSep) {
-      // Não pode começar com separador
-      if (text.length === 0) {
-        return { valid: false, reason: 'decimalAtStart' };
-      }
-
-      // Não pode ter dois separadores consecutivos
-      if (lastIsDecimal) {
-        return { valid: false, reason: 'consecutiveDecimals' };
-      }
-
-      // Máximo 2 separadores no total (soma de vírgulas e pontos)
-      const totalSeparators = symbolCounts[','] + symbolCounts['.'];
-      if (totalSeparators >= 2) {
-        return { valid: false, reason: 'maxDecimals' };
-      }
-    }
-
-    // Regra 4: Limite de letras (máx 6)
-    if (isLetter && letterCount >= 6) {
-      return { valid: false, reason: 'maxLetters' };
-    }
-
-    // Regra 5: Limite dinâmico de números
-    const maxNumbers = letterCount > 0 ? 5 : 15;
-    if (isNumber && numberCount >= maxNumbers) {
-      return { valid: false, reason: 'maxNumbers' };
-    }
-
-    // Regra 6: Limite de símbolos (máx 4 de cada tipo, incluindo decimais)
-    if ((isSymbol || isDecimalSep) && symbolCounts[newChar] !== undefined && symbolCounts[newChar] >= 4) {
-      return { valid: false, reason: 'maxSymbols' };
-    }
-
-    return { valid: true };
-  };
-
-  // Retorna estados dos botões do teclado customizado
-  const getButtonStates = (text) => {
-    const lastChar = (text || '').slice(-1);
-    const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
-    const numberCount = ((text || '').match(/[0-9]/g) || []).length;
-    const lastIsNumber = /[0-9]/.test(lastChar);
-    const lastIsSymbol = /[+\-×÷^_()≠≥≤]/.test(lastChar);
-    const isEmpty = (text || '').length === 0;
-
-    const maxNumbers = letterCount > 0 ? 5 : 15;
-
-    return {
-      lettersDisabled: lastIsNumber || letterCount >= 6,
-      numbersDisabled: numberCount >= maxNumbers,
-      symbolsDisabled: lastIsSymbol,
-      // Para símbolos no início, só + e - são permitidos
-      onlyPlusMinusAllowed: isEmpty,
-    };
-  };
-
-  // Handler de inserção com validação
+  // Handler de inserção com validação (ADAPTADO: apenas 2 inputs)
   const handleValidatedInsert = (char, inputNumber) => {
-    const currentValue = inputNumber === 1 ? editValue1 : inputNumber === 2 ? editValue2 : editValue3;
-    const setValue = inputNumber === 1 ? setEditValue1 : inputNumber === 2 ? setEditValue2 : setEditValue3;
-    const shakeAnim = inputNumber === 1 ? shakeAnim1 : inputNumber === 2 ? shakeAnim2 : shakeAnim3;
+    const currentValue = inputNumber === 1 ? editValue1 : editValue2;
+    const setValue = inputNumber === 1 ? setEditValue1 : setEditValue2;
+    const shakeAnim = inputNumber === 1 ? shakeAnim1 : shakeAnim2;
 
     const validation = validateInput(currentValue, char);
 
@@ -252,141 +140,24 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     );
   };
 
-  // Componente: Contador Segmentado (Num | Let | Sim)
-  const SegmentedCounter = ({ text }) => {
-    const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
-    const numberCount = ((text || '').match(/[0-9]/g) || []).length;
-    const symbolCount = ((text || '').match(/[+\-×÷^_()]/g) || []).length;
-    const maxNumbers = letterCount > 0 ? 5 : 15;
+  // SegmentedCounter agora vem de src/components/editor/SegmentedCounter.js
+  // CollapsibleKeypad agora vem de src/components/editor/CollapsibleKeypad.js
 
-    const getColor = (current, max) => {
-      const pct = (current / max) * 100;
-      if (pct >= 100) return '#EF4444'; // Vermelho
-      if (pct >= 70) return '#F59E0B';  // Amarelo
-      return '#A0AEC0'; // Cinza
-    };
-
-    return (
-      <View style={styles.segmentedCounterContainer}>
-        <Text style={[styles.segmentedCounterText, { color: getColor(numberCount, maxNumbers) }]}>
-          Num: {numberCount}/{maxNumbers}
-        </Text>
-        <Text style={styles.segmentedCounterDivider}>|</Text>
-        <Text style={[styles.segmentedCounterText, { color: getColor(letterCount, 6) }]}>
-          Let: {letterCount}/6
-        </Text>
-        <Text style={styles.segmentedCounterDivider}>|</Text>
-        <Text style={[styles.segmentedCounterText, { color: getColor(symbolCount, 6) }]}>
-          Sim: {symbolCount}/6
-        </Text>
-      </View>
-    );
-  };
-
-  // Componente: Teclado Colapsável (Abc | Símbolos)
+  // Helper para vibração (usado em outros lugares)
   const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
-
-  const CollapsibleKeypad = ({ inputNumber }) => {
-    const letters = ['x', 'y', 'z', 'a', 'b', 'c', 'n', 'm', 'k', 't'];
-    // Reorganizado: () no início, depois +/-, depois ×÷, depois constantes e relações
-    const symbols = ['(', ')', '+', '-', '×', '÷', '^', '_', ',', '.', 'π', 'θ', '∞', '≠', '≥', '≤'];
-
-    const currentValue = inputNumber === 1 ? editValue1 : inputNumber === 2 ? editValue2 : editValue3;
-    const buttonStates = getButtonStates(currentValue);
-
-    const handleInsert = (char) => {
-      handleValidatedInsert(char, inputNumber);
-    };
-
-    // Verifica se um símbolo específico está permitido
-    const isSymbolAllowed = (symbol) => {
-      // Constantes matemáticas (π, θ, ∞) sempre permitidas — não são operadores
-      if (['π', 'θ', '∞'].includes(symbol)) return true;
-      if (buttonStates.symbolsDisabled) return false;
-      // Permitir ( e ) no início junto com + e -
-      if (buttonStates.onlyPlusMinusAllowed && symbol !== '+' && symbol !== '-' && symbol !== '(' && symbol !== ')') return false;
-      return true;
-    };
-
-    return (
-      <View style={styles.keypadContainer}>
-        {/* Toggle Buttons */}
-        <View style={styles.keypadToggleRow}>
-          <TouchableOpacity
-            style={[styles.keypadToggle, showLettersPanel && styles.keypadToggleActive]}
-            onPress={() => {
-              tap();
-              setShowLettersPanel(!showLettersPanel);
-              if (showSymbolsPanel) setShowSymbolsPanel(false);
-            }}
-          >
-            <Text style={styles.keypadToggleText}>Abc</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.keypadToggle, showSymbolsPanel && styles.keypadToggleActive]}
-            onPress={() => {
-              tap();
-              setShowSymbolsPanel(!showSymbolsPanel);
-              if (showLettersPanel) setShowLettersPanel(false);
-            }}
-          >
-            <Text style={styles.keypadToggleText}>+-×</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Letters Panel */}
-        {showLettersPanel && (
-          <View style={styles.keypadPanel}>
-            {letters.map(letter => (
-              <TouchableOpacity
-                key={letter}
-                style={[
-                  styles.keypadButton,
-                  buttonStates.lettersDisabled && styles.keypadButtonDisabled
-                ]}
-                onPress={() => { if (!buttonStates.lettersDisabled) { tap(); handleInsert(letter); } }}
-                disabled={buttonStates.lettersDisabled}
-              >
-                <Text style={[
-                  styles.keypadButtonText,
-                  buttonStates.lettersDisabled && styles.keypadButtonTextDisabled
-                ]}>{letter}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Symbols Panel */}
-        {showSymbolsPanel && (
-          <View style={styles.keypadPanel}>
-            {symbols.map(symbol => {
-              const allowed = isSymbolAllowed(symbol);
-              return (
-                <TouchableOpacity
-                  key={symbol}
-                  style={[
-                    styles.keypadButton,
-                    !allowed && styles.keypadButtonDisabled
-                  ]}
-                  onPress={() => { if (allowed) { tap(); handleInsert(symbol); } }}
-                  disabled={!allowed}
-                >
-                  <Text style={[
-                    styles.keypadButtonText,
-                    !allowed && styles.keypadButtonTextDisabled
-                  ]}>{symbol}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </View>
-    );
-  };
   // ================================================
 
+  // Estados para modo edição (quando cardId existe)
+  const isEditMode = !!cardId;
+  const [initialQuestion, setInitialQuestion] = useState('');
+  const [initialAnswer, setInitialAnswer] = useState('');
+  const [cardDataLoaded, setCardDataLoaded] = useState(!isEditMode); // Se não está em modo edição, já está "carregado"
+
+  // Chave do draft diferente para criação vs edição
+  const draftKey = isEditMode ? `${deckId}-${subjectId}-${cardId}` : `${deckId}-${subjectId}`;
+
   // Check cache to skip skeleton on subsequent visits
-  const cacheKey = `${deckId}-${subjectId}`;
+  const cacheKey = `${deckId}-${subjectId}`; // Cache usa sempre a mesma chave (sem cardId)
   const [loading, setLoading] = useState(!global.screenCache.manageFlashcards.has(cacheKey));
 
   // Simulate loading delay ONLY if not cached
@@ -399,6 +170,43 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       return () => clearTimeout(timer);
     }
   }, [loading, cacheKey]);
+
+  // Carregar dados do card quando em modo edição
+  useEffect(() => {
+    if (isEditMode && cardId) {
+      const fetchCard = async () => {
+        try {
+          const allData = await getAppData();
+          const deck = allData.find(d => d.id === deckId);
+          if (deck) {
+            const subject = deck.subjects.find(s => s.id === subjectId);
+            if (subject) {
+              const card = subject.flashcards.find(c => c.id === cardId);
+              if (card) {
+                setInitialQuestion(card.question);
+                setInitialAnswer(card.answer);
+
+                // Inicializa o draft com o conteúdo do card para edição
+                const key = draftKey;
+                if (!global.flashcardDrafts) global.flashcardDrafts = {};
+                global.flashcardDrafts[key] = {
+                  question: card.question,
+                  answer: card.answer
+                };
+
+                // Marca que os dados foram carregados
+                setCardDataLoaded(true);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error loading card for edit:', error);
+          setCardDataLoaded(true); // Mesmo com erro, libera a tela
+        }
+      };
+      fetchCard();
+    }
+  }, [isEditMode, cardId, deckId, subjectId, draftKey]);
 
   // Listener para detectar quando o teclado abre/fecha
   useEffect(() => {
@@ -423,10 +231,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     };
   }, []);
 
-  // Header Button for History
+  // Header Button for History (apenas no modo criação)
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
+      title: isEditMode ? 'Editar Flashcard' : 'Criar Flashcard',
+      headerRight: isEditMode ? undefined : () => (
         <TouchableOpacity
           onPress={() => navigation.navigate('FlashcardHistory', {
             deckId: deckId,
@@ -438,7 +247,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       )
     });
-  }, [navigation, deckId, subjectId]);
+  }, [navigation, deckId, subjectId, isEditMode]);
 
   // Ocultar a TabBar quando estiver nesta tela
   useLayoutEffect(() => {
@@ -462,7 +271,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   }, [navigation]);
 
   // Scroll quando o TECLADO abre no input de baixo
-  // NÃO inclui isMathToolbarVisible pois causar scroll durante a animação da toolbar
   useEffect(() => {
     if (keyboardHeight > 0 && activeEditor === 'answer') {
       setTimeout(() => {
@@ -470,6 +278,15 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       }, 50);
     }
   }, [keyboardHeight, activeEditor]);
+
+  // Scroll quando o MATH TOOLBAR abre (apenas para o input "verso")
+  useEffect(() => {
+    if (isMathToolbarVisible && activeEditor === 'answer') {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 200); // Scroll rápido e responsivo
+    }
+  }, [isMathToolbarVisible, activeEditor]);
 
   const toggleMathToolbar = () => {
     Keyboard.dismiss();
@@ -521,7 +338,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Sync Draft State Live
   const updateDraft = (type, content) => {
     if (!global.flashcardDrafts) global.flashcardDrafts = {};
-    const key = `${deckId}-${subjectId}`;
+    const key = draftKey;
 
     // Ensure object exists
     if (!global.flashcardDrafts[key]) global.flashcardDrafts[key] = { question: '', answer: '' };
@@ -543,31 +360,9 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Clear draft on successful save
   const clearDraft = () => {
     if (!global.flashcardDrafts) return;
-    const key = `${deckId}-${subjectId}`;
+    const key = draftKey;
     delete global.flashcardDrafts[key];
   };
-
-  // Listener para detectar quando o teclado abre/fecha
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      'keyboardDidShow',
-      (e) => {
-        setKeyboardHeight(e.endCoordinates.height);
-        setMathToolbarVisible(false); // Fecha o menu de fórmulas ao teclado subir
-      }
-    );
-    const keyboardDidHideListener = Keyboard.addListener(
-      'keyboardDidHide',
-      () => {
-        setKeyboardHeight(0);
-      }
-    );
-
-    return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
-    };
-  }, []);
 
   const handleEditMath = (id, latex, source) => {
     setCurrentMathId(id);
@@ -620,14 +415,12 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
     setEditValue1(v1);
     setEditValue2(v2);
-    setEditValue3(v3);
-    setAdvancedFrac(latex.includes('\\left(') && latex.includes('frac'));
     setEditModalVisible(true);
   };
 
   const handleSave = async () => {
     // Pega o valor fresco direto do global drafts (já que o ref.getHtml() é assíncrono/null)
-    const key = `${deckId}-${subjectId}`;
+    const key = draftKey;
     const currentQuestionHtml = global.flashcardDrafts?.[key]?.question || "";
     const currentAnswerHtml = global.flashcardDrafts?.[key]?.answer || "";
 
@@ -656,18 +449,31 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           ...deck,
           subjects: deck.subjects.map(subject => {
             if (subject.id === subjectId) {
-              return {
-                ...subject,
-                flashcards: [
-                  ...subject.flashcards,
-                  {
-                    id: Date.now().toString(),
-                    question: currentQuestionHtml,
-                    answer: currentAnswerHtml,
-                    level: 0, points: 0, lastReview: null, nextReview: null,
-                  },
-                ],
-              };
+              if (isEditMode && cardId) {
+                // Modo edição: Atualiza card existente
+                return {
+                  ...subject,
+                  flashcards: subject.flashcards.map(card =>
+                    card.id === cardId
+                      ? { ...card, question: currentQuestionHtml, answer: currentAnswerHtml }
+                      : card
+                  ),
+                };
+              } else {
+                // Modo criação: Adiciona novo card
+                return {
+                  ...subject,
+                  flashcards: [
+                    ...subject.flashcards,
+                    {
+                      id: Date.now().toString(),
+                      question: currentQuestionHtml,
+                      answer: currentAnswerHtml,
+                      level: 0, points: 0, lastReview: null, nextReview: null,
+                    },
+                  ],
+                };
+              }
             }
             return subject;
           })
@@ -682,7 +488,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.baseContainer}>
-      {loading ? (
+      {(loading || !cardDataLoaded) ? (
         <View style={{ padding: 20 }}>
           <SkeletonItem style={{ width: 100, height: 20, marginBottom: 10, borderRadius: 4 }} />
           <SkeletonItem style={{ width: '100%', height: 200, marginBottom: 20, borderRadius: 8 }} />
@@ -707,7 +513,9 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
               {
                 paddingBottom: keyboardHeight > 0
                   ? Math.max(20, keyboardHeight - 50)
-                  : 20,
+                  : isMathToolbarVisible
+                    ? 250  // Padding extra quando toolbar está visível
+                    : 20,
                 flexGrow: 1
               }
             ]}
@@ -739,7 +547,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                   <View pointerEvents="box-none" style={{ flex: 1 }}>
                     <IsolatedMathEditor
                       editorRef={questionEditorRef}
-                      initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.question || ""}
+                      initialValue={global.flashcardDrafts?.[draftKey]?.question || ""}
                       onContentChange={(html) => updateDraft('question', html)}
                       onFocusCallback={() => setActiveEditor('question')}
                       onEditMath={handleEditMath}
@@ -774,7 +582,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                   <View pointerEvents="box-none" style={{ flex: 1 }}>
                     <IsolatedMathEditor
                       editorRef={answerEditorRef}
-                      initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.answer || ""}
+                      initialValue={global.flashcardDrafts?.[draftKey]?.answer || ""}
                       onContentChange={(html) => updateDraft('answer', html)}
                       onFocusCallback={() => {
                         setActiveEditor('answer');
@@ -985,73 +793,16 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     </>
                   )}
 
-                {/* ===== BOTÃO MODO AVANÇADO (só para fração) ===== */}
-                {currentLatex.includes('frac') && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      tap();
-                      setAdvancedFrac(!advancedFrac);
-                      if (advancedFrac) setEditValue3(''); // Limpa ao desativar
-                    }}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      paddingVertical: 8,
-                      paddingHorizontal: 20,
-                      marginTop: 10,
-                      borderRadius: 8,
-                      backgroundColor: advancedFrac ? 'rgba(79, 209, 197, 0.12)' : 'rgba(74, 85, 104, 0.25)',
-                      borderWidth: 1,
-                      borderColor: advancedFrac ? '#4FD1C5' : '#4A5568',
-                      alignSelf: 'center',
-                    }}
-                  >
-                    <Text style={{ color: advancedFrac ? '#4FD1C5' : '#A0AEC0', fontSize: 13, fontWeight: '600' }}>
-                      {advancedFrac ? '▲ Modo Simples' : '▼ Modo Avançado  (  )ⁿ'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* ===== INPUT 3 — Expoente (modo avançado da fração) ===== */}
-                {advancedFrac && currentLatex.includes('frac') && (
-                  <>
-                    <Text style={[styles.formLabel, { marginTop: 12 }]}>Expoente</Text>
-                    <Animated.View style={shakeStyle3}>
-                      <TextInput
-                        ref={modalInput3Ref}
-                        style={[
-                          styles.modalInputWithFocus,
-                          focusedInput === 3 && styles.modalInputFocusedGreen,
-                        ]}
-                        value={editValue3}
-                        onChangeText={(text) => {
-                          if (text.length > editValue3.length) {
-                            const newChar = text.slice(-1);
-                            const validation = validateInput(editValue3, newChar);
-                            if (validation.valid) {
-                              setEditValue3(text);
-                            } else {
-                              triggerShake(shakeAnim3);
-                            }
-                          } else {
-                            setEditValue3(text);
-                          }
-                        }}
-                        onFocus={() => setFocusedInput(3)}
-                        placeholder="Ex: 2, n, n-1, (a+b)..."
-                        placeholderTextColor="#666"
-                        keyboardType="numeric"
-                        autoComplete="off"
-                        importantForAutofill="no"
-                      />
-                    </Animated.View>
-                    <SegmentedCounter text={editValue3} />
-                  </>
-                )}
-
                 {/* ===== TECLADO COLAPSÁVEL ===== */}
-                <CollapsibleKeypad inputNumber={focusedInput} />
+                <CollapsibleKeypad
+                  inputNumber={focusedInput}
+                  currentValue={focusedInput === 1 ? editValue1 : editValue2}
+                  onInsert={(char) => handleValidatedInsert(char, focusedInput)}
+                  showLettersPanel={showLettersPanel}
+                  setShowLettersPanel={setShowLettersPanel}
+                  showSymbolsPanel={showSymbolsPanel}
+                  setShowSymbolsPanel={setShowSymbolsPanel}
+                />
               </ScrollView>
 
               {/* ===== BOTÕES DE AÇÃO ===== */}
@@ -1093,11 +844,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
                     let newLatex = val1;
 
-                    if (advancedFrac && currentLatex.includes('frac')) {
-                      // Modo avançado: fração entre parênteses com potência — \left(\frac{num}{den}\right)^{exp}
-                      const val3 = editValue3.trim() === '' ? '\\Box' : processVal(editValue3);
-                      newLatex = `\\left(\\frac{${val1}}{${val2}}\\right)^{${val3}}`;
-                    } else if (currentLatex.includes('frac')) {
+                    if (currentLatex.includes('frac')) {
                       newLatex = `\\frac{${val1}}{${val2}}`;
                     } else if (currentLatex.includes('sqrt')) {
                       if (val2 && val2 !== '\\Box' && editValue2.trim() !== '') {
@@ -1137,8 +884,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
-                    setEditValue3('');
-                    setAdvancedFrac(false);
                   }}
                 >
                   <Text style={styles.modalButtonTextFullWidth}>Confirmar</Text>
@@ -1155,8 +900,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
-                    setEditValue3('');
-                    setAdvancedFrac(false);
                   }}
                 >
                   <Text style={styles.modalButtonTextFullWidth}>Cancelar</Text>
