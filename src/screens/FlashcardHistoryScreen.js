@@ -149,7 +149,7 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
       const card = cards.find(c => c.id === cardId);
 
       if (action === 'edit') {
-         if (card) navigation.navigate('EditFlashcard', { deckId: card.deckId, subjectId: card.subjectId, cardId: card.id });
+         if (card) navigation.navigate('ManageFlashcards', { deckId: card.deckId, subjectId: card.subjectId, cardId: card.id });
       } else if (action === 'select') {
          setMultiSelectMode(true);
          toggleSelection(cardId);
@@ -304,7 +304,7 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                     ]}
                     onPress={() => {
                         if (multiSelectMode) toggleSelection(item.id);
-                        else navigation.navigate('EditFlashcard', { deckId: item.deckId, subjectId: item.subjectId, cardId: item.id });
+                        else navigation.navigate('ManageFlashcards', { deckId: item.deckId, subjectId: item.subjectId, cardId: item.id });
                     }}
                     onLongPress={() => {
                         setMultiSelectMode(true);

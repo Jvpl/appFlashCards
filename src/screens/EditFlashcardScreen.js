@@ -9,6 +9,9 @@ import { MathToolbar } from '../components/editor/MathToolbar';
 import { IsolatedMathEditor } from '../components/editor/IsolatedMathEditor';
 import { FormulaBuilderModal } from '../components/editor/FormulaBuilderModal';
 import { CustomAlert } from '../components/ui/CustomAlert';
+import { SegmentedCounter } from '../components/editor/SegmentedCounter';
+import { CollapsibleKeypad } from '../components/editor/CollapsibleKeypad';
+import { validateInput, getButtonStates } from '../utils/inputValidation';
 import styles from '../styles/globalStyles';
 
 export const EditFlashcardScreen = ({ route, navigation }) => {
@@ -87,110 +90,8 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
         );
     };
 
-    // ========== SISTEMA DE VALIDAÇÃO ROBUSTO (sincronizado com ManageFlashcardsScreen) ==========
-    // Valida se um novo caractere pode ser inserido
-    const validateInput = (currentText, newChar) => {
-        const text = currentText || '';
-
-        // VALIDAÇÃO ESTRITA: Lista branca de caracteres permitidos
-        const allowedChars = /^[0-9a-zA-Z+\-×÷^_(),.\sπθ≠≥≤∞]$/;
-        if (!allowedChars.test(newChar)) {
-            return { valid: false, reason: 'characterNotAllowed' };
-        }
-
-        // Contadores
-        const letterCount = (text.match(/[a-zA-Z]/g) || []).length;
-        const numberCount = (text.match(/[0-9]/g) || []).length;
-        const symbolCounts = {
-            '+': (text.match(/\+/g) || []).length,
-            '-': (text.match(/-/g) || []).length,
-            '×': (text.match(/×/g) || []).length,
-            '÷': (text.match(/÷/g) || []).length,
-            '^': (text.match(/\^/g) || []).length,
-            '_': (text.match(/_/g) || []).length,
-            '(': (text.match(/\(/g) || []).length,
-            ')': (text.match(/\)/g) || []).length,
-            ',': (text.match(/,/g) || []).length,
-            '.': (text.match(/\./g) || []).length,
-        };
-
-        const lastChar = text.slice(-1);
-        const isLetter = /[a-zA-Z]/.test(newChar);
-        const isNumber = /[0-9]/.test(newChar);
-        const isDecimalSep = /[,.]/.test(newChar);
-        const isSymbol = /[+\-×÷^_()≠≥≤]/.test(newChar);
-        const lastIsNumber = /[0-9]/.test(lastChar);
-        const lastIsSymbol = /[+\-×÷^_()≠≥≤]/.test(lastChar);
-        const lastIsDecimal = /[,.]/.test(lastChar);
-
-        // Regra 1: Num → Letra BLOQUEADO (precisa de símbolo entre eles)
-        if (isLetter && lastIsNumber) {
-            return { valid: false, reason: 'needsSymbol' };
-        }
-
-        // Regra 2: Símbolos consecutivos — bloqueia, exceto combinações matematicamente válidas
-        if (isSymbol && lastIsSymbol) {
-            if (newChar === '(') return { valid: true };
-            if (lastChar === ')') return { valid: true };
-            return { valid: false, reason: 'noConsecutiveSymbols' };
-        }
-
-        // Regra 3: Símbolo no início (apenas +, -, ( e ) permitidos)
-        if (isSymbol && text.length === 0 && newChar !== '-' && newChar !== '+' && newChar !== '(' && newChar !== ')') {
-            return { valid: false, reason: 'invalidStart' };
-        }
-
-        // Separadores decimais (vírgula e ponto)
-        if (isDecimalSep) {
-            if (text.length === 0) {
-                return { valid: false, reason: 'decimalAtStart' };
-            }
-            if (lastIsDecimal) {
-                return { valid: false, reason: 'consecutiveDecimals' };
-            }
-            const totalSeparators = symbolCounts[','] + symbolCounts['.'];
-            if (totalSeparators >= 2) {
-                return { valid: false, reason: 'maxDecimals' };
-            }
-        }
-
-        // Regra 4: Limite de letras (máx 6)
-        if (isLetter && letterCount >= 6) {
-            return { valid: false, reason: 'maxLetters' };
-        }
-
-        // Regra 5: Limite dinâmico de números
-        const maxNumbers = letterCount > 0 ? 5 : 15;
-        if (isNumber && numberCount >= maxNumbers) {
-            return { valid: false, reason: 'maxNumbers' };
-        }
-
-        // Regra 6: Limite de símbolos (máx 4 de cada tipo)
-        if ((isSymbol || isDecimalSep) && symbolCounts[newChar] !== undefined && symbolCounts[newChar] >= 4) {
-            return { valid: false, reason: 'maxSymbols' };
-        }
-
-        return { valid: true };
-    };
-
-    // Retorna estados dos botões do teclado customizado
-    const getButtonStates = (text) => {
-        const lastChar = (text || '').slice(-1);
-        const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
-        const numberCount = ((text || '').match(/[0-9]/g) || []).length;
-        const lastIsNumber = /[0-9]/.test(lastChar);
-        const lastIsSymbol = /[+\-×÷^_()≠≥≤]/.test(lastChar);
-        const isEmpty = (text || '').length === 0;
-
-        const maxNumbers = letterCount > 0 ? 5 : 15;
-
-        return {
-            lettersDisabled: lastIsNumber || letterCount >= 6,
-            numbersDisabled: numberCount >= maxNumbers,
-            symbolsDisabled: lastIsSymbol,
-            onlyPlusMinusAllowed: isEmpty,
-        };
-    };
+    // ========== HELPER FUNCTIONS (importados de shared) ==========
+    // validateInput e getButtonStates agora vêm de src/utils/inputValidation.js
 
     // Handler de inserção com validação (ADAPTADO: apenas 2 campos, sem editValue3)
     const handleValidatedInsert = (char, inputNumber) => {
@@ -223,131 +124,9 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
         );
     };
 
-    // Componente: Contador Segmentado (Num | Let | Sim) - sincronizado com ManageFlashcardsScreen
-    const SegmentedCounter = ({ text }) => {
-        const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
-        const numberCount = ((text || '').match(/[0-9]/g) || []).length;
-        const symbolCount = ((text || '').match(/[+\-×÷^_()]/g) || []).length;
-        const maxNumbers = letterCount > 0 ? 5 : 15;
-
-        const getColor = (current, max) => {
-            const pct = (current / max) * 100;
-            if (pct >= 100) return '#EF4444';
-            if (pct >= 70) return '#F59E0B';
-            return '#A0AEC0';
-        };
-
-        return (
-            <View style={styles.segmentedCounterContainer}>
-                <Text style={[styles.segmentedCounterText, { color: getColor(numberCount, maxNumbers) }]}>
-                    Num: {numberCount}/{maxNumbers}
-                </Text>
-                <Text style={styles.segmentedCounterDivider}>|</Text>
-                <Text style={[styles.segmentedCounterText, { color: getColor(letterCount, 6) }]}>
-                    Let: {letterCount}/6
-                </Text>
-                <Text style={styles.segmentedCounterDivider}>|</Text>
-                <Text style={[styles.segmentedCounterText, { color: getColor(symbolCount, 6) }]}>
-                    Sim: {symbolCount}/6
-                </Text>
-            </View>
-        );
-    };
-
-    // Helper para vibração (sincronizado com ManageFlashcardsScreen)
+    // SegmentedCounter e CollapsibleKeypad agora vêm de componentes compartilhados
+    // Helper para vibração
     const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
-
-    // Componente: Teclado Colapsável (Abc | Símbolos) - sincronizado com ManageFlashcardsScreen, ADAPTADO para 2 campos
-    const CollapsibleKeypad = ({ inputNumber }) => {
-        const letters = ['x', 'y', 'z', 'a', 'b', 'c', 'n', 'm', 'k', 't'];
-        const symbols = ['(', ')', '+', '-', '×', '÷', '^', '_', ',', '.', 'π', 'θ', '∞', '≠', '≥', '≤'];
-
-        const currentValue = inputNumber === 1 ? editValue1 : editValue2; // ADAPTADO: sem editValue3
-        const buttonStates = getButtonStates(currentValue);
-
-        const handleInsert = (char) => {
-            handleValidatedInsert(char, inputNumber);
-        };
-
-        const isSymbolAllowed = (symbol) => {
-            if (['π', 'θ', '∞'].includes(symbol)) return true;
-            if (buttonStates.symbolsDisabled) return false;
-            if (buttonStates.onlyPlusMinusAllowed && symbol !== '+' && symbol !== '-' && symbol !== '(' && symbol !== ')') return false;
-            return true;
-        };
-
-        return (
-            <View style={styles.keypadContainer}>
-                <View style={styles.keypadToggleRow}>
-                    <TouchableOpacity
-                        style={[styles.keypadToggle, showLettersPanel && styles.keypadToggleActive]}
-                        onPress={() => {
-                            tap();
-                            setShowLettersPanel(!showLettersPanel);
-                            if (showSymbolsPanel) setShowSymbolsPanel(false);
-                        }}
-                    >
-                        <Text style={styles.keypadToggleText}>Abc</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.keypadToggle, showSymbolsPanel && styles.keypadToggleActive]}
-                        onPress={() => {
-                            tap();
-                            setShowSymbolsPanel(!showSymbolsPanel);
-                            if (showLettersPanel) setShowLettersPanel(false);
-                        }}
-                    >
-                        <Text style={styles.keypadToggleText}>+-×</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {showLettersPanel && (
-                    <View style={styles.keypadPanel}>
-                        {letters.map(letter => (
-                            <TouchableOpacity
-                                key={letter}
-                                style={[
-                                    styles.keypadButton,
-                                    buttonStates.lettersDisabled && styles.keypadButtonDisabled
-                                ]}
-                                onPress={() => { if (!buttonStates.lettersDisabled) { tap(); handleInsert(letter); } }}
-                                disabled={buttonStates.lettersDisabled}
-                            >
-                                <Text style={[
-                                    styles.keypadButtonText,
-                                    buttonStates.lettersDisabled && styles.keypadButtonTextDisabled
-                                ]}>{letter}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                )}
-
-                {showSymbolsPanel && (
-                    <View style={styles.keypadPanel}>
-                        {symbols.map(symbol => {
-                            const allowed = isSymbolAllowed(symbol);
-                            return (
-                                <TouchableOpacity
-                                    key={symbol}
-                                    style={[
-                                        styles.keypadButton,
-                                        !allowed && styles.keypadButtonDisabled
-                                    ]}
-                                    onPress={() => { if (allowed) { tap(); handleInsert(symbol); } }}
-                                    disabled={!allowed}
-                                >
-                                    <Text style={[
-                                        styles.keypadButtonText,
-                                        !allowed && styles.keypadButtonTextDisabled
-                                    ]}>{symbol}</Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-                )}
-            </View>
-        );
-    };
 
     // Função para calcular peso de fórmula (espelho do WebView)
     const calculateFormulaWeight = (latex) => {
@@ -755,7 +534,15 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                 )}
 
                                 {/* Teclado colapsável sincronizado com ManageFlashcardsScreen */}
-                                <CollapsibleKeypad inputNumber={focusedInput} />
+                                <CollapsibleKeypad
+                                    inputNumber={focusedInput}
+                                    currentValue={focusedInput === 1 ? editValue1 : editValue2}
+                                    onInsert={(char) => handleValidatedInsert(char, focusedInput)}
+                                    showLettersPanel={showLettersPanel}
+                                    setShowLettersPanel={setShowLettersPanel}
+                                    showSymbolsPanel={showSymbolsPanel}
+                                    setShowSymbolsPanel={setShowSymbolsPanel}
+                                />
                             </ScrollView>
 
                             <View style={{ marginTop: 16 }}>

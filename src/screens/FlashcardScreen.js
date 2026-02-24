@@ -320,7 +320,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
                 <View style={styles.modalContent}>
                     <Text style={styles.modalTitle}>Opções do Card</Text>
                     {currentCardForModal.isUserCreated && (
-                        <TouchableOpacity style={styles.modalButton} onPress={() => { setOptionsModalVisible(false); navigation.navigate('EditFlashcard', { deckId, subjectId, cardId: currentCardForModal.id })}}>
+                        <TouchableOpacity style={styles.modalButton} onPress={() => { setOptionsModalVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCardForModal.id })}}>
                             <Ionicons name="create-outline" size={22} color="#FFFFFF" /><Text style={styles.modalButtonText}>Editar Card</Text>
                         </TouchableOpacity>
                     )}
