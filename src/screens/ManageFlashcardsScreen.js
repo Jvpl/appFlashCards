@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Button } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Button, Vibration } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { getAppData, saveAppData } from '../services/storage';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { HybridEditor } from '../components/editor/HybridEditor';
 import { MathToolbar } from '../components/editor/MathToolbar';
+import { FormulaBuilderModal } from '../components/editor/FormulaBuilderModal';
 import { IsolatedMathEditor } from '../components/editor/IsolatedMathEditor';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
@@ -14,15 +15,16 @@ import styles from '../styles/globalStyles';
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const { deckId, subjectId, preloadedCards } = route.params;
-  
+
   const questionEditorRef = useRef(null);
   const answerEditorRef = useRef(null);
   const scrollViewRef = useRef(null);
-  
+  const mathToolbarRef = useRef(null);
+
   const [activeEditor, setActiveEditor] = useState(null);
   const [isMathToolbarVisible, setMathToolbarVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  
+
   // States para edição de fórmula
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
@@ -30,6 +32,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const [currentLatex, setCurrentLatex] = useState('');
   const [editValue1, setEditValue1] = useState('');
   const [editValue2, setEditValue2] = useState('');
+  const [editValue3, setEditValue3] = useState('');
 
   // Estados para limite de caracteres
   const [questionCharCount, setQuestionCharCount] = useState(0);
@@ -39,18 +42,23 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Estados para teclado colapsável do modal
   const [showLettersPanel, setShowLettersPanel] = useState(false);
   const [showSymbolsPanel, setShowSymbolsPanel] = useState(false);
-  const [focusedInput, setFocusedInput] = useState(1); // 1 ou 2
+  const [focusedInput, setFocusedInput] = useState(1); // 1, 2 ou 3
+  const [advancedFrac, setAdvancedFrac] = useState(false); // Modo avançado da fração
+  const [builderVisible, setBuilderVisible] = useState(false); // Montador de fórmula livre
+  const [builderInitialLatex, setBuilderInitialLatex] = useState(''); // LaTeX inicial (edição)
   const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [helpPage, setHelpPage] = useState(0); // 0 = página 1, 1 = página 2
 
   // Refs para inputs do modal
   const modalInput1Ref = useRef(null);
   const modalInput2Ref = useRef(null);
+  const modalInput3Ref = useRef(null);
 
   // ========== Helper Functions for Modal ==========
   // Valores compartilhados para animação de shake (reanimated v2/v3)
   const shakeAnim1 = useSharedValue(0);
   const shakeAnim2 = useSharedValue(0);
+  const shakeAnim3 = useSharedValue(0);
 
   // Estilos animados para shake
   const shakeStyle1 = useAnimatedStyle(() => ({
@@ -59,6 +67,9 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const shakeStyle2 = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeAnim2.value }]
   }));
+  const shakeStyle3 = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeAnim3.value }]
+  }));
 
   // ========== SISTEMA DE VALIDAÇÃO ROBUSTO ==========
   // Valida se um novo caractere pode ser inserido
@@ -66,7 +77,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     const text = currentText || '';
 
     // VALIDAÇÃO ESTRITA: Lista branca de caracteres permitidos
-    const allowedChars = /^[0-9a-zA-Z+\-×÷^_(),.\s]$/;
+    const allowedChars = /^[0-9a-zA-Z+\-×÷^_(),.\sπθ≠≥≤∞]$/;
     if (!allowedChars.test(newChar)) {
       return { valid: false, reason: 'characterNotAllowed' };
     }
@@ -91,9 +102,9 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     const isLetter = /[a-zA-Z]/.test(newChar);
     const isNumber = /[0-9]/.test(newChar);
     const isDecimalSep = /[,.]/.test(newChar);
-    const isSymbol = /[+\-×÷^_()]/.test(newChar);
+    const isSymbol = /[+\-×÷^_()≠≥≤]/.test(newChar);
     const lastIsNumber = /[0-9]/.test(lastChar);
-    const lastIsSymbol = /[+\-×÷^_()]/.test(lastChar);
+    const lastIsSymbol = /[+\-×÷^_()≠≥≤]/.test(lastChar);
     const lastIsDecimal = /[,.]/.test(lastChar);
 
     // Regra 1: Num → Letra BLOQUEADO (precisa de símbolo entre eles)
@@ -101,8 +112,10 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       return { valid: false, reason: 'needsSymbol' };
     }
 
-    // Regra 2: Símbolos consecutivos BLOQUEADO
+    // Regra 2: Símbolos consecutivos — bloqueia, exceto combinações matematicamente válidas
     if (isSymbol && lastIsSymbol) {
+      if (newChar === '(') return { valid: true };   // ex: ×(, +(, -(
+      if (lastChar === ')') return { valid: true };  // ex: )^, )×, )+
       return { valid: false, reason: 'noConsecutiveSymbols' };
     }
 
@@ -130,19 +143,19 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       }
     }
 
-    // Regra 4: Limite de letras (máx 2)
-    if (isLetter && letterCount >= 2) {
+    // Regra 4: Limite de letras (máx 6)
+    if (isLetter && letterCount >= 6) {
       return { valid: false, reason: 'maxLetters' };
     }
 
     // Regra 5: Limite dinâmico de números
-    const maxNumbers = letterCount > 0 ? 3 : 10;
+    const maxNumbers = letterCount > 0 ? 5 : 15;
     if (isNumber && numberCount >= maxNumbers) {
       return { valid: false, reason: 'maxNumbers' };
     }
 
-    // Regra 6: Limite de símbolos (máx 2 de cada tipo, incluindo decimais)
-    if ((isSymbol || isDecimalSep) && symbolCounts[newChar] !== undefined && symbolCounts[newChar] >= 2) {
+    // Regra 6: Limite de símbolos (máx 4 de cada tipo, incluindo decimais)
+    if ((isSymbol || isDecimalSep) && symbolCounts[newChar] !== undefined && symbolCounts[newChar] >= 4) {
       return { valid: false, reason: 'maxSymbols' };
     }
 
@@ -155,13 +168,13 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
     const numberCount = ((text || '').match(/[0-9]/g) || []).length;
     const lastIsNumber = /[0-9]/.test(lastChar);
-    const lastIsSymbol = /[+\-×÷^_()]/.test(lastChar);
+    const lastIsSymbol = /[+\-×÷^_()≠≥≤]/.test(lastChar);
     const isEmpty = (text || '').length === 0;
 
-    const maxNumbers = letterCount > 0 ? 3 : 10;
+    const maxNumbers = letterCount > 0 ? 5 : 15;
 
     return {
-      lettersDisabled: lastIsNumber || letterCount >= 2,
+      lettersDisabled: lastIsNumber || letterCount >= 6,
       numbersDisabled: numberCount >= maxNumbers,
       symbolsDisabled: lastIsSymbol,
       // Para símbolos no início, só + e - são permitidos
@@ -171,9 +184,9 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
   // Handler de inserção com validação
   const handleValidatedInsert = (char, inputNumber) => {
-    const currentValue = inputNumber === 1 ? editValue1 : editValue2;
-    const setValue = inputNumber === 1 ? setEditValue1 : setEditValue2;
-    const shakeAnim = inputNumber === 1 ? shakeAnim1 : shakeAnim2;
+    const currentValue = inputNumber === 1 ? editValue1 : inputNumber === 2 ? editValue2 : editValue3;
+    const setValue = inputNumber === 1 ? setEditValue1 : inputNumber === 2 ? setEditValue2 : setEditValue3;
+    const shakeAnim = inputNumber === 1 ? shakeAnim1 : inputNumber === 2 ? shakeAnim2 : shakeAnim3;
 
     const validation = validateInput(currentValue, char);
 
@@ -244,7 +257,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
     const numberCount = ((text || '').match(/[0-9]/g) || []).length;
     const symbolCount = ((text || '').match(/[+\-×÷^_()]/g) || []).length;
-    const maxNumbers = letterCount > 0 ? 3 : 10;
+    const maxNumbers = letterCount > 0 ? 5 : 15;
 
     const getColor = (current, max) => {
       const pct = (current / max) * 100;
@@ -259,8 +272,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           Num: {numberCount}/{maxNumbers}
         </Text>
         <Text style={styles.segmentedCounterDivider}>|</Text>
-        <Text style={[styles.segmentedCounterText, { color: getColor(letterCount, 2) }]}>
-          Let: {letterCount}/2
+        <Text style={[styles.segmentedCounterText, { color: getColor(letterCount, 6) }]}>
+          Let: {letterCount}/6
         </Text>
         <Text style={styles.segmentedCounterDivider}>|</Text>
         <Text style={[styles.segmentedCounterText, { color: getColor(symbolCount, 6) }]}>
@@ -271,12 +284,14 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   };
 
   // Componente: Teclado Colapsável (Abc | Símbolos)
+  const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
+
   const CollapsibleKeypad = ({ inputNumber }) => {
     const letters = ['x', 'y', 'z', 'a', 'b', 'c', 'n', 'm', 'k', 't'];
-    // Reorganizado: () no início, depois +/-, depois ×÷
-    const symbols = ['(', ')', '+', '-', '×', '÷', '^', '_', ',', '.'];
+    // Reorganizado: () no início, depois +/-, depois ×÷, depois constantes e relações
+    const symbols = ['(', ')', '+', '-', '×', '÷', '^', '_', ',', '.', 'π', 'θ', '∞', '≠', '≥', '≤'];
 
-    const currentValue = inputNumber === 1 ? editValue1 : editValue2;
+    const currentValue = inputNumber === 1 ? editValue1 : inputNumber === 2 ? editValue2 : editValue3;
     const buttonStates = getButtonStates(currentValue);
 
     const handleInsert = (char) => {
@@ -285,6 +300,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
     // Verifica se um símbolo específico está permitido
     const isSymbolAllowed = (symbol) => {
+      // Constantes matemáticas (π, θ, ∞) sempre permitidas — não são operadores
+      if (['π', 'θ', '∞'].includes(symbol)) return true;
       if (buttonStates.symbolsDisabled) return false;
       // Permitir ( e ) no início junto com + e -
       if (buttonStates.onlyPlusMinusAllowed && symbol !== '+' && symbol !== '-' && symbol !== '(' && symbol !== ')') return false;
@@ -298,6 +315,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           <TouchableOpacity
             style={[styles.keypadToggle, showLettersPanel && styles.keypadToggleActive]}
             onPress={() => {
+              tap();
               setShowLettersPanel(!showLettersPanel);
               if (showSymbolsPanel) setShowSymbolsPanel(false);
             }}
@@ -307,6 +325,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           <TouchableOpacity
             style={[styles.keypadToggle, showSymbolsPanel && styles.keypadToggleActive]}
             onPress={() => {
+              tap();
               setShowSymbolsPanel(!showSymbolsPanel);
               if (showLettersPanel) setShowLettersPanel(false);
             }}
@@ -325,7 +344,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                   styles.keypadButton,
                   buttonStates.lettersDisabled && styles.keypadButtonDisabled
                 ]}
-                onPress={() => !buttonStates.lettersDisabled && handleInsert(letter)}
+                onPress={() => { if (!buttonStates.lettersDisabled) { tap(); handleInsert(letter); } }}
                 disabled={buttonStates.lettersDisabled}
               >
                 <Text style={[
@@ -349,7 +368,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     styles.keypadButton,
                     !allowed && styles.keypadButtonDisabled
                   ]}
-                  onPress={() => allowed && handleInsert(symbol)}
+                  onPress={() => { if (allowed) { tap(); handleInsert(symbol); } }}
                   disabled={!allowed}
                 >
                   <Text style={[
@@ -365,19 +384,19 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     );
   };
   // ================================================
-  
+
   // Check cache to skip skeleton on subsequent visits
   const cacheKey = `${deckId}-${subjectId}`;
-  const [loading, setLoading] = useState(!global.screenCache.manageFlashcards.has(cacheKey)); 
+  const [loading, setLoading] = useState(!global.screenCache.manageFlashcards.has(cacheKey));
 
   // Simulate loading delay ONLY if not cached
   useEffect(() => {
     if (loading) {
-        const timer = setTimeout(() => {
-            setLoading(false);
-            global.screenCache.manageFlashcards.add(cacheKey); // Mark as visited
-        }, 300);
-        return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        setLoading(false);
+        global.screenCache.manageFlashcards.add(cacheKey); // Mark as visited
+      }, 300);
+      return () => clearTimeout(timer);
     }
   }, [loading, cacheKey]);
 
@@ -387,6 +406,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       'keyboardDidShow',
       (e) => {
         setKeyboardHeight(e.endCoordinates.height);
+        mathToolbarRef.current?.forceClose();
+        setMathToolbarVisible(false); // Fecha o menu de fórmulas ao teclado subir
       }
     );
     const keyboardDidHideListener = Keyboard.addListener(
@@ -406,12 +427,12 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity 
-            onPress={() => navigation.navigate('FlashcardHistory', { 
-                deckId: deckId, 
-                subjectId: subjectId 
-            })} 
-            style={{ marginRight: 15 }}
+        <TouchableOpacity
+          onPress={() => navigation.navigate('FlashcardHistory', {
+            deckId: deckId,
+            subjectId: subjectId
+          })}
+          style={{ marginRight: 15 }}
         >
           <Ionicons name="create-outline" size={24} color="white" />
         </TouchableOpacity>
@@ -421,62 +442,72 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
   // Ocultar a TabBar quando estiver nesta tela
   useLayoutEffect(() => {
-      // Navegação: Stack -> Drawer -> Tab
-      // Precisamos subir 3 níveis para chegar no TabNavigator
-      const tabNavigator = navigation.getParent()?.getParent()?.getParent();
-      
-      if (tabNavigator) {
-          tabNavigator.setOptions({
-              tabBarStyle: { display: 'none' }
-          });
-      }
+    // Navegação: Stack -> Drawer -> Tab
+    // Precisamos subir 3 níveis para chegar no TabNavigator
+    const tabNavigator = navigation.getParent()?.getParent()?.getParent();
 
-      return () => {
-          if (tabNavigator) {
-              tabNavigator.setOptions({
-                  tabBarStyle: undefined // Reseta para o padrão (visível)
-              });
-          }
-      };
+    if (tabNavigator) {
+      tabNavigator.setOptions({
+        tabBarStyle: { display: 'none' }
+      });
+    }
+
+    return () => {
+      if (tabNavigator) {
+        tabNavigator.setOptions({
+          tabBarStyle: undefined // Reseta para o padrão (visível)
+        });
+      }
+    };
   }, [navigation]);
 
-  // Novo efeito para garantir scroll quando o teclado OU a toolbar abrir no input de baixo
+  // Scroll quando o TECLADO abre no input de baixo
+  // NÃO inclui isMathToolbarVisible pois causar scroll durante a animação da toolbar
   useEffect(() => {
-      if ((keyboardHeight > 0 || isMathToolbarVisible) && activeEditor === 'answer') {
-          // Pequeno delay para garantir que o layout já ajustou o padding
-          setTimeout(() => {
-              scrollViewRef.current?.scrollToEnd({ animated: true });
-          }, 50); 
-      }
-  }, [keyboardHeight, isMathToolbarVisible, activeEditor]);
+    if (keyboardHeight > 0 && activeEditor === 'answer') {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 50);
+    }
+  }, [keyboardHeight, activeEditor]);
 
   const toggleMathToolbar = () => {
-      Keyboard.dismiss();
-      setMathToolbarVisible(!isMathToolbarVisible);
+    Keyboard.dismiss();
+    mathToolbarRef.current?.toggle();
   };
-  
+
   const handleDismissKeyboard = () => {
-      Keyboard.dismiss();
-      setMathToolbarVisible(false);
-      setActiveEditor(null);
-      questionEditorRef.current?.blur();
-      answerEditorRef.current?.blur();
+    Keyboard.dismiss();
+    if (isMathToolbarVisible) mathToolbarRef.current?.forceClose();
+    setActiveEditor(null);
+    questionEditorRef.current?.blur();
+    answerEditorRef.current?.blur();
   };
 
   const handleInsertMath = (cmd) => {
-      // Pre-check: bloqueia inserção se exceder limite de caracteres
-      const charCount = activeEditor === 'answer' ? answerCharCount : questionCharCount;
-      if (charCount + 5 > CHAR_LIMIT) return; // Fórmula padrão tem peso mínimo 5
+    // Abre o montador de fórmula livre
+    if (cmd === '\\\\builder') {
+      setCurrentMathId(null);
+      setBuilderInitialLatex('');
+      setBuilderVisible(true);
+      return;
+    }
 
-      const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
-      if (target) {
-          if (cmd === '\\\\frac') target.insertFrac();
-          else if (cmd === '\\\\sqrt') target.insertRoot();
-          else if (cmd === '\\\\sqrt') target.insertRoot();
-          else if (cmd === 'x^2' || cmd === '²') target.insertSquared(); // Usando insertSquared agora
-          else if (cmd === '\\\\log') target.insertLog();
-          else target.insertSymbol(cmd);
-      }
+    // Pre-check: bloqueia inserção se exceder limite de caracteres
+    const charCount = activeEditor === 'answer' ? answerCharCount : questionCharCount;
+    if (charCount + 5 > CHAR_LIMIT) return; // Fórmula padrão tem peso mínimo 5
+
+    const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
+    if (target) {
+      if (cmd === '\\\\frac') target.insertFrac();
+      else if (cmd === '\\\\sqrt') target.insertRoot();
+      else if (cmd === '\\\\sqrt') target.insertRoot();
+      else if (cmd === 'x^2' || cmd === '²') target.insertSquared(); // Usando insertSquared agora
+      else if (cmd === '\\\\log') target.insertLog();
+      else if (cmd === '\\\\sub') target.insertSub();
+      else if (cmd === '\\\\abs') target.insertAbs();
+      else target.insertSymbol(cmd);
+    }
   };
 
   // Draft State
@@ -486,34 +517,34 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Load Draft Logic
   // We don't need to load into state because we pass global.flashcardDrafts directly to initialValue prop
   // of IsolatedMathEditor.
-  
+
   // Sync Draft State Live
   const updateDraft = (type, content) => {
-      if (!global.flashcardDrafts) global.flashcardDrafts = {};
-      const key = `${deckId}-${subjectId}`;
-      
-      // Ensure object exists
-      if (!global.flashcardDrafts[key]) global.flashcardDrafts[key] = { question: '', answer: '' };
+    if (!global.flashcardDrafts) global.flashcardDrafts = {};
+    const key = `${deckId}-${subjectId}`;
 
-      // Limpeza inteligente: Se o conteúdo for só espaços/HTML vazio, salvamos como ""
-      // Isso garante que ao voltar para a tela, o placeholder apareça.
-      const cleanContent = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-      const hasMedia = content.includes('<img') || content.includes('math-atom');
-      
-      const valueToSave = (!cleanContent && !hasMedia) ? "" : content;
+    // Ensure object exists
+    if (!global.flashcardDrafts[key]) global.flashcardDrafts[key] = { question: '', answer: '' };
 
-      if (type === 'question') {
-          global.flashcardDrafts[key].question = valueToSave;
-      } else {
-          global.flashcardDrafts[key].answer = valueToSave;
-      }
+    // Limpeza inteligente: Se o conteúdo for só espaços/HTML vazio, salvamos como ""
+    // Isso garante que ao voltar para a tela, o placeholder apareça.
+    const cleanContent = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    const hasMedia = content.includes('<img') || content.includes('math-atom');
+
+    const valueToSave = (!cleanContent && !hasMedia) ? "" : content;
+
+    if (type === 'question') {
+      global.flashcardDrafts[key].question = valueToSave;
+    } else {
+      global.flashcardDrafts[key].answer = valueToSave;
+    }
   };
 
   // Clear draft on successful save
   const clearDraft = () => {
-      if (!global.flashcardDrafts) return;
-      const key = `${deckId}-${subjectId}`;
-      delete global.flashcardDrafts[key];
+    if (!global.flashcardDrafts) return;
+    const key = `${deckId}-${subjectId}`;
+    delete global.flashcardDrafts[key];
   };
 
   // Listener para detectar quando o teclado abre/fecha
@@ -522,6 +553,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       'keyboardDidShow',
       (e) => {
         setKeyboardHeight(e.endCoordinates.height);
+        setMathToolbarVisible(false); // Fecha o menu de fórmulas ao teclado subir
       }
     );
     const keyboardDidHideListener = Keyboard.addListener(
@@ -537,50 +569,59 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     };
   }, []);
 
-  const handleEditMath = (id, latex) => {
+  const handleEditMath = (id, latex, source) => {
     setCurrentMathId(id);
     setCurrentLatex(latex);
 
-    // Parser simples para extrair valores existentes
-    let v1 = '';
-    let v2 = '';
-
-    if (latex.includes('frac')) {
-        const match = latex.match(/\\frac\{(.+?)\}\{(.+?)\}/);
-        if (match) { v1 = match[1]; v2 = match[2]; }
-    } else if (latex.includes('sqrt')) {
-        // Suporta \sqrt[index]{value} ou \sqrt{value}
-        const matchWithIndex = latex.match(/\\sqrt\[(.+?)\]\{(.+?)\}/);
-        if (matchWithIndex) {
-            v2 = matchWithIndex[1]; // Índice
-            v1 = matchWithIndex[2]; // Valor
-        } else {
-            const matchSimple = latex.match(/\\sqrt\{(.+?)\}/);
-            if (matchSimple) v1 = matchSimple[1];
-        }
-    } else if (latex.includes('log')) {
-        const match = latex.match(/\\log_\{(.+?)\}\{(.+?)\}/);
-        if (match) { v1 = match[1]; v2 = match[2]; }
-    } else if (latex.includes('^')) { // Changed to generic power
-       // Tenta extrair base e expoente
-       // Ex: x^2 ou {base}^{exp}
-       const match = latex.match(/(.+?)\^\{?(.+?)\}?$/); 
-       if (match) {
-           v1 = match[1];
-           v2 = match[2];
-       } else {
-           // Fallback para x^2 simples sem chaves
-           const matchSimple = latex.match(/(.+?)\^(.+)/);
-           if (matchSimple) { v1 = matchSimple[1]; v2 = matchSimple[2]; }
-       }
+    if (source === 'builder') {
+      // Fórmula criada pelo modal avançado → reabre o FormulaBuilderModal
+      setBuilderInitialLatex(latex);
+      setBuilderVisible(true);
+      return;
     }
-    
-    // Limpa placeholders (\Box) para visualização limpa
+
+    // Fórmula criada por botão do toolbar → abre o modal inline simples
+    let v1 = '', v2 = '', v3 = '';
+
+    if (latex.includes('\\left(') && latex.includes('frac')) {
+      const match = latex.match(/\\left\(\\frac\{(.+?)\}\{(.+?)\}\\right\)\^\{(.+?)\}/);
+      if (match) { v1 = match[1]; v2 = match[2]; v3 = match[3]; }
+    } else if (latex.includes('frac')) {
+      const match = latex.match(/\\frac\{(.+?)\}\{(.+?)\}/);
+      if (match) { v1 = match[1]; v2 = match[2]; }
+    } else if (latex.includes('sqrt')) {
+      const matchWithIndex = latex.match(/\\sqrt\[(.+?)\]\{(.+?)\}/);
+      if (matchWithIndex) { v2 = matchWithIndex[1]; v1 = matchWithIndex[2]; }
+      else {
+        const matchSimple = latex.match(/\\sqrt\{(.+?)\}/);
+        if (matchSimple) v1 = matchSimple[1];
+      }
+    } else if (latex.includes('log')) {
+      const match = latex.match(/\\log_\{(.+?)\}\{(.+?)\}/);
+      if (match) { v1 = match[1]; v2 = match[2]; }
+    } else if (latex.includes('^')) {
+      const match = latex.match(/(.+?)\^\{?(.+?)\}?$/);
+      if (match) { v1 = match[1]; v2 = match[2]; }
+      else {
+        const matchSimple = latex.match(/(.+?)\^(.+)/);
+        if (matchSimple) { v1 = matchSimple[1]; v2 = matchSimple[2]; }
+      }
+    } else if (latex.includes('_{')) {
+      const match = latex.match(/(.+?)_\{(.+?)\}/);
+      if (match) { v1 = match[1]; v2 = match[2]; }
+    } else if (latex.includes('\\left|')) {
+      const match = latex.match(/\\left\|(.+?)\\right\|/);
+      if (match) { v1 = match[1]; }
+    }
+
     if (v1 === '\\Box') v1 = '';
     if (v2 === '\\Box') v2 = '';
+    if (v3 === '\\Box') v3 = '';
 
-    setEditValue1(v1); 
+    setEditValue1(v1);
     setEditValue2(v2);
+    setEditValue3(v3);
+    setAdvancedFrac(latex.includes('\\left(') && latex.includes('frac'));
     setEditModalVisible(true);
   };
 
@@ -594,7 +635,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     // Remove tags HTML básicas para checar se tem texto real
     const cleanQ = currentQuestionHtml.replace(/<[^>]*>/g, '').trim();
     const cleanA = currentAnswerHtml.replace(/<[^>]*>/g, '').trim();
-    
+
     // Verifica também se tem imagens ou fórmulas (que podem não ter texto puro)
     const hasMediaQ = currentQuestionHtml.includes('<img') || currentQuestionHtml.includes('math-atom');
     const hasMediaA = currentAnswerHtml.includes('<img') || currentAnswerHtml.includes('math-atom');
@@ -640,137 +681,159 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   };
 
   return (
-      <View style={styles.baseContainer}>
-        {loading ? (
-             <View style={{ padding: 20 }}>
-                 <SkeletonItem style={{ width: 100, height: 20, marginBottom: 10, borderRadius: 4 }} />
-                 <SkeletonItem style={{ width: '100%', height: 200, marginBottom: 20, borderRadius: 8 }} />
-                 <SkeletonItem style={{ width: 100, height: 20, marginBottom: 10, borderRadius: 4 }} />
-                 <SkeletonItem style={{ width: '100%', height: 200, marginBottom: 20, borderRadius: 8 }} />
-                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <SkeletonItem style={{ width: 60, height: 50, borderRadius: 25 }} />
-                    <SkeletonItem style={{ width: 150, height: 50, borderRadius: 8 }} />
-                 </View>
-             </View>
-        ) : (
-             <KeyboardAvoidingView 
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-          <ScrollView 
+    <View style={styles.baseContainer}>
+      {loading ? (
+        <View style={{ padding: 20 }}>
+          <SkeletonItem style={{ width: 100, height: 20, marginBottom: 10, borderRadius: 4 }} />
+          <SkeletonItem style={{ width: '100%', height: 200, marginBottom: 20, borderRadius: 8 }} />
+          <SkeletonItem style={{ width: 100, height: 20, marginBottom: 10, borderRadius: 4 }} />
+          <SkeletonItem style={{ width: '100%', height: 200, marginBottom: 20, borderRadius: 8 }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <SkeletonItem style={{ width: 60, height: 50, borderRadius: 25 }} />
+            <SkeletonItem style={{ width: 150, height: 50, borderRadius: 8 }} />
+          </View>
+        </View>
+      ) : (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          <ScrollView
             ref={scrollViewRef}
             style={styles.formContainerNoPadding}
             contentContainerStyle={[
-                styles.scrollContentContainer, 
-                { 
-                    paddingBottom: keyboardHeight > 0 
-                        ? Math.max(20, keyboardHeight - 50)
-                        : (isMathToolbarVisible ? 240 : 20),
-                    flexGrow: 1 
-                }
+              styles.scrollContentContainer,
+              {
+                paddingBottom: keyboardHeight > 0
+                  ? Math.max(20, keyboardHeight - 50)
+                  : 20,
+                flexGrow: 1
+              }
             ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
-               <View style={{ flex: 1 }}>
-                    {/* Área clicável acima do primeiro input (Label) */}
-                    <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                        <View style={{ marginBottom: 2, width: '100%' }}>
-                            <Text style={styles.formLabel}>Frente</Text>
-                        </View>
-                    </TouchableWithoutFeedback>
+            <View style={{ flex: 1 }}>
+              {/* Área clicável acima do primeiro input (Label) */}
+              <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={{ marginBottom: 2, width: '100%' }}>
+                  <Text style={styles.formLabel}>Frente</Text>
+                </View>
+              </TouchableWithoutFeedback>
 
-                    <View style={styles.inputGroup}>
-                        <View
-                            style={{ 
-                                borderWidth: 2, 
-                                borderColor: activeEditor === 'question' ? '#4db6ac' : '#444', 
-                                borderRadius: 8, 
-                                height: 200, 
-                                padding: 4,  
-                                marginBottom: 0,
-                                backgroundColor: '#2D3748', 
-                                overflow: 'hidden'
-                            }}
-                        >
-                            <View pointerEvents="box-none" style={{ flex: 1 }}>
-                                <IsolatedMathEditor
-                                    editorRef={questionEditorRef}
-                                    initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.question || ""}
-                                    onContentChange={(html) => updateDraft('question', html)}
-                                    onFocusCallback={() => setActiveEditor('question')}
-                                    onEditMath={handleEditMath}
-                                    onCharCount={(count) => setQuestionCharCount(count)}
-                                    maxChars={CHAR_LIMIT}
-                                />
-                            </View>
-                        </View>
-                        <EditorCharCounter count={questionCharCount} max={CHAR_LIMIT} />
-                    </View>
+              <View style={styles.inputGroup}>
+                <View
+                  renderToHardwareTextureAndroid={true}
+                  style={{
+                    borderWidth: 2,
+                    borderColor: activeEditor === 'question' ? '#4db6ac' : '#444',
+                    borderRadius: 8,
+                    height: 200,
+                    padding: 4,
+                    marginBottom: 0,
+                    backgroundColor: '#2D3748',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <View pointerEvents="box-none" style={{ flex: 1 }}>
+                    <IsolatedMathEditor
+                      editorRef={questionEditorRef}
+                      initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.question || ""}
+                      onContentChange={(html) => updateDraft('question', html)}
+                      onFocusCallback={() => setActiveEditor('question')}
+                      onEditMath={handleEditMath}
+                      onCharCount={(count) => setQuestionCharCount(count)}
+                      maxChars={CHAR_LIMIT}
+                    />
+                  </View>
+                </View>
+                <EditorCharCounter count={questionCharCount} max={CHAR_LIMIT} />
+              </View>
 
-                    <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                        <View style={{ marginBottom: 2, width: '100%', paddingTop: 6 }}>
-                            <Text style={styles.formLabel}>Verso</Text>
-                        </View>
-                    </TouchableWithoutFeedback>
+              <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={{ marginBottom: 2, width: '100%', paddingTop: 6 }}>
+                  <Text style={styles.formLabel}>Verso</Text>
+                </View>
+              </TouchableWithoutFeedback>
 
-                    <View style={styles.inputGroup}>
-                        <View
-                            style={{ 
-                                borderWidth: 2, 
-                                borderColor: activeEditor === 'answer' ? '#4db6ac' : '#444', 
-                                borderRadius: 8, 
-                                height: 200,
-                                padding: 4,
-                                marginBottom: 0,
-                                backgroundColor: '#2D3748', 
-                                overflow: 'hidden'
-                            }}
-                        >
-                            <View pointerEvents="box-none" style={{ flex: 1 }}>
-                                <IsolatedMathEditor
-                                    editorRef={answerEditorRef}
-                                    initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.answer || ""}
-                                    onContentChange={(html) => updateDraft('answer', html)}
-                                    onFocusCallback={() => {
-                                        setActiveEditor('answer');
-                                        setTimeout(() => {
-                                            scrollViewRef.current?.scrollToEnd({ animated: true });
-                                        }, 150);
-                                    }}
-                                    onEditMath={handleEditMath}
-                                    onCharCount={(count) => setAnswerCharCount(count)}
-                                    maxChars={CHAR_LIMIT}
-                                />
-                            </View>
-                        </View>
-                        <EditorCharCounter count={answerCharCount} max={CHAR_LIMIT} />
-                    </View>
+              <View style={styles.inputGroup}>
+                <View
+                  renderToHardwareTextureAndroid={true}
+                  style={{
+                    borderWidth: 2,
+                    borderColor: activeEditor === 'answer' ? '#4db6ac' : '#444',
+                    borderRadius: 8,
+                    height: 200,
+                    padding: 4,
+                    marginBottom: 0,
+                    backgroundColor: '#2D3748',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <View pointerEvents="box-none" style={{ flex: 1 }}>
+                    <IsolatedMathEditor
+                      editorRef={answerEditorRef}
+                      initialValue={global.flashcardDrafts?.[`${deckId}-${subjectId}`]?.answer || ""}
+                      onContentChange={(html) => updateDraft('answer', html)}
+                      onFocusCallback={() => {
+                        setActiveEditor('answer');
+                        setTimeout(() => {
+                          scrollViewRef.current?.scrollToEnd({ animated: true });
+                        }, 150);
+                      }}
+                      onEditMath={handleEditMath}
+                      onCharCount={(count) => setAnswerCharCount(count)}
+                      maxChars={CHAR_LIMIT}
+                    />
+                  </View>
+                </View>
+                <EditorCharCounter count={answerCharCount} max={CHAR_LIMIT} />
+              </View>
 
-                    {/* Área extensiva clicável cobrindo o fundo e botões */}
-                    <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                         <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 14, paddingBottom: 10 }]}>
-                            <TouchableOpacity
-                                style={[styles.fxButton, isMathToolbarVisible && styles.fxButtonActive ]}
-                                onPress={(e) => { e.stopPropagation(); toggleMathToolbar(); }}
-                            >
-                                <Text style={styles.fxButtonText}>f(x)</Text>
-                            </TouchableOpacity>
+              {/* Área extensiva clicável cobrindo o fundo e botões */}
+              <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 14, paddingBottom: 10 }]}>
+                  <TouchableOpacity
+                    style={[styles.fxButton, isMathToolbarVisible && styles.fxButtonActive]}
+                    onPress={(e) => { e.stopPropagation(); toggleMathToolbar(); }}
+                  >
+                    <Text style={styles.fxButtonText}>f(x)</Text>
+                  </TouchableOpacity>
 
-                            <View style={styles.saveButtonContainer}>
-                                <Button title="Salvar Flashcard" onPress={(e) => { e.stopPropagation(); handleSave(); }} color="#4FD1C5" />
-                            </View> 
-                        </View>
-                    </TouchableWithoutFeedback>
-               </View>
+                  <View style={styles.saveButtonContainer}>
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: '#4FD1C5',
+                        borderRadius: 4,
+                        paddingVertical: 8,
+                        paddingHorizontal: 16,
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      onPress={(e) => { e.stopPropagation(); handleSave(); }}
+                    >
+                      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>SALVAR FLASHCARD</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
-        )}
-
-      {isMathToolbarVisible && (
-          <MathToolbar onInsert={handleInsertMath} onClose={() => setMathToolbarVisible(false)} />
       )}
+
+      <MathToolbar
+        ref={mathToolbarRef}
+        onInsert={handleInsertMath}
+        onOpen={() => setMathToolbarVisible(true)}
+        onClose={() => setMathToolbarVisible(false)}
+        onOpenAdvancedMode={() => {
+          mathToolbarRef.current?.forceClose();
+          setBuilderInitialLatex('');
+          setBuilderVisible(true);
+        }}
+      />
 
 
       {/* ========== MODAL FULLSCREEN DE EDIÇÃO DE FÓRMULAS ========== */}
@@ -784,11 +847,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           setShowSymbolsPanel(false);
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <View style={styles.modalOverlayFullscreen}>
+        <View style={styles.modalOverlayFullscreen}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+            style={{ flex: 1 }}
+          >
             <View style={styles.modalContentFullscreen}>
               {/* Header com título e ícone de ajuda */}
               <View style={styles.modalHeaderFullscreen}>
@@ -805,19 +868,23 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
               </View>
 
               <ScrollView
-                style={{ flex: 1 }}
+                style={{ flexShrink: 1 }}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
                 {/* ===== INPUT 1 ===== */}
                 <Text style={styles.formLabel}>
-                  {currentLatex.includes('frac')
+                  {currentLatex.includes('\\left(')
                     ? 'Numerador'
-                    : currentLatex.includes('^')
-                    ? 'Base'
-                    : currentLatex.includes('log')
-                    ? 'Base'
-                    : 'Valor'}
+                    : currentLatex.includes('frac')
+                      ? 'Numerador'
+                      : currentLatex.includes('^')
+                        ? 'Base'
+                        : currentLatex.includes('log')
+                          ? 'Base'
+                          : currentLatex.includes('_{')
+                            ? 'Base'
+                            : 'Valor'}
                 </Text>
                 <Animated.View style={shakeStyle1}>
                   <TextInput
@@ -847,6 +914,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     placeholderTextColor="#666"
                     keyboardType="numeric"
                     autoFocus={true}
+                    autoComplete="off"
+                    importantForAutofill="no"
                   />
                 </Animated.View>
                 <SegmentedCounter text={editValue1} />
@@ -855,53 +924,129 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                 {(currentLatex.includes('frac') ||
                   currentLatex.includes('log') ||
                   currentLatex.includes('sqrt') ||
-                  currentLatex.includes('^')) && (
-                  <>
-                    <Text style={[styles.formLabel, { marginTop: 12 }]}>
-                      {currentLatex.includes('log')
-                        ? 'Logaritmando'
-                        : currentLatex.includes('sqrt')
-                        ? 'Índice da Raiz (Opcional)'
-                        : currentLatex.includes('^')
-                        ? 'Expoente'
-                        : 'Denominador'}
+                  currentLatex.includes('^') ||
+                  currentLatex.includes('_{')) && (
+                    <>
+                      <Text style={[styles.formLabel, { marginTop: 12 }]}>
+                        {currentLatex.includes('\\left(')
+                          ? 'Denominador'
+                          : currentLatex.includes('log')
+                            ? 'Logaritmando'
+                            : currentLatex.includes('sqrt')
+                              ? 'Índice da Raiz (Opcional)'
+                              : currentLatex.includes('^')
+                                ? 'Expoente'
+                                : currentLatex.includes('_{')
+                                  ? 'Subscrito'
+                                  : 'Denominador'}
+                      </Text>
+                      <Animated.View style={shakeStyle2}>
+                        <TextInput
+                          ref={modalInput2Ref}
+                          style={[
+                            styles.modalInputWithFocus,
+                            focusedInput === 2 && styles.modalInputFocusedGreen,
+                          ]}
+                          value={editValue2}
+                          onChangeText={(text) => {
+                            if (text.length > editValue2.length) {
+                              const newChar = text.slice(-1);
+                              const validation = validateInput(editValue2, newChar);
+                              if (validation.valid) {
+                                setEditValue2(text);
+                              } else {
+                                triggerShake(shakeAnim2);
+                              }
+                            } else {
+                              setEditValue2(text);
+                            }
+                          }}
+                          onFocus={() => setFocusedInput(2)}
+                          placeholder={
+                            currentLatex.includes('\\left(')
+                              ? 'Digite o denominador...'
+                              : currentLatex.includes('log')
+                                ? 'Digite o logaritmando...'
+                                : currentLatex.includes('sqrt')
+                                  ? 'Ex: 3 para cúbica (vazio = quadrada)'
+                                  : currentLatex.includes('^')
+                                    ? 'Ex: 2, n, n-1, (a+b)...'
+                                    : currentLatex.includes('_{')
+                                      ? 'Ex: n, 1, 0...'
+                                      : 'Digite o denominador...'
+                          }
+                          placeholderTextColor="#666"
+                          keyboardType="numeric"
+                          autoComplete="off"
+                          importantForAutofill="no"
+                        />
+                      </Animated.View>
+                      <SegmentedCounter text={editValue2} />
+                    </>
+                  )}
+
+                {/* ===== BOTÃO MODO AVANÇADO (só para fração) ===== */}
+                {currentLatex.includes('frac') && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      tap();
+                      setAdvancedFrac(!advancedFrac);
+                      if (advancedFrac) setEditValue3(''); // Limpa ao desativar
+                    }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingVertical: 8,
+                      paddingHorizontal: 20,
+                      marginTop: 10,
+                      borderRadius: 8,
+                      backgroundColor: advancedFrac ? 'rgba(79, 209, 197, 0.12)' : 'rgba(74, 85, 104, 0.25)',
+                      borderWidth: 1,
+                      borderColor: advancedFrac ? '#4FD1C5' : '#4A5568',
+                      alignSelf: 'center',
+                    }}
+                  >
+                    <Text style={{ color: advancedFrac ? '#4FD1C5' : '#A0AEC0', fontSize: 13, fontWeight: '600' }}>
+                      {advancedFrac ? '▲ Modo Simples' : '▼ Modo Avançado  (  )ⁿ'}
                     </Text>
-                    <Animated.View style={shakeStyle2}>
+                  </TouchableOpacity>
+                )}
+
+                {/* ===== INPUT 3 — Expoente (modo avançado da fração) ===== */}
+                {advancedFrac && currentLatex.includes('frac') && (
+                  <>
+                    <Text style={[styles.formLabel, { marginTop: 12 }]}>Expoente</Text>
+                    <Animated.View style={shakeStyle3}>
                       <TextInput
-                        ref={modalInput2Ref}
+                        ref={modalInput3Ref}
                         style={[
                           styles.modalInputWithFocus,
-                          focusedInput === 2 && styles.modalInputFocusedGreen,
+                          focusedInput === 3 && styles.modalInputFocusedGreen,
                         ]}
-                        value={editValue2}
+                        value={editValue3}
                         onChangeText={(text) => {
-                          if (text.length > editValue2.length) {
+                          if (text.length > editValue3.length) {
                             const newChar = text.slice(-1);
-                            const validation = validateInput(editValue2, newChar);
+                            const validation = validateInput(editValue3, newChar);
                             if (validation.valid) {
-                              setEditValue2(text);
+                              setEditValue3(text);
                             } else {
-                              triggerShake(shakeAnim2);
+                              triggerShake(shakeAnim3);
                             }
                           } else {
-                            setEditValue2(text);
+                            setEditValue3(text);
                           }
                         }}
-                        onFocus={() => setFocusedInput(2)}
-                        placeholder={
-                          currentLatex.includes('log')
-                            ? 'Digite o logaritmando...'
-                            : currentLatex.includes('sqrt')
-                            ? 'Ex: 3 para cúbica (vazio = quadrada)'
-                            : currentLatex.includes('^')
-                            ? 'Digite o expoente'
-                            : 'Digite o denominador...'
-                        }
+                        onFocus={() => setFocusedInput(3)}
+                        placeholder="Ex: 2, n, n-1, (a+b)..."
                         placeholderTextColor="#666"
                         keyboardType="numeric"
+                        autoComplete="off"
+                        importantForAutofill="no"
                       />
                     </Animated.View>
-                    <SegmentedCounter text={editValue2} />
+                    <SegmentedCounter text={editValue3} />
                   </>
                 )}
 
@@ -914,12 +1059,13 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   style={styles.modalButtonFullWidth}
                   onPress={() => {
+                    tap();
                     // Valida se inputs terminam com separador decimal
                     const val1Check = editValue1.trim();
                     const val2Check = editValue2.trim();
 
                     if (val1Check.endsWith(',') || val1Check.endsWith('.') ||
-                        val2Check.endsWith(',') || val2Check.endsWith('.')) {
+                      val2Check.endsWith(',') || val2Check.endsWith('.')) {
                       setAlertConfig({
                         visible: true,
                         title: 'Entrada Inválida',
@@ -929,24 +1075,45 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       return;
                     }
 
-                    const val1 = editValue1.trim() === '' ? '\\\\Box' : editValue1;
-                    const val2 = editValue2.trim() === '' ? '\\\\Box' : editValue2;
+                    // Converte operadores Unicode para comandos LaTeX e auto-agrupa ^(...) e _(...)
+                    const processVal = (val) => val
+                      .replace(/×/g, '\\times ')
+                      .replace(/÷/g, '\\div ')
+                      .replace(/π/g, '\\pi ')
+                      .replace(/θ/g, '\\theta ')
+                      .replace(/∞/g, '\\infty ')
+                      .replace(/≠/g, '\\neq ')
+                      .replace(/≥/g, '\\geq ')
+                      .replace(/≤/g, '\\leq ')
+                      .replace(/\^\(([^)]*)\)/g, '^{$1}')
+                      .replace(/_\(([^)]*)\)/g, '_{$1}');
+
+                    const val1 = editValue1.trim() === '' ? '\\Box' : processVal(editValue1);
+                    const val2 = editValue2.trim() === '' ? '\\Box' : processVal(editValue2);
 
                     let newLatex = val1;
 
-                    if (currentLatex.includes('frac')) {
-                      newLatex = `\\\\frac{${val1}}{${val2}}`;
+                    if (advancedFrac && currentLatex.includes('frac')) {
+                      // Modo avançado: fração entre parênteses com potência — \left(\frac{num}{den}\right)^{exp}
+                      const val3 = editValue3.trim() === '' ? '\\Box' : processVal(editValue3);
+                      newLatex = `\\left(\\frac{${val1}}{${val2}}\\right)^{${val3}}`;
+                    } else if (currentLatex.includes('frac')) {
+                      newLatex = `\\frac{${val1}}{${val2}}`;
                     } else if (currentLatex.includes('sqrt')) {
-                      if (val2 && val2 !== '\\\\Box' && editValue2.trim() !== '') {
-                        newLatex = `\\\\sqrt[${val2}]{${val1}}`;
+                      if (val2 && val2 !== '\\Box' && editValue2.trim() !== '') {
+                        newLatex = `\\sqrt[${val2}]{${val1}}`;
                       } else {
-                        newLatex = `\\\\sqrt{${val1}}`;
+                        newLatex = `\\sqrt{${val1}}`;
                       }
                     } else if (currentLatex.includes('^')) {
                       const exp = val2 === '' || val2 === '\\Box' ? '\\Box' : val2;
                       newLatex = `${val1}^{${exp}}`;
                     } else if (currentLatex.includes('log')) {
-                      newLatex = `\\\\log_{${val1}}{${val2}}`;
+                      newLatex = `\\log_{${val1}}{${val2}}`;
+                    } else if (currentLatex.includes('_{')) {
+                      newLatex = `${val1}_{${val2}}`;
+                    } else if (currentLatex.includes('\\left|')) {
+                      newLatex = `\\left|${val1}\\right|`;
                     }
 
                     // Verifica se a fórmula editada excede o limite de caracteres
@@ -970,6 +1137,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
+                    setEditValue3('');
+                    setAdvancedFrac(false);
                   }}
                 >
                   <Text style={styles.modalButtonTextFullWidth}>Confirmar</Text>
@@ -978,6 +1147,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   style={styles.modalButtonCancelFullWidth}
                   onPress={() => {
+                    tap();
                     if (currentLatex.includes('\\Box')) {
                       const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
                       target?.deleteMath(currentMathId);
@@ -985,16 +1155,74 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
+                    setEditValue3('');
+                    setAdvancedFrac(false);
                   }}
                 >
                   <Text style={styles.modalButtonTextFullWidth}>Cancelar</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
       {/* ========== FIM DO MODAL ========== */}
+
+      {/* ========== MONTADOR DE FÓRMULA LIVRE ========== */}
+      <FormulaBuilderModal
+        visible={builderVisible}
+        initialFormula={builderInitialLatex}
+        onConfirm={(latex) => {
+          const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
+          const charCount = activeEditor === 'answer' ? answerCharCount : questionCharCount;
+
+          if (currentMathId) {
+            // Modo edição — atualiza fórmula existente
+            const newWeight = calculateFormulaWeight(latex);
+            const oldWeight = calculateFormulaWeight(builderInitialLatex);
+            const projected = charCount - oldWeight + newWeight;
+            if (projected > CHAR_LIMIT) {
+              setAlertConfig({
+                visible: true,
+                title: 'Limite Excedido',
+                message: 'A fórmula excede o limite de caracteres. Simplifique o conteúdo.',
+                buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+              });
+              return;
+            }
+            target?.updateFormula(currentMathId, latex);
+          } else {
+            // Modo criação — insere nova fórmula
+            const weight = calculateFormulaWeight(latex);
+            if (charCount + weight > CHAR_LIMIT) {
+              setAlertConfig({
+                visible: true,
+                title: 'Limite Excedido',
+                message: 'A fórmula excede o limite de caracteres.',
+                buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+              });
+              return;
+            }
+            target?.insertCustom(latex);
+          }
+
+          setCurrentMathId(null);
+          setBuilderInitialLatex('');
+          setBuilderVisible(false);
+        }}
+        onCancel={() => {
+          // Se a fórmula original tinha placeholders (\Box), foi inserida pelo toolbar
+          // e o usuário cancelou → deleta a fórmula placeholder do editor
+          if (currentMathId && builderInitialLatex.includes('\\Box')) {
+            const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
+            target?.deleteMath(currentMathId);
+          }
+          setCurrentMathId(null);
+          setBuilderInitialLatex('');
+          setBuilderVisible(false);
+        }}
+      />
+      {/* ========== FIM DO MONTADOR ========== */}
 
       {/* ========== HELP MODAL (Custom) ========== */}
       <Modal
@@ -1179,11 +1407,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       </Modal>
       {/* ========== FIM DO HELP MODAL ========== */}
 
-    <CustomAlert 
-        {...alertConfig} 
-        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} 
-    />
-   </View>
+      <CustomAlert
+        {...alertConfig}
+        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+      />
+    </View>
   );
 };
 
