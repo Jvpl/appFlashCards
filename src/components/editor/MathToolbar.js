@@ -1,5 +1,6 @@
 import React, { useImperativeHandle } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS, Easing } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +9,7 @@ import Svg, { Path, G, Defs, Filter, FeGaussianBlur, FeMerge, FeMergeNode } from
 import styles from '../../styles/globalStyles';
 
 export const MathToolbar = React.forwardRef(({ onInsert, onClose, onOpen, onOpenAdvancedMode }, ref) => {
+  const insets = useSafeAreaInsets();
   const translateY = useSharedValue(400);
   const context = useSharedValue({ y: 0 });
 
@@ -74,7 +76,7 @@ export const MathToolbar = React.forwardRef(({ onInsert, onClose, onOpen, onOpen
             bottom: -50,
             left: 0,
             right: 0,
-            maxHeight: '57%',
+            maxHeight: insets.bottom > 30 ? '60%' : '60%',
             zIndex: 9999,
             flexDirection: 'column',
             flexWrap: 'nowrap',
@@ -140,7 +142,7 @@ export const MathToolbar = React.forwardRef(({ onInsert, onClose, onOpen, onOpen
         {/* Conteúdo scrollável */}
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingTop: 35, paddingHorizontal: 12, paddingBottom: 40 }}
+          contentContainerStyle={{ paddingTop: 35, paddingHorizontal: 12, paddingBottom: insets.bottom > 30 ? 40 + insets.bottom : 10 }}
           keyboardShouldPersistTaps="always"
         >
           <Text style={localStyles.sectionTitle}>FÓRMULAS BÁSICAS</Text>

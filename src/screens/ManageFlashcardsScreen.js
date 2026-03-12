@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Button, Vibration } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,11 +19,14 @@ import styles from '../styles/globalStyles';
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const { deckId, subjectId, preloadedCards, cardId } = route.params; // cardId opcional para modo edição
+  const insets = useSafeAreaInsets();
 
   const questionEditorRef = useRef(null);
   const answerEditorRef = useRef(null);
   const scrollViewRef = useRef(null);
   const mathToolbarRef = useRef(null);
+  const pendingToolbarOpen = useRef(false);
+  const keyboardVisibleRef = useRef(false);
 
   const [activeEditor, setActiveEditor] = useState(null);
   const [isMathToolbarVisible, setMathToolbarVisible] = useState(false);
@@ -213,15 +217,24 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
       (e) => {
+        keyboardVisibleRef.current = true;
         setKeyboardHeight(e.endCoordinates.height);
         mathToolbarRef.current?.forceClose();
-        setMathToolbarVisible(false); // Fecha o menu de fórmulas ao teclado subir
+        setMathToolbarVisible(false);
       }
     );
     const keyboardDidHideListener = Keyboard.addListener(
       'keyboardDidHide',
       () => {
+        keyboardVisibleRef.current = false;
         setKeyboardHeight(0);
+        if (pendingToolbarOpen.current) {
+          // Transição teclado→toolbar: mantém posição do scroll (evita salto visual)
+          pendingToolbarOpen.current = false;
+          mathToolbarRef.current?.toggle();
+        } else {
+          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        }
       }
     );
 
@@ -289,8 +302,23 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   }, [isMathToolbarVisible, activeEditor]);
 
   const toggleMathToolbar = () => {
-    Keyboard.dismiss();
-    mathToolbarRef.current?.toggle();
+    if (!isMathToolbarVisible) {
+      if (keyboardVisibleRef.current) {
+        // Teclado aberto: blur nos editors (WebView) + agenda toolbar para quando fechar
+        pendingToolbarOpen.current = true;
+        questionEditorRef.current?.blur();
+        answerEditorRef.current?.blur();
+        Keyboard.dismiss();
+      } else {
+        mathToolbarRef.current?.toggle();
+        if (activeEditor === 'answer') {
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        }
+      }
+    } else {
+      Keyboard.dismiss();
+      mathToolbarRef.current?.toggle();
+    }
   };
 
   const handleDismissKeyboard = () => {
@@ -508,17 +536,20 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           <ScrollView
             ref={scrollViewRef}
             style={styles.formContainerNoPadding}
+            showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContentContainer,
               {
+                paddingTop: 8,
                 paddingBottom: keyboardHeight > 0
-                  ? Math.max(20, keyboardHeight - 50)
+                  ? Math.max(10, keyboardHeight - (insets.bottom > 30 ? 95 : 84))
                   : isMathToolbarVisible
-                    ? 250  // Padding extra quando toolbar está visível
-                    : 20,
+                    ? (insets.bottom > 30 ? 234 : 277)
+                    : 10,
                 flexGrow: 1
               }
             ]}
+            scrollEnabled={keyboardHeight > 0 || isMathToolbarVisible}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
@@ -601,7 +632,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
               {/* Área extensiva clicável cobrindo o fundo e botões */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 14, paddingBottom: 10 }]}>
+                <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 5, paddingBottom: 10 + (insets.bottom > 10 ? insets.bottom : 0) }]}>
                   <TouchableOpacity
                     style={[styles.fxButton, isMathToolbarVisible && styles.fxButtonActive]}
                     onPress={(e) => { e.stopPropagation(); toggleMathToolbar(); }}
@@ -635,7 +666,10 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         ref={mathToolbarRef}
         onInsert={handleInsertMath}
         onOpen={() => setMathToolbarVisible(true)}
-        onClose={() => setMathToolbarVisible(false)}
+        onClose={() => {
+          setMathToolbarVisible(false);
+          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        }}
         onOpenAdvancedMode={() => {
           mathToolbarRef.current?.forceClose();
           setBuilderInitialLatex('');
