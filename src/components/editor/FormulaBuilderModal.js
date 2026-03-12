@@ -203,7 +203,7 @@ const NUM_ROWS = [
   [{ v: '7' }, { v: '8' }, { v: '9' }, { v: '+' }, { v: '-' }],
   [{ v: '4' }, { v: '5' }, { v: '6' }, { v: '×' }, { v: '÷' }],
   [{ v: '1' }, { v: '2' }, { v: '3' }, { v: '(' }, { v: ')' }],
-  [{ v: '0' }, { v: '.' }, { v: ',' }, { v: '=' }],
+  [{ v: '0' }, { v: '.' }, { v: ',' }, { v: '=' }, { v: '!' }],
 ];
 // Largura fixa para última linha do numérico: igual à de uma tecla em 5 colunas (padding 14*2, 4 gaps de 5px)
 const NUM_BTN_W = Math.floor((SCREEN_W - 14 * 2 - 4 * 5) / 5);
@@ -990,22 +990,19 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
             {/* ── Painel Números ── */}
             {panel === 'num' && (
               <View style={s.grid}>
-                {NUM_ROWS.map((row, ri) => {
-                  const isLast = ri === NUM_ROWS.length - 1;
-                  return (
-                    <View key={ri} style={[s.gridRow, isLast && { justifyContent: 'center' }]}>
-                      {row.map(({ v }) => (
-                        <TouchableOpacity
-                          key={v}
-                          onPress={() => { tap(); insert(v); }}
-                          style={isLast ? [s.keyBtn, { flex: 0, width: NUM_BTN_W }] : s.keyBtn}
-                        >
-                          <Text style={s.keyTxt}>{v}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  );
-                })}
+                {NUM_ROWS.map((row, ri) => (
+                  <View key={ri} style={s.gridRow}>
+                    {row.map(({ v }) => (
+                      <TouchableOpacity
+                        key={v}
+                        onPress={() => { tap(); insert(v); }}
+                        style={s.keyBtn}
+                      >
+                        <Text style={s.keyTxt}>{v}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ))}
               </View>
             )}
 

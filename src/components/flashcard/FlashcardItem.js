@@ -4,13 +4,8 @@ import { WebView } from 'react-native-webview';
 import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CardFooter } from '../ui/CardFooter';
-import { katexScript } from '../editor/editorTemplates';
+import { katexScript, katexStyles as katexFullStyles } from '../editor/editorTemplates';
 import styles from '../../styles/globalStyles';
-
-const katexStyles = `
-  .katex { font-size: 1.0em !important; }
-  .katex .mfrac { font-size: 1.25em !important; }
-`;
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -88,13 +83,10 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
             <html>
             <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-            <style>
-                ${katexStyles}
-            </style>
+            <style>${katexFullStyles}</style>
             <script>${katexScript}</script>
             <style>
                 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-                
                 html, body {
                     height: 100%;
                     margin: 0;
@@ -109,7 +101,6 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
                     justify-content: center;
                     align-items: center;
                 }
-
                 #viewer {
                     padding: 10px;
                     line-height: 1.6;
@@ -119,7 +110,6 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
                     width: 100%;
                     text-align: center;
                 }
-
                 .katex { font-size: 1.0em !important; }
                 .katex .mfrac { font-size: 1.25em !important; }
                 .math-atom {
@@ -133,10 +123,15 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
                 img { max-width: 100%; height: auto; }
                 .invisible-char, .sentinela-anti-caps { display: none; }
             </style>
-            <script>${katexScript}</script>
             </head>
             <body>
             <div id="viewer">${content}</div>
+            <script>
+              document.querySelectorAll('.math-atom[data-latex]').forEach(function(el) {
+                var latex = el.getAttribute('data-latex');
+                try { katex.render(latex, el, { throwOnError: false }); } catch(e) {}
+              });
+            </script>
             </body>
             </html>`;
 
