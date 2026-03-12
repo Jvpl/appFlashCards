@@ -332,35 +332,25 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
                                     <style>${katexStyles}</style>
                                     <script>${katexScript}</script>
-                                    <script>!function(e,t){"object"==typeof exports&&"object"==typeof module?module.exports=t(require("katex")):"function"==typeof define&&define.amd?define(["katex"],t):"object"==typeof exports?exports.renderMathInElement=t(require("katex")):e.renderMathInElement=t(e.katex)}("undefined"!=typeof self?self:this,(function(e){return function(){"use strict";var t={771:function(t){t.exports=e}},r={};function n(e){var i=r[e];if(void 0!==i)return i.exports;var a=r[e]={exports:{}};return t[e](a,a.exports,n),a.exports}n.n=function(e){var t=e&&e.__esModule?function(){return e.default}:function(){return e};return n.d(t,{a:t}),t},n.d=function(e,t){for(var r in t)n.o(t,r)&&!n.o(e,r)&&Object.defineProperty(e,r,{e:!0,get:r[n]})},n.o=function(e,t){return Object.prototype.hasOwnProperty.call(e,t)},n.r=function(e){"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:!0})};var i={};return function(){n.r(i),n.d(i,{default:function(){return a}});var e={delimiters:[{left:"$$",right:"$$",display:!0},{left:"\\\\(",right:"\\\\)",display:!1},{left:"\\\\begin{equation}",right:"\\\\end{equation}",display:!0},{left:"\\\\begin{align}",right:"\\\\end{align}",display:!0},{left:"\\\\begin{alignat}",right:"\\\\end{alignat}",display:!0},{left:"\\\\begin{gather}",right:"\\\\end{gather}",display:!0},{left:"\\\\begin{CD}",right:"\\\\end{CD}",display:!0},{left:"\\\\[",right:"\\\\]",display:!0}],ignoredTags:["script","noscript","style","textarea","pre","code","option"],ignoredClasses:[],errorCallback:function(e){console.error(e)},preProcess:function(e){return e}};function a(t,r){var a=function(t,r){var a=Object.assign({},e,r),i=a.delimiters.slice();for(var o in a.ignoredTags)a.ignoredTags.hasOwnProperty(o)&&(a.ignoredTags[o]=a.ignoredTags[o].toLowerCase());return a.ignoredClasses.length||(a.ignoredClasses=null),a}(0,r);!function e(t,r){for(var n=0;n<t.childNodes.length;n++){var a=t.childNodes[n];if(3===a.nodeType){for(var i=a.textContent,o=0,s=[],l=0;l<r.delimiters.length;l++){var h=r.delimiters[l],c=h.left,m=h.right,u=i.indexOf(c);if(-1!==u){var p=i.indexOf(m,u+c.length);-1!==p&&s.push({left:u,right:p+m.length,display:h.display})}}S(s),0!==s.length&&(o=0,s.forEach((function(e){var t=i.slice(o,e.left);r.preProcess(t),o=e.right})),r.preProcess(i.slice(o)))}else 1===a.nodeType&&1!==a.nodeType||-1===r.ignoredTags.indexOf(a.nodeName.toLowerCase())&&(!r.ignoredClasses||!r.ignoredClasses.some((function(e){return a.classList.contains(e)})))&&e(a,r)}}(t,a)}}(),i}()}));</script>
                                     <style>
                                         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+                                        html, body { height: 100%; overflow: hidden; -webkit-text-size-adjust: none; }
                                         body {
                                             font-family: system-ui, -apple-system, sans-serif;
-                                            font-size: 16px;
+                                            font-size: 18px;
                                             color: white;
                                             background: transparent;
-                                            line-height: 1.4;
-                                            padding: 0;
-                                            overflow: hidden;
-                                            -webkit-text-size-adjust: none;
                                             display: flex;
-                                            flex-direction: column;
-                                            justify-content: center;
-                                            height: 100vh;
+                                            align-items: center;
                                         }
                                         .content {
-                                            display: -webkit-box;
-                                            -webkit-line-clamp: 2;
-                                            -webkit-box-orient: vertical;
+                                            display: block;
+                                            white-space: nowrap;
                                             overflow: hidden;
-                                            text-overflow: ellipsis;
+                                            width: 100%;
                                             font-weight: 600;
-                                            max-height: 2.8em;
-                                            word-break: break-word;
                                         }
-                                        .katex { font-size: 1.0em; }
-                                        .katex .mfrac { font-size: 1.25em; }
+                                        .katex { font-size: 1.3em; vertical-align: middle; }
                                         .invisible-char, .sentinela-anti-caps { display: none; }
                                     </style>
                                 </head>
@@ -368,20 +358,140 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                                     <div class="content">${item.question || ''}</div>
                                     <script>
                                         document.addEventListener("DOMContentLoaded", function() {
-                                            renderMathInElement(document.body, {
-                                                delimiters: [
-                                                    {left: "$$", right: "$$", display: true},
-                                                    {left: "$", right: "$", display: false}
-                                                ],
-                                                throwOnError: false
+                                            var content = document.querySelector('.content');
+
+                                            // Render KaTeX synchronously
+                                            content.querySelectorAll('.math-atom[data-latex]').forEach(function(el) {
+                                                var latex = el.getAttribute('data-latex');
+                                                try { katex.render('\\\\displaystyle ' + latex, el, { throwOnError: false, displayMode: false }); } catch(e) {}
                                             });
+
+                                            var setupDone = false;
+                                            var truncateDone = false;
+
+                                            function setupSpans() {
+                                                if (setupDone) return;
+                                                setupDone = true;
+                                                Array.from(content.childNodes).forEach(function(node) {
+                                                    if (node.nodeType === 3) {
+                                                        var s = document.createElement('span');
+                                                        s.textContent = node.textContent;
+                                                        content.insertBefore(s, node);
+                                                        content.removeChild(node);
+                                                    }
+                                                });
+                                            }
+
+                                            function getEls() {
+                                                return Array.from(content.children).filter(function(el) {
+                                                    var cls = el.className || '';
+                                                    var isHelper = cls.includes('invisible-char') || cls.includes('sentinela-anti-caps');
+                                                    var isEmpty = !el.hasAttribute('data-latex') && el.textContent.trim() === '';
+                                                    return !isHelper && !isEmpty;
+                                                });
+                                            }
+
+                                            // Sum widths using getBoundingClientRect — unaffected by overflow:hidden on container
+                                            function visibleW(els) {
+                                                return els.reduce(function(sum, el) {
+                                                    return sum + (el.style.display !== 'none' ? el.getBoundingClientRect().width : 0);
+                                                }, 0);
+                                            }
+
+                                            function smartTruncate() {
+                                                if (truncateDone) return;
+                                                setupSpans();
+
+                                                var W = window.innerWidth;
+                                                if (!W) return;
+
+                                                var els = getEls();
+                                                if (!els.length) { truncateDone = true; return; }
+
+                                                // If layout not ready yet (all widths 0), skip — retry timer will fire
+                                                var allZero = els.every(function(el) { return el.getBoundingClientRect().width === 0; });
+                                                if (allZero) return;
+
+                                                truncateDone = true;
+
+                                                var first = els[0];
+                                                var firstW = first.getBoundingClientRect().width;
+
+                                                // Rule A: first is a wide/complex formula (>38% of W)
+                                                if (first.hasAttribute('data-latex') && firstW > W * 0.38) {
+                                                    if (els.length > 1) {
+                                                        els.slice(1).forEach(function(e) { e.style.display = 'none'; });
+                                                        var d = document.createElement('span');
+                                                        d.textContent = ' \u2026';
+                                                        d.style.color = '#4FD1C5';
+                                                        content.appendChild(d);
+                                                    }
+                                                    return;
+                                                }
+
+                                                // Rule B: fits — nothing to do
+                                                if (visibleW(els) <= W) return;
+
+                                                // Rule C: remove elements from right until remaining fits, then add ellipsis
+                                                var DOTS_W = 22;
+                                                var truncated = false;
+                                                for (var i = els.length - 1; i >= 0; i--) {
+                                                    els[i].style.display = 'none';
+                                                    if (visibleW(els) <= W - DOTS_W) {
+                                                        truncated = true;
+                                                        // Non-formula: restore max text that fits at a word boundary
+                                                        if (!els[i].hasAttribute('data-latex')) {
+                                                            var orig = els[i].textContent;
+                                                            els[i].style.display = '';
+                                                            var lo = 0, hi = orig.length;
+                                                            while (hi - lo > 1) {
+                                                                var mid = Math.floor((lo + hi) / 2);
+                                                                els[i].textContent = orig.slice(0, mid);
+                                                                if (visibleW(els) <= W - DOTS_W) lo = mid;
+                                                                else hi = mid;
+                                                            }
+                                                            if (lo > 0) {
+                                                                var partial = orig.slice(0, lo);
+                                                                var isMidWord = lo < orig.length
+                                                                    && orig[lo] !== ' '
+                                                                    && partial[partial.length - 1] !== ' ';
+                                                                if (isMidWord) {
+                                                                    var lastSpace = partial.lastIndexOf(' ');
+                                                                    if (lastSpace > 0) partial = partial.slice(0, lastSpace);
+                                                                }
+                                                                var trimmed = partial.trimEnd();
+                                                                if (trimmed) els[i].textContent = trimmed;
+                                                                else els[i].style.display = 'none';
+                                                            } else {
+                                                                els[i].style.display = 'none';
+                                                            }
+                                                        }
+                                                        break;
+                                                    }
+                                                    if (i === 0) { els[0].style.display = ''; truncated = true; break; }
+                                                }
+
+                                                if (truncated) {
+                                                    var dotsEl = document.createElement('span');
+                                                    dotsEl.textContent = '\u2026';
+                                                    dotsEl.style.color = '#4FD1C5';
+                                                    content.appendChild(dotsEl);
+                                                }
+                                            }
+
+                                            // Run after fonts load (+100ms for layout), with a long fallback
+                                            if (document.fonts && document.fonts.ready) {
+                                                document.fonts.ready.then(function() { setTimeout(smartTruncate, 100); });
+                                            }
+                                            setTimeout(smartTruncate, 600);
                                         });
                                     </script>
                                 </body>
                                 </html>
                             ` }}
-                            style={{ 
-                                height: hasTags ? 90 : 70, 
+                            style={{
+                                flex: 1,
+                                height: hasTags ? 82 : 66,
                                 backgroundColor: 'transparent',
                                 marginBottom: hasTags ? 6 : 0,
                                 opacity: 0.99
