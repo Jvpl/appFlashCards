@@ -4,10 +4,10 @@ import { WebView } from 'react-native-webview';
 import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CardFooter } from '../ui/CardFooter';
-import { katexScript, katexStyles as katexFullStyles } from '../editor/editorTemplates';
+import { katexScript } from '../editor/editorTemplates';
 import styles from '../../styles/globalStyles';
 
-const katexStyles = katexFullStyles + `
+const katexStyles = `
   .katex { font-size: 1.0em !important; }
   .katex .mfrac { font-size: 1.25em !important; }
 `;
@@ -81,14 +81,17 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
 
   const renderContent = (content) => {
       const hasHtml = /<[a-z][\s\S]*>/i.test(content) || content.includes('math-atom') || content.includes('&nbsp;');
-
+      
       if (content && typeof content === 'string' && hasHtml) {
           const readOnlyHtml = `
             <!DOCTYPE html>
             <html>
             <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-            <style>${katexStyles}</style>
+            <style>
+                ${katexStyles}
+            </style>
+            <script>${katexScript}</script>
             <style>
                 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
                 
@@ -110,19 +113,15 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
                 #viewer {
                     padding: 10px;
                     line-height: 1.6;
+                    white-space: pre-wrap;
                     word-wrap: break-word;
                     overflow-wrap: anywhere;
                     width: 100%;
                     text-align: center;
                 }
 
-                .katex { font-size: 1.0em !important; color: white !important; }
+                .katex { font-size: 1.0em !important; }
                 .katex .mfrac { font-size: 1.25em !important; }
-                .katex, .katex * { overflow: visible !important; }
-                .katex svg { color: white; overflow: visible !important; }
-                .katex svg path { fill: white !important; stroke: white !important; stroke-width: 1px !important; vector-effect: non-scaling-stroke !important; paint-order: stroke fill !important; }
-                .katex .hide-tail { overflow: visible !important; }
-                .katex-mathml { display: none !important; }
                 .math-atom {
                     vertical-align: middle;
                     margin: 0 2px;
@@ -134,71 +133,22 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
                 img { max-width: 100%; height: auto; }
                 .invisible-char, .sentinela-anti-caps { display: none; }
             </style>
-            <script>var module=undefined;var exports=undefined;var define=undefined;${katexScript};window.katex=window.katex||globalThis.katex||self.katex;</script>
+            <script>${katexScript}</script>
             </head>
             <body>
             <div id="viewer">${content}</div>
-            <script>
-            if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage('katex-types: window=' + typeof window.katex + ' self=' + typeof self.katex + ' globalThis=' + typeof globalThis.katex);
-            }
-            var atoms = document.querySelectorAll('.math-atom[data-latex]');
-            atoms.forEach(function(el) {
-                try {
-                    var latex = el.getAttribute('data-latex');
-                    var isDisplay = el.getAttribute('data-display') === 'true';
-                    el.innerHTML = window.katex.renderToString(latex, { throwOnError: false, displayMode: isDisplay });
-                } catch(e) {
-                    window.ReactNativeWebView && window.ReactNativeWebView.postMessage('KATEX_ERROR:' + e.message);
-                }
-            });
-            document.querySelectorAll('.katex svg').forEach(function(svg) {
-                svg.removeAttribute('overflow');
-                svg.style.overflow = 'visible';
-            });
-            document.querySelectorAll('.katex svg path').forEach(function(p) {
-                p.setAttribute('style', 'fill:#ffffff !important; stroke:#ffffff !important; stroke-width:1px !important; vector-effect:non-scaling-stroke !important; fill-opacity:1 !important;');
-            });
-            document.querySelectorAll('.katex').forEach(function(el) {
-                el.style.color = 'white';
-            });
-            var hideTail = document.querySelector('.katex .hide-tail');
-            if (hideTail && window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage('hide-tail:' + hideTail.innerHTML.substring(0,400));
-            }
-            </script>
             </body>
             </html>`;
 
           return (
              <View style={{width: '100%', minHeight: 180, flex: 1}}>
-                 <WebView
+                 <WebView 
                     originWhitelist={['*']}
                     source={{ html: readOnlyHtml }}
                     style={{backgroundColor: 'transparent', flex: 1}}
                     scrollEnabled={false}
                     nestedScrollEnabled={false}
                     pointerEvents="none"
-                    onMessage={(e) => console.log('WebView msg:', e.nativeEvent.data)}
-                    injectedJavaScript={`
-                        (function() {
-                            document.querySelectorAll('.katex svg path').forEach(function(p) {
-                                p.setAttribute('fill', 'white');
-                                p.setAttribute('stroke', 'white');
-                            });
-                            document.querySelectorAll('.katex').forEach(function(el) {
-                                el.style.color = 'white';
-                            });
-                            document.querySelectorAll('.katex-mathml').forEach(function(el) {
-                                el.style.display = 'none';
-                            });
-                            document.querySelectorAll('.katex-html').forEach(function(el) {
-                                el.removeAttribute('aria-hidden');
-                            });
-                            window.ReactNativeWebView.postMessage('katex-html count:' + document.querySelectorAll('.katex-html').length);
-                        })();
-                        true;
-                    `}
                  />
              </View>
           );
