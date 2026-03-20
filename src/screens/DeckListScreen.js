@@ -23,6 +23,7 @@ export const DeckListScreen = ({ navigation }) => {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedDecks, setSelectedDecks] = useState(new Set());
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
+  const [studyModeModal, setStudyModeModal] = useState({ visible: false, deck: null });
   const isFocused = useIsFocused();
 
   // Auto-scroll refs
@@ -306,6 +307,29 @@ export const DeckListScreen = ({ navigation }) => {
     return () => backHandler.remove();
   }, [isFocused, multiSelectMode]);
 
+  const handleDeckPress = (deck) => {
+    setStudyModeModal({ visible: true, deck });
+  };
+
+  const startStudy = (reviewAll) => {
+    const deck = studyModeModal.deck;
+    setStudyModeModal({ visible: false, deck: null });
+    if (!reviewAll) {
+      navigation.navigate('SubjectList', { deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects });
+    } else {
+      const allCards = (deck.subjects || []).flatMap(s =>
+        (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }))
+      );
+      navigation.navigate('Flashcard', {
+        deckId: deck.id,
+        subjectId: null,
+        subjectName: 'Revisão Geral',
+        reviewAll: true,
+        preloadedCards: allCards,
+      });
+    }
+  };
+
   const handleOptionsPress = (deck) => {
     setSelectedDeck(deck);
     setModalVisible(true);
@@ -401,7 +425,7 @@ export const DeckListScreen = ({ navigation }) => {
               styles.itemContainer,
               multiSelectMode && selectedDecks.has(item.id) && styles.selectedDeckItem
             ]} 
-            onPress={() => multiSelectMode ? (allowDefaultDeckEditing ? toggleDeckSelection(item.id) : null) : navigation.navigate('SubjectList', { deckId: item.id, deckName: item.name, preloadedSubjects: item.subjects })}
+            onPress={() => multiSelectMode ? (allowDefaultDeckEditing ? toggleDeckSelection(item.id) : null) : handleDeckPress(item)}
             onLongPress={() => {
                 if (!multiSelectMode && allowDefaultDeckEditing) {
                     setMultiSelectMode(true);
@@ -481,7 +505,7 @@ export const DeckListScreen = ({ navigation }) => {
               styles.itemContainer,
               multiSelectMode && selectedDecks.has(item.id) && styles.selectedDeckItem
             ]} 
-            onPress={() => multiSelectMode ? toggleDeckSelection(item.id) : navigation.navigate('SubjectList', { deckId: item.id, deckName: item.name, preloadedSubjects: item.subjects })}
+            onPress={() => multiSelectMode ? toggleDeckSelection(item.id) : handleDeckPress(item)}
             onLongPress={() => {
                 if (!multiSelectMode) {
                     setMultiSelectMode(true);
@@ -608,6 +632,33 @@ export const DeckListScreen = ({ navigation }) => {
                   <Text style={styles.modalButtonText}>Apagar Deck</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.modalButton, {backgroundColor: '#4A5568', marginTop: 20}]} onPress={() => setModalVisible(false)}>
+                  <Text style={styles.modalButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={studyModeModal.visible}
+        onRequestClose={() => setStudyModeModal({ visible: false, deck: null })}
+      >
+        <TouchableWithoutFeedback onPress={() => setStudyModeModal({ visible: false, deck: null })}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Como quer estudar?</Text>
+                <TouchableOpacity style={styles.modalButton} onPress={() => startStudy(false)}>
+                  <Ionicons name="school-outline" size={22} color="#FFFFFF" />
+                  <Text style={styles.modalButtonText}>Estudar (SRS)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4A5568' }]} onPress={() => startStudy(true)}>
+                  <Ionicons name="refresh-outline" size={22} color="#FFFFFF" />
+                  <Text style={styles.modalButtonText}>Revisão Geral</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4A5568', marginTop: 8 }]} onPress={() => setStudyModeModal({ visible: false, deck: null })}>
                   <Text style={styles.modalButtonText}>Cancelar</Text>
                 </TouchableOpacity>
               </View>

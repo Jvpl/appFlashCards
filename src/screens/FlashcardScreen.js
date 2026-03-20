@@ -16,10 +16,12 @@ const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
 export const FlashcardScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, preloadedCards } = route.params; // Recebe preloadedCards
+  const { deckId, subjectId, preloadedCards, reviewAll } = route.params;
   const [cards, setCards] = useState(() => {
      if (preloadedCards) {
-        // Aplica o filtro de revisão inicial se os dados vierem preloadados
+        if (reviewAll) {
+          return [...preloadedCards].sort((a,b) => (a.nextReview || 0) - (b.nextReview || 0));
+        }
         const now = new Date();
         return preloadedCards
           .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
@@ -27,7 +29,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
      }
      return [];
   });
-  const cacheKey = `${deckId}-${subjectId}`;
+  const cacheKey = reviewAll ? `${deckId}-all` : `${deckId}-${subjectId}`;
   const [loading, setLoading] = useState(!global.screenCache.flashcards.has(cacheKey)); // Check cache
 
   const [totalCardsInSession, setTotalCardsInSession] = useState(cards.length || 0);
@@ -89,14 +91,22 @@ export const FlashcardScreen = ({ route, navigation }) => {
       global.screenCache.flashcards.add(cacheKey);
       const data = allData;
       const deck = data.find(c => c.id === deckId);
-      const subject = deck ? deck.subjects.find(s => s.id === subjectId) : null;
-      if (subject) {
-        const now = new Date();
-        const cardsToReview = subject.flashcards
-          .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
-          .sort((a,b) => (a.nextReview || 0) - (b.nextReview || 0)); // Sorteio corrigido
-        setCards(cardsToReview);
-        setTotalCardsInSession(cardsToReview.length);
+      if (reviewAll) {
+        const allCards = (deck?.subjects || []).flatMap(s =>
+          (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }))
+        ).sort((a,b) => (a.nextReview || 0) - (b.nextReview || 0));
+        setCards(allCards);
+        setTotalCardsInSession(allCards.length);
+      } else {
+        const subject = deck ? deck.subjects.find(s => s.id === subjectId) : null;
+        if (subject) {
+          const now = new Date();
+          const cardsToReview = subject.flashcards
+            .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
+            .sort((a,b) => (a.nextReview || 0) - (b.nextReview || 0));
+          setCards(cardsToReview);
+          setTotalCardsInSession(cardsToReview.length);
+        }
       }
       currentIndex.value = 0;
       isFlipped.value = false;
@@ -124,21 +134,42 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const saveSessionProgress = useCallback(async () => {
     if (reviewUpdates.current.length === 0) return;
     const allCurrentData = await getAppData();
-    const updatesMap = new Map(reviewUpdates.current.map(card => [card.id, card]));
-    const newData = allCurrentData.map(deck =>
+    if (reviewAll) {
+      // Agrupa updates por matéria (_subjectId)
+      const bySubject = {};
+      reviewUpdates.current.forEach(card => {
+        const sid = card._subjectId;
+        if (!bySubject[sid]) bySubject[sid] = new Map();
+        bySubject[sid].set(card.id, card);
+      });
+      const newData = allCurrentData.map(deck =>
         deck.id !== deckId ? deck : {
-            ...deck,
-            subjects: deck.subjects.map(subject =>
-                subject.id !== subjectId ? subject : {
-                    ...subject,
-                    flashcards: subject.flashcards.map(card => updatesMap.get(card.id) || card)
-                }
-            )
+          ...deck,
+          subjects: deck.subjects.map(subject => {
+            const updatesMap = bySubject[subject.id];
+            if (!updatesMap) return subject;
+            return { ...subject, flashcards: subject.flashcards.map(card => updatesMap.get(card.id) || card) };
+          })
         }
-    );
-    await saveAppData(newData);
+      );
+      await saveAppData(newData);
+    } else {
+      const updatesMap = new Map(reviewUpdates.current.map(card => [card.id, card]));
+      const newData = allCurrentData.map(deck =>
+          deck.id !== deckId ? deck : {
+              ...deck,
+              subjects: deck.subjects.map(subject =>
+                  subject.id !== subjectId ? subject : {
+                      ...subject,
+                      flashcards: subject.flashcards.map(card => updatesMap.get(card.id) || card)
+                  }
+              )
+          }
+      );
+      await saveAppData(newData);
+    }
     reviewUpdates.current = [];
-  }, [deckId, subjectId]);
+  }, [deckId, subjectId, reviewAll]);
 
   useEffect(() => { return () => { saveSessionProgress(); } }, [saveSessionProgress]);
 
@@ -347,6 +378,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
                     translateX={translateX} translateY={translateY}
                     onFlip={onFlip} isFlipped={isFlipped}
                     jsCurrentIndex={jsCurrentIndex}
+                    showLevel={!reviewAll}
                 />
                 )
             )}

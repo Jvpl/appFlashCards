@@ -9,7 +9,7 @@ import styles from '../../styles/globalStyles';
 
 const screenWidth = Dimensions.get('window').width;
 
-export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, onFlip, isFlipped, jsCurrentIndex }) => {
+export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, onFlip, isFlipped, jsCurrentIndex, showLevel = true }) => {
   const rotate = useSharedValue(0);
   const position = useDerivedValue(() => index - currentIndex.value);
 
@@ -182,13 +182,13 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
              <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
                 {renderContent(card.question)}
              </ScrollView>
-             <CardFooter level={card.level || 0} />
+             {showLevel && <CardFooter level={card.level || 0} />}
           </Animated.View>
           <Animated.View style={[styles.card, styles.cardBack, backAnimatedStyle]}>
              <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
                 {renderContent(card.answer)}
              </ScrollView>
-             <CardFooter level={card.level || 0} />
+             {showLevel && <CardFooter level={card.level || 0} />}
           </Animated.View>
         </TouchableOpacity>
         <Animated.View style={[styles.cardOverlay, overlayAnimatedStyle]} pointerEvents="none" />

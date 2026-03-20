@@ -10,12 +10,14 @@ export const getAppData = async () => {
     if (jsonValue !== null) {
       const data = JSON.parse(jsonValue);
 
-      // Migração de dados: garante que todos os cards tenham level e points
+      // Migração de dados: garante que todos os cards tenham os campos necessários
       data.forEach(deck => {
         deck.subjects.forEach(subject => {
           subject.flashcards.forEach(card => {
             if (card.level === undefined) card.level = 0;
             if (card.points === undefined) card.points = 0;
+            if (card.consecutiveCorrect === undefined) card.consecutiveCorrect = 0;
+            if (card.reviewStreak === undefined) card.reviewStreak = 0;
           });
         });
       });
