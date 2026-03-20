@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "Flashcards Concurso",
+    "owner": "flashcards-team",
     "slug": "flashcards-concurso",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -26,7 +27,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "d2afb971-4213-4876-8eb3-0bf4ee06ec72"
+        "projectId": "0842040f-d594-4e45-914b-0195790ea2f9"
       }
     },
     "plugins": [

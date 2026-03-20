@@ -17,12 +17,20 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
     insertRoot: () => webviewRef.current?.injectJavaScript("window.insertFormula('\\\\sqrt{\\\\Box}'); true;"),
     insertSquared: () => webviewRef.current?.injectJavaScript("window.insertFormula('\\\\Box^2'); true;"),
     insertLog: () => webviewRef.current?.injectJavaScript("window.insertFormula('\\\\log_{\\\\Box}{\\\\Box}'); true;"),
+    insertSub: () => webviewRef.current?.injectJavaScript("window.insertFormula('\\\\Box_{\\\\Box}'); true;"),
+    insertAbs: () => webviewRef.current?.injectJavaScript("window.insertFormula('\\\\left|\\\\Box\\\\right|'); true;"),
+    // Insere fórmula livre construída pelo FormulaBuilderModal (source = 'builder')
+    insertCustom: (latex) => {
+      const escaped = latex.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      webviewRef.current?.injectJavaScript(`window.insertFormula('${escaped}', undefined, 'builder'); true;`);
+    },
     insertSymbol: (symbol) => {
       const escaped = symbol.replace(/\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
       webviewRef.current?.injectJavaScript("window.insertSymbol('" + escaped + "'); true;");
     },
     updateFormula: (id, latex) => {
-      const escaped = latex.replace(/'/g, "\\\\'");
+      // Escapa backslashes primeiro (\ → \\), depois aspas simples
+      const escaped = latex.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       webviewRef.current?.injectJavaScript("window.updateFormula('" + id + "', '" + escaped + "'); true;");
     },
     deleteMath: (id) => {
@@ -88,7 +96,7 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
         onMessage={(event) => {
           try {
             const data = JSON.parse(event.nativeEvent.data);
-            if (data.type === 'EDIT_MATH' && onEditMath) onEditMath(data.id, data.latex);
+            if (data.type === 'EDIT_MATH' && onEditMath) onEditMath(data.id, data.latex, data.source || 'simple');
             if (data.type === 'CONTENT_CHANGE' && onContentChange) onContentChange(data.html);
             if (data.type === 'FOCUS' && onFocus) onFocus();
             if (data.type === 'CHAR_COUNT' && onCharCount) onCharCount(data.count, data.max);

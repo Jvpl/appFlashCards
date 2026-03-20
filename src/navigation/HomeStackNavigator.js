@@ -93,7 +93,7 @@ export function HomeStackNavigator({navigation}) {
           title: 'Criar Flashcard',
           headerTintColor: 'white',
           animationEnabled: true,
-          gestureEnabled: true,
+          gestureEnabled: false,
           // Garante a mesma transição de fade do resto do app
           cardStyleInterpolator: ({ current }) => ({
             cardStyle: { opacity: current.progress },

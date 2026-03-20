@@ -7,9 +7,9 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A202C' },
   baseContainer: { flex: 1, backgroundColor: '#1A202C' },
   studyContainer: { flex: 1, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
-  glow: { position: 'absolute', opacity: 0, width: 100, height: '100%'},
-  glowLeft: { left: 0, top: 0, bottom: 0},
-  glowRight: { right: 0, top: 0, bottom: 0},
+  glow: { position: 'absolute', opacity: 0, width: 100, height: '100%' },
+  glowLeft: { left: 0, top: 0, bottom: 0 },
+  glowRight: { right: 0, top: 0, bottom: 0 },
   glowTop: { top: 0, left: 0, right: 0, height: 100, width: '100%' },
   cardWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
   itemContainer: { backgroundColor: '#2D3748', padding: 20, marginVertical: 8, marginHorizontal: 16, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -20,14 +20,14 @@ const styles = StyleSheet.create({
   progressContainer: { width: 50, height: 50, borderRadius: 25, borderWidth: 3, borderColor: '#4FD1C5', justifyContent: 'center', alignItems: 'center' },
   progressText: { color: '#FFFFFF', fontWeight: 'bold' },
   cardContainer: { position: 'absolute' },
-  card: { width: screenWidth * 0.9, height: 380, backgroundColor: '#4A5568', borderRadius: 15, justifyContent: 'space-between', alignItems: 'center', padding: 0, backfaceVisibility: 'hidden', borderWidth: 2, borderColor: 'transparent', overflow: 'hidden'},
+  card: { width: screenWidth * 0.9, height: 380, backgroundColor: '#4A5568', borderRadius: 15, justifyContent: 'space-between', alignItems: 'center', padding: 0, backfaceVisibility: 'hidden', borderWidth: 2, borderColor: 'transparent', overflow: 'hidden' },
   cardBack: { backgroundColor: '#2D3748', position: 'absolute', top: 0, justifyContent: 'space-between', backfaceVisibility: 'hidden' },
   cardOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000000',
     borderRadius: 15,
   },
-  cardContentScrollView: { flex: 1, width: '100%'},
+  cardContentScrollView: { flex: 1, width: '100%' },
   cardContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   cardText: { fontSize: 22, color: '#FFFFFF', textAlign: 'center' },
   noCardsText: { fontSize: 18, color: '#A0AEC0', textAlign: 'center', paddingHorizontal: 20 },
@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
   levelText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 32 },
   progressBarContainer: { height: 16, backgroundColor: '#1A202C', borderRadius: 50, overflow: 'hidden', justifyContent: 'center' },
   progressPercentageText: { position: 'absolute', alignSelf: 'center', color: 'white', fontWeight: 'bold', fontSize: 10 },
-  levelNamesContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8},
+  levelNamesContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   levelName: { fontSize: 13, color: '#9CA3AF', fontWeight: 'bold' },
   swipeGuideContainer: { position: 'absolute', bottom: 80, left: 0, right: 0, alignItems: 'center' },
   swipeGuideText: { color: '#A0AEC0', fontSize: 16, fontWeight: 'bold' },
@@ -65,11 +65,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     // BORDA PADR�O INVIS�VEL (Cor do fundo)
     // Isso resolve o problema de parecer ativo sem estar
-    borderWidth: 2, 
-    borderColor: '#2D3748', 
+    borderWidth: 2,
+    borderColor: '#2D3748',
     marginBottom: 10,
   },
-  
+
   // Estilo aplicado APENAS quando o MathInput est� focado
   mathInputContainerFocused: {
     borderColor: '#4FD1C5', // Aqui sim fica verde
@@ -80,28 +80,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#2D3748', // Garante a cor de fundo
     opacity: 0.99, // Hack para evitar piscar em alguns dispositivos
   },
-   // Altura maior na tela de cria��o (Aplicado ao container)
+  // Altura maior na tela de cria��o (Aplicado ao container)
   mathInputContainerUnifiedLarge: {
-     minHeight: 180, // Altura m�nima maior
-     flex: 1, // Continua flex�vel
+    minHeight: 180, // Altura m�nima maior
+    flex: 1, // Continua flex�vel
   },
   // Container para agrupar Label + Input na tela de Cria��o
   inputGroup: {
-      marginBottom: 10, // Espa�o entre os grupos
-      flex: 1, // Ocupa espa�o vertical dispon�vel
+    marginBottom: 10, // Espa�o entre os grupos
+    flex: 1, // Ocupa espa�o vertical dispon�vel
   },
   // Container para os controles inferiores (f(x) e Salvar)
   bottomControlsContainer: {
-     flexDirection: 'row',
-     alignItems: 'center',
-     justifyContent: 'space-between', // Espa�a os bot�es
-     marginTop: 15,
-     marginBottom: 10, // Espa�o antes de talvez a toolbar aparecer
-     paddingHorizontal: 5, // Pequeno padding lateral
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between', // Espa�a os bot�es
+    marginTop: 15,
+    marginBottom: 10, // Espa�o antes de talvez a toolbar aparecer
+    paddingHorizontal: 5, // Pequeno padding lateral
   },
   saveButtonContainer: {
-      flex: 1, // Ocupa espa�o restante
-      marginLeft: 15, // Espa�o entre f(x) e Salvar
+    flex: 1, // Ocupa espa�o restante
+    marginLeft: 15, // Espa�o entre f(x) e Salvar
   },
   // Bot�o f(x)
   fxButton: {
@@ -113,11 +113,7 @@ const styles = StyleSheet.create({
   },
   fxButtonActive: {
     backgroundColor: '#4FD1C5',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    // Sombras removidas para evitar GPU Overdraw e lag na animação da MathToolbar
   },
   fxButtonText: {
     color: 'white',
@@ -156,13 +152,13 @@ const styles = StyleSheet.create({
   },
   // Ajuste no padding do formContainer para o KeyboardAvoidingView
   formContainerNoPadding: {
-     flex: 1,
-     backgroundColor: '#1A202C'
+    flex: 1,
+    backgroundColor: '#1A202C'
   },
   scrollContentContainer: {
-     flexGrow: 1, // Permite o scroll crescer
-     padding: 20, // Padding aplicado aqui
-     justifyContent: 'flex-start', // Come�a do topo
+    flexGrow: 1, // Permite o scroll crescer
+    padding: 20, // Padding aplicado aqui
+    justifyContent: 'flex-start', // Come�a do topo
   },
   progressTitle: { fontSize: 24, color: 'white', fontWeight: 'bold' },
   progressValue: { fontSize: 48, color: '#4FD1C5', fontWeight: 'bold', marginVertical: 10 },
@@ -354,8 +350,8 @@ const styles = StyleSheet.create({
   userSubjectsDividerContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 10 },
   userSubjectsDivider: { flex: 1, height: 1, backgroundColor: '#4A5568' },
   userSubjectsDividerText: { color: '#A0AEC0', marginHorizontal: 10, fontWeight: 'bold' },
-  subjectRightContainer: {flexDirection: 'row', alignItems: 'center'},
-  subjectOptionsButton: {paddingLeft: 16, paddingVertical: 10},
+  subjectRightContainer: { flexDirection: 'row', alignItems: 'center' },
+  subjectOptionsButton: { paddingLeft: 16, paddingVertical: 10 },
   searchContainer: { marginHorizontal: 16, marginBottom: 8 },
   searchInput: { backgroundColor: '#2D3748', color: 'white', borderRadius: 8, padding: 12, fontSize: 16 },
   alertContent: { backgroundColor: '#2D3748', borderRadius: 15, padding: 20, width: '80%', alignItems: 'center' },
@@ -378,7 +374,7 @@ const styles = StyleSheet.create({
   settingsButtonTextContainer: { marginLeft: 15, flex: 1 },
   settingsButtonTitle: { fontSize: 16, color: 'white', fontWeight: 'bold' },
   settingsButtonSubtitle: { fontSize: 12, color: '#A0AEC0', marginTop: 2 },
-  
+
 
   editorContainer: {
     flex: 1,
@@ -391,7 +387,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', // Alinhamento central vertical
     padding: 8, // Padding reduzido
   },
-  
+
   // TEXTO COMUM
   nativeInputText: {
     color: '#FFFFFF',
@@ -471,7 +467,7 @@ const styles = StyleSheet.create({
     minWidth: 10,
     textAlign: 'center',
   },
-  
+
   // Multi-select styles
   checkboxContainer: {
     marginRight: 12,
@@ -483,11 +479,11 @@ const styles = StyleSheet.create({
     borderColor: '#4FD1C5',
     borderWidth: 1,
   },
-  
+
   cursor: {
-      width: 2, 
-      height: 16, 
-      backgroundColor: '#4FD1C5'
+    width: 2,
+    height: 16,
+    backgroundColor: '#4FD1C5'
   },
 
 });
