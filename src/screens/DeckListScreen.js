@@ -3,7 +3,8 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, InteractionM
 import { useIsFocused } from '@react-navigation/native';
 import { View as SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getAppData, saveAppData, getPurchasedDecks, getDeckCache } from '../services/storage';
+import { getAppData, saveAppData, getPurchasedDecks, getDeckCache, removePurchasedDeck } from '../services/storage';
+import { getProducts } from '../services/firebase';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { CustomBottomModal } from '../components/ui/CustomBottomModal';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
@@ -42,11 +43,25 @@ export const DeckListScreen = ({ navigation }) => {
 
       // Carregar decks comprados (Firebase cache)
       const purchasedIds = await getPurchasedDecks();
+
+      // Verificar quais produtos ainda existem no Firebase
+      let validProductIds = null;
+      try {
+        const products = await getProducts();
+        validProductIds = new Set(products.map(p => p.deckId || p.id));
+      } catch (_) {
+        // Offline: não remove nada
+      }
+
       const purchasedDecks = await Promise.all(
         purchasedIds.map(async (deckId) => {
+          // Se o produto foi apagado do Firebase, limpar cache local
+          if (validProductIds && !validProductIds.has(deckId)) {
+            await removePurchasedDeck(deckId);
+            return null;
+          }
           const deck = await getDeckCache(deckId);
           if (deck) {
-            // Marcar como deck comprado
             return { ...deck, isPurchased: true, name: deck.name || deckId };
           }
           return null;

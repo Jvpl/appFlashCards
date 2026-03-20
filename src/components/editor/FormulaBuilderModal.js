@@ -7,17 +7,13 @@ import {
   ScrollView,
   StyleSheet,
   Platform,
-  Dimensions,
+  useWindowDimensions,
   Vibration,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { previewHtml } from './editorTemplates';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-// Largura fixa das teclas QWERTY = mesma da linha de 10 teclas
-// Sheet: 14px padding × 2; 9 gaps de 5px entre as 10 teclas
-const QWERTY_KEY_W = Math.floor((SCREEN_W - 14 * 2 - 5 * 9) / 10);
 // Tap háptico curto (12 ms) — feedback tátil nas teclas
 const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
 
@@ -205,12 +201,14 @@ const NUM_ROWS = [
   [{ v: '1' }, { v: '2' }, { v: '3' }, { v: '(' }, { v: ')' }],
   [{ v: '0' }, { v: '.' }, { v: ',' }, { v: '=' }, { v: '!' }],
 ];
-// Largura fixa para última linha do numérico: igual à de uma tecla em 5 colunas (padding 14*2, 4 gaps de 5px)
-const NUM_BTN_W = Math.floor((SCREEN_W - 14 * 2 - 4 * 5) / 5);
-
 // ─── Componente ───────────────────────────────────────────────────────────────
 export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormula = '' }) => {
   const insets = useSafeAreaInsets();
+  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
+  // Largura das teclas QWERTY: 14px padding × 2, 9 gaps de 5px entre 10 teclas
+  const QWERTY_KEY_W = Math.floor((SCREEN_W - 14 * 2 - 5 * 9) / 10);
+  // Largura para última linha do numérico: 5 colunas (padding 14*2, 4 gaps de 5px)
+  const NUM_BTN_W = Math.floor((SCREEN_W - 14 * 2 - 4 * 5) / 5);
   const [formula, setFormula] = useState('');
   const [cursorPos, setCursorPos] = useState(0);
   const [panel, setPanel] = useState('num');
@@ -218,6 +216,7 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
   const [previewH, setPreviewH] = useState(74);
 
   const wvRef = useRef(null);
+  const readyRef = useRef(false); // espelho de ready em ref — evita stale closure no injectJavaScript
   const cursorRef = useRef(0); // ref sempre atualizado — evita stale closure
 
   // Atualiza ref E state imediatamente — garante que insert/insertStruct sempre usam posição correta
@@ -231,7 +230,7 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
   const CURSOR = '\\mathclose{\\color{#4FD1C5}|}';
 
   const updatePreview = useCallback((f, pos) => {
-    if (!wvRef.current) return;
+    if (!wvRef.current || !readyRef.current) return;
     // Protege contra mismatch de posição durante transições (ex: apagar tudo e inserir novo)
     // Se pos > formula.length, pode causar cursor em dead zone que quebra KaTeX
     const clampedPos = Math.min(pos, f.length);
@@ -298,11 +297,24 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
       setFormula(initialFormula);
       cursorRef.current = initialFormula.length;
       setCursorPos(initialFormula.length);
-      // Força atualização imediata do preview sem esperar o useEffect de formula
-      if (ready) updatePreview(initialFormula, initialFormula.length);
+      // No Android o WebView não é desmontado ao fechar o Modal, então ready permanece true.
+      // Pequeno delay garante que o WebView está acordado antes de receber o JS injetado.
+      if (ready) {
+        if (Platform.OS === 'android') {
+          setTimeout(() => updatePreview(initialFormula, initialFormula.length), 50);
+        } else {
+          updatePreview(initialFormula, initialFormula.length);
+        }
+      }
     } else {
       // Nova fórmula: exibe só o cursor imediatamente
-      if (ready) updatePreview('', 0);
+      if (ready) {
+        if (Platform.OS === 'android') {
+          setTimeout(() => updatePreview('', 0), 50);
+        } else {
+          updatePreview('', 0);
+        }
+      }
     }
   }, [visible, initialFormula, ready, updatePreview]);
 
@@ -942,7 +954,7 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
               originWhitelist={['*']}
               scrollEnabled={false}
               showsVerticalScrollIndicator={false}
-              onLoadEnd={() => setReady(true)}
+              onLoadEnd={() => { readyRef.current = true; setReady(true); }}
               onMessage={(e) => {
                 try {
                   const msg = JSON.parse(e.nativeEvent.data);
@@ -1027,7 +1039,7 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
                         onPress={() => { tap(); insert(k); }}
                         onLongPress={() => { tap(); insert(k.toUpperCase()); }}
                         delayLongPress={350}
-                        style={s.qwertyKey}
+                        style={[s.qwertyKey, { width: QWERTY_KEY_W }]}
                       >
                         {/* Letra maiúscula no canto — indica função de long-press */}
                         <Text style={s.qwertySecondary}>{k.toUpperCase()}</Text>
@@ -1208,7 +1220,6 @@ const s = StyleSheet.create({
   // Tecla QWERTY — largura fixa calculada para a linha de 10 teclas
   // Todas as linhas têm o mesmo tamanho de tecla independente da quantidade
   qwertyKey: {
-    width: QWERTY_KEY_W,
     height: 46,
     backgroundColor: '#253045',
     borderRadius: 9,
