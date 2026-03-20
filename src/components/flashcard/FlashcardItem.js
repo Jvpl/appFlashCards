@@ -111,10 +111,8 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
                 }
                 .katex { font-size: 1.0em !important; color: white !important; }
                 .katex .mfrac { font-size: 1.25em !important; }
-                .katex, .katex * { overflow: visible !important; }
-                .katex svg { color: white; overflow: visible !important; }
-                .katex svg path { fill: white !important; stroke: white !important; stroke-width: 1px !important; vector-effect: non-scaling-stroke !important; paint-order: stroke fill !important; }
-                .katex .hide-tail { overflow: visible !important; }
+                .katex svg { color: white; }
+                .katex svg path { fill: white !important; stroke: none !important; }
                 .katex-mathml { display: none !important; }
                 .math-atom {
                     vertical-align: middle;
