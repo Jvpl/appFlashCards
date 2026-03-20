@@ -7,7 +7,9 @@ import AppContent from './src/navigation/AppContent';
 import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import * as Ionicons from '@expo/vector-icons/Ionicons';
-import { initializeRevenueCat } from './src/services/revenuecat';
+import { initializeRevenueCat, getPurchasedProductIds } from './src/services/revenuecat';
+import { getProducts, getDeck } from './src/services/firebase';
+import { getPurchasedDecks, savePurchasedDeck } from './src/services/storage';
 
 const styles = StyleSheet.create({
   flexOne: {
@@ -35,9 +37,50 @@ export default function App() {
     ...Ionicons.font,
   });
 
-  // Inicializa RevenueCat ao abrir o app
+  // Inicializa RevenueCat e restaura compras automaticamente ao abrir o app
   useEffect(() => {
-    initializeRevenueCat();
+    const initAndRestore = async () => {
+      await initializeRevenueCat();
+
+      try {
+        // 1. Busca IDs de produtos comprados no Google Play via RevenueCat
+        const purchasedIds = await getPurchasedProductIds();
+        if (purchasedIds.length === 0) return;
+
+        // 2. Busca decks já baixados localmente
+        const localPurchased = await getPurchasedDecks();
+
+        // 3. Busca catálogo de produtos no Firebase
+        const allProducts = await getProducts();
+
+        // 4. Filtra produtos comprados que ainda não estão no dispositivo
+        const toDownload = allProducts.filter(p =>
+          p.playStoreId &&
+          purchasedIds.includes(p.playStoreId) &&
+          !localPurchased.includes(p.deckId)
+        );
+
+        if (toDownload.length === 0) return;
+
+        // 5. Baixa e salva cada deck faltando silenciosamente
+        for (const product of toDownload) {
+          const deckData = await getDeck(product.deckId);
+          if (deckData) {
+            await savePurchasedDeck(product.deckId, {
+              ...deckData,
+              name: product.name,
+              isPurchased: true,
+            });
+          }
+        }
+
+        console.log(`✅ ${toDownload.length} deck(s) restaurado(s) automaticamente`);
+      } catch (e) {
+        console.error('❌ Erro na restauração automática:', e);
+      }
+    };
+
+    initAndRestore();
   }, []);
 
   // Hook useEffect para gerenciar a tela de splash

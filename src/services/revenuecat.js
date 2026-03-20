@@ -104,3 +104,25 @@ export const getActiveEntitlements = async () => {
     return {};
   }
 };
+
+/**
+ * Retorna os IDs de produtos já comprados pelo usuário no Google Play.
+ * Cobre compras únicas (nonSubscriptionTransactions) e entitlements ativos.
+ */
+export const getPurchasedProductIds = async () => {
+  try {
+    await ensureConfigured();
+    const customerInfo = await Purchases.getCustomerInfo();
+
+    const fromTransactions = (customerInfo.nonSubscriptionTransactions || [])
+      .map(t => t.productIdentifier);
+
+    const fromEntitlements = Object.values(customerInfo.entitlements.active || {})
+      .map(e => e.productIdentifier);
+
+    return [...new Set([...fromTransactions, ...fromEntitlements])];
+  } catch (e) {
+    console.error('❌ Erro ao buscar IDs de compras:', e);
+    return [];
+  }
+};
