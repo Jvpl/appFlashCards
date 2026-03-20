@@ -271,13 +271,13 @@ export const LojaScreen = ({ navigation }) => {
               {products.length} {products.length === 1 ? 'deck disponivel' : 'decks disponiveis'}
             </Text>
             <Text style={lojaStyles.restoreInfo}>
-              💡 Se você já comprou decks em outro device, clique em "Restaurar compras"
+              Restaurar os decks comprados
             </Text>
             <TouchableOpacity
               style={lojaStyles.restoreButton}
               onPress={async () => {
                 Alert.alert(
-                  '📱 Restaurar compras',
+                  'Restaurar compras',
                   'Certifique-se de estar logado na mesma conta Google Play com a qual fez as compras.',
                   [
                     {
@@ -314,7 +314,7 @@ export const LojaScreen = ({ navigation }) => {
               }}
             >
               <Ionicons name="refresh-circle-outline" size={16} color="#A0AEC0" />
-              <Text style={lojaStyles.restoreButtonText}>Restaurar compras</Text>
+              <Text style={lojaStyles.restoreButtonText}>Restaurar</Text>
             </TouchableOpacity>
           </View>
         }
