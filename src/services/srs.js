@@ -1,10 +1,12 @@
+import theme from '../styles/theme';
+
 export const LEVEL_CONFIG = {
-  0: { name: 'Marco Zero',    color: '#9CA3AF', reviewTime: 0    }, // imediato
-  1: { name: 'Aprendiz',      color: '#EF4444', reviewTime: 10   }, // 10 min
-  2: { name: 'Em Progresso',  color: '#F97316', reviewTime: 60   }, // 1 hora
-  3: { name: 'Consolidando',  color: '#FACC15', reviewTime: 360  }, // 6 horas
-  4: { name: 'Confiante',     color: '#3B82F6', reviewTime: 1440 }, // 1 dia
-  5: { name: 'Dominado',      color: '#22C55E', reviewTime: 0    }, // dinâmico via reviewStreak
+  0: { name: 'Marco Zero',    color: theme.srsLevel0, reviewTime: 0    }, // imediato
+  1: { name: 'Aprendiz',      color: theme.srsLevel1, reviewTime: 10   }, // 10 min
+  2: { name: 'Em Progresso',  color: theme.srsLevel2, reviewTime: 60   }, // 1 hora
+  3: { name: 'Consolidando',  color: theme.srsLevel3, reviewTime: 360  }, // 6 horas
+  4: { name: 'Confiante',     color: theme.srsLevel4, reviewTime: 1440 }, // 1 dia
+  5: { name: 'Dominado',      color: theme.srsLevel5, reviewTime: 0    }, // dinâmico via reviewStreak
 };
 
 // Intervalos crescentes para nível 5 (em minutos)

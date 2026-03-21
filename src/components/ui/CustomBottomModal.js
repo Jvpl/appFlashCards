@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, TouchableWithoutFeedback } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import theme from '../../styles/theme';
 
 export const CustomBottomModal = ({ visible, onClose, children, title }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -37,8 +38,8 @@ export const CustomBottomModal = ({ visible, onClose, children, title }) => {
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
              <TouchableWithoutFeedback>
-                <Animated.View style={[{ backgroundColor: '#1F2937', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }, animatedStyle]}>
-                   {title && <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>{title}</Text>}
+                <Animated.View style={[{ backgroundColor: theme.backgroundSecondary, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }, animatedStyle]}>
+                   {title && <Text style={{ color: theme.textPrimary, fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.bold, marginBottom: 20, textAlign: 'center' }}>{title}</Text>}
                    {children}
                 </Animated.View>
              </TouchableWithoutFeedback>

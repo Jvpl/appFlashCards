@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Button, Act
 import { getAppData, saveAppData } from '../services/storage';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 export const EditSubjectScreen = ({ route, navigation }) => {
   const { deckId, subjectId } = route.params;
@@ -49,7 +50,7 @@ export const EditSubjectScreen = ({ route, navigation }) => {
     navigation.goBack();
   };
 
-  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#4A5568" /></View>;
+  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={theme.backgroundTertiary} /></View>;
 
   return (
     <View style={styles.formContainer}>
@@ -59,10 +60,10 @@ export const EditSubjectScreen = ({ route, navigation }) => {
          value={name}
          onChangeText={setName}
          placeholder="Digite o nome da matéria"
-         placeholderTextColor="#A0AEC0"
+         placeholderTextColor={theme.textMuted}
       />
        <View style={{marginTop: 20}}>
-          <Button title="Salvar Alterações" onPress={handleSave} color="#4FD1C5" />
+          <Button title="Salvar Alterações" onPress={handleSave} color={theme.primary} />
        </View>
        <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
     </View>

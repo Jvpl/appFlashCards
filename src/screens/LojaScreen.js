@@ -15,6 +15,7 @@ import { getProducts, getDeck } from '../services/firebase';
 import { getPurchasedDecks, savePurchasedDeck } from '../services/storage';
 import { purchaseProduct, restorePurchases } from '../services/revenuecat';
 import globalStyles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 export const LojaScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -164,7 +165,7 @@ export const LojaScreen = ({ navigation }) => {
           <Ionicons
             name={item.icon || getIconForType(item.type)}
             size={32}
-            color={purchased ? '#48BB78' : '#4FD1C5'}
+            color={purchased ? theme.purchased : theme.primary}
           />
         </View>
 
@@ -187,13 +188,13 @@ export const LojaScreen = ({ navigation }) => {
           <View style={lojaStyles.productMeta}>
             {item.subjectCount > 0 && (
               <View style={lojaStyles.metaItem}>
-                <Ionicons name="folder-outline" size={14} color="#A0AEC0" />
+                <Ionicons name="folder-outline" size={14} color={theme.textMuted} />
                 <Text style={lojaStyles.metaText}>{item.subjectCount} materias</Text>
               </View>
             )}
             {item.cardCount > 0 && (
               <View style={lojaStyles.metaItem}>
-                <Ionicons name="layers-outline" size={14} color="#A0AEC0" />
+                <Ionicons name="layers-outline" size={14} color={theme.textMuted} />
                 <Text style={lojaStyles.metaText}>{item.cardCount} cards</Text>
               </View>
             )}
@@ -202,9 +203,9 @@ export const LojaScreen = ({ navigation }) => {
 
         <View style={lojaStyles.productAction}>
           {isDownloading ? (
-            <ActivityIndicator size="small" color="#4FD1C5" />
+            <ActivityIndicator size="small" color={theme.primary} />
           ) : purchased ? (
-            <Ionicons name="checkmark-circle" size={28} color="#48BB78" />
+            <Ionicons name="checkmark-circle" size={28} color={theme.purchased} />
           ) : (
             <View style={lojaStyles.priceContainer}>
               <Text style={lojaStyles.priceText}>
@@ -220,7 +221,7 @@ export const LojaScreen = ({ navigation }) => {
   if (loading) {
     return (
       <View style={globalStyles.centered}>
-        <ActivityIndicator size="large" color="#4FD1C5" />
+        <ActivityIndicator size="large" color={theme.primary} />
         <Text style={[globalStyles.noCardsText, { marginTop: 16 }]}>
           Carregando loja...
         </Text>
@@ -231,7 +232,7 @@ export const LojaScreen = ({ navigation }) => {
   if (products.length === 0) {
     return (
       <View style={globalStyles.centered}>
-        <Ionicons name="cart-outline" size={64} color="#A0AEC0" />
+        <Ionicons name="cart-outline" size={64} color={theme.textMuted} />
         <Text style={[globalStyles.noCardsText, { marginTop: 20 }]}>
           Nenhum produto disponivel
         </Text>
@@ -242,7 +243,7 @@ export const LojaScreen = ({ navigation }) => {
           style={lojaStyles.refreshButton}
           onPress={onRefresh}
         >
-          <Ionicons name="refresh" size={20} color="#4FD1C5" />
+          <Ionicons name="refresh" size={20} color={theme.primary} />
           <Text style={lojaStyles.refreshButtonText}>Atualizar</Text>
         </TouchableOpacity>
       </View>
@@ -260,8 +261,8 @@ export const LojaScreen = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#4FD1C5"
-            colors={['#4FD1C5']}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
           />
         }
         ListHeaderComponent={
@@ -313,7 +314,7 @@ export const LojaScreen = ({ navigation }) => {
                 );
               }}
             >
-              <Ionicons name="refresh-circle-outline" size={16} color="#A0AEC0" />
+              <Ionicons name="refresh-circle-outline" size={16} color={theme.textMuted} />
               <Text style={lojaStyles.restoreButtonText}>Restaurar</Text>
             </TouchableOpacity>
           </View>
@@ -332,17 +333,17 @@ const lojaStyles = StyleSheet.create({
     paddingBottom: 10,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontSize: theme.fontSize.xxl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.textPrimary,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#A0AEC0',
+    fontSize: theme.fontSize.body,
+    color: theme.textMuted,
     marginTop: 4,
   },
   productCard: {
-    backgroundColor: '#2D3748',
+    backgroundColor: theme.backgroundSecondary,
     marginHorizontal: 16,
     marginVertical: 6,
     borderRadius: 12,
@@ -352,14 +353,14 @@ const lojaStyles = StyleSheet.create({
   },
   productCardPurchased: {
     borderWidth: 1,
-    borderColor: '#48BB78',
+    borderColor: theme.purchased,
     opacity: 0.8,
   },
   productIconContainer: {
     width: 56,
     height: 56,
     borderRadius: 12,
-    backgroundColor: '#1A202C',
+    backgroundColor: theme.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
@@ -374,26 +375,26 @@ const lojaStyles = StyleSheet.create({
     marginBottom: 4,
   },
   productName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.textPrimary,
     flex: 1,
   },
   badge: {
-    backgroundColor: '#4FD1C5',
+    backgroundColor: theme.primary,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
     marginLeft: 8,
   },
   badgeText: {
-    color: '#1A202C',
-    fontSize: 10,
-    fontWeight: 'bold',
+    color: theme.background,
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.bold,
   },
   productDescription: {
-    fontSize: 13,
-    color: '#A0AEC0',
+    fontSize: theme.fontSize.caption,
+    color: theme.textMuted,
     marginBottom: 6,
   },
   productMeta: {
@@ -405,8 +406,8 @@ const lojaStyles = StyleSheet.create({
     marginRight: 14,
   },
   metaText: {
-    fontSize: 12,
-    color: '#A0AEC0',
+    fontSize: theme.fontSize.sm,
+    color: theme.textMuted,
     marginLeft: 4,
   },
   productAction: {
@@ -415,15 +416,15 @@ const lojaStyles = StyleSheet.create({
     minWidth: 60,
   },
   priceContainer: {
-    backgroundColor: '#4FD1C5',
+    backgroundColor: theme.primary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
   priceText: {
-    color: '#1A202C',
-    fontWeight: 'bold',
-    fontSize: 13,
+    color: theme.background,
+    fontWeight: theme.fontWeight.bold,
+    fontSize: theme.fontSize.caption,
   },
   refreshButton: {
     flexDirection: 'row',
@@ -433,12 +434,12 @@ const lojaStyles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#4FD1C5',
+    borderColor: theme.primary,
   },
   refreshButtonText: {
-    color: '#4FD1C5',
+    color: theme.primary,
     marginLeft: 8,
-    fontWeight: 'bold',
+    fontWeight: theme.fontWeight.bold,
   },
   restoreButton: {
     flexDirection: 'row',
@@ -446,13 +447,13 @@ const lojaStyles = StyleSheet.create({
     marginTop: 8,
   },
   restoreButtonText: {
-    color: '#A0AEC0',
-    fontSize: 13,
+    color: theme.textMuted,
+    fontSize: theme.fontSize.caption,
     marginLeft: 4,
   },
   restoreInfo: {
-    fontSize: 12,
-    color: '#4FD1C5',
+    fontSize: theme.fontSize.sm,
+    color: theme.primary,
     marginTop: 12,
     fontStyle: 'italic',
   },

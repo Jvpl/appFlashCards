@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getAppData } from '../services/storage';
 import { LEVEL_CONFIG } from '../services/srs';
 import styles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 export const ProgressScreen = () => {
   const navigation = useNavigation();
@@ -61,7 +62,7 @@ export const ProgressScreen = () => {
     }
   }, [isFocused]);
 
-  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#4A5568" /></View>;
+  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={theme.backgroundTertiary} /></View>;
 
   const overallProgress = stats.total > 0 ? Math.round((stats.learned / stats.total) * 100) : 0;
   
@@ -115,7 +116,7 @@ export const ProgressScreen = () => {
       >
         <TouchableOpacity style={styles.deckHeader} onPress={() => handleToggle(deck.id)}>
           <Text style={styles.deckGroupTitle}>{deck.name}</Text>
-          <Ionicons name={expandedId === deck.id ? 'chevron-up' : 'chevron-down'} size={20} color="#A0AEC0" />
+          <Ionicons name={expandedId === deck.id ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
         </TouchableOpacity>
         {expandedId === deck.id && (
           <View>
@@ -135,7 +136,7 @@ export const ProgressScreen = () => {
                   <View style={styles.itemTextContainer}>
                     <Text style={styles.itemTitle}>{subject.name}</Text>
                   </View>
-                  <View style={[styles.progressContainer, { borderColor: subject.progress === 100 ? '#22C55E' : '#4FD1C5' }]}>
+                  <View style={[styles.progressContainer, { borderColor: subject.progress === 100 ? theme.success : theme.primary }]}>
                       <Text style={styles.progressText}>{subject.progress}%</Text>
                   </View>
                 </TouchableOpacity>

@@ -10,6 +10,7 @@ import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { katexScript, katexStyles } from '../components/editor/editorTemplates';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 export const FlashcardHistoryScreen = ({ route, navigation }) => {
   const [cards, setCards] = useState([]);
@@ -245,32 +246,32 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
       
       {/* Modern Header / Filter Context */}
       {contextName ? (
-        <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#2D3748', borderBottomWidth: 1, borderBottomColor: '#4A5568' }}>
-            <Text style={{ color: '#A0AEC0', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Filtrando por:</Text>
-            <Text style={{ color: '#E2E8F0', fontSize: 16, fontWeight: 'bold' }}>{contextName}</Text>
+        <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: theme.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary }}>
+            <Text style={{ color: theme.textMuted, fontSize: theme.fontSize.sm, textTransform: 'uppercase', letterSpacing: 1 }}>Filtrando por:</Text>
+            <Text style={{ color: theme.textSecondary, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold }}>{contextName}</Text>
         </View>
       ) : null}
 
       <View style={[styles.searchContainer, { marginTop: 16 }]}>
-         <View style={[styles.searchInput, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, backgroundColor: '#2D3748', borderWidth: 1, borderColor: '#4A5568' }]}>
-            <Ionicons name="search" size={20} color="#A0AEC0" style={{ marginRight: 8 }} />
-            <TextInput 
-                style={{ flex: 1, color: 'white', height: 40 }}
+         <View style={[styles.searchInput, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, backgroundColor: theme.backgroundSecondary, borderWidth: 1, borderColor: theme.backgroundTertiary }]}>
+            <Ionicons name="search" size={20} color={theme.textMuted} style={{ marginRight: 8 }} />
+            <TextInput
+                style={{ flex: 1, color: theme.textPrimary, height: 40 }}
                 placeholder="Buscar cards..."
-                placeholderTextColor="#718096"
+                placeholderTextColor={theme.textDisabled}
                 value={searchTerm}
                 onChangeText={setSearchTerm}
             />
             {searchTerm.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchTerm('')}>
-                    <Ionicons name="close-circle" size={18} color="#A0AEC0" />
+                    <Ionicons name="close-circle" size={18} color={theme.textMuted} />
                 </TouchableOpacity>
             )}
          </View>
       </View>
 
       {loading ? (
-          <ActivityIndicator size="large" color="#4FD1C5" style={{ marginTop: 20 }} />
+          <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 20 }} />
       ) : (
           <FlatList 
              data={filteredCards}
@@ -283,15 +284,15 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                  const hasTags = showSubject || showDeck;
 
                  return (
-                 <TouchableOpacity 
+                 <TouchableOpacity
                     style={[
                         {
-                            backgroundColor: '#2D3748',
+                            backgroundColor: theme.backgroundSecondary,
                             borderRadius: 12,
                             padding: 16,
                             marginBottom: 12,
                             borderWidth: 1,
-                            borderColor: multiSelectMode && selectedCards.has(item.id) ? '#4FD1C5' : 'transparent', // Border transparent normally
+                            borderColor: multiSelectMode && selectedCards.has(item.id) ? theme.primary : 'transparent',
                             shadowColor: '#000',
                             shadowOffset: { width: 0, height: 2 },
                             shadowOpacity: 0.2,
@@ -300,7 +301,7 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                             flexDirection: 'row',
                             alignItems: 'center'
                         },
-                        multiSelectMode && selectedCards.has(item.id) && { backgroundColor: 'rgba(79, 209, 197, 0.1)' }
+                        multiSelectMode && selectedCards.has(item.id) && { backgroundColor: theme.primaryTransparent }
                     ]}
                     onPress={() => {
                         if (multiSelectMode) toggleSelection(item.id);
@@ -315,9 +316,9 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                     {multiSelectMode && (
                         <View style={{ marginRight: 12 }}>
                             <Ionicons 
-                                name={selectedCards.has(item.id) ? "checkbox" : "square-outline"} 
-                                size={24} 
-                                color={selectedCards.has(item.id) ? "#4FD1C5" : "#A0AEC0"}
+                                name={selectedCards.has(item.id) ? "checkbox" : "square-outline"}
+                                size={24}
+                                color={selectedCards.has(item.id) ? theme.primary : theme.textMuted}
                             />
                         </View>
                     )}
@@ -504,12 +505,12 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                         {hasTags && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                             {showSubject && (
-                                <View style={{ backgroundColor: '#4A5568', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginRight: 8, marginTop: 4 }}>
-                                    <Text style={{ color: '#E2E8F0', fontSize: 10, fontWeight: 'bold' }}>{item.subjectName}</Text>
+                                <View style={{ backgroundColor: theme.backgroundTertiary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginRight: 8, marginTop: 4 }}>
+                                    <Text style={{ color: theme.textSecondary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold }}>{item.subjectName}</Text>
                                 </View>
                             )}
                             {showDeck && (
-                                <Text style={{ color: '#A0AEC0', fontSize: 12, marginTop: 4 }}>{item.deckName}</Text>
+                                <Text style={{ color: theme.textMuted, fontSize: theme.fontSize.sm, marginTop: 4 }}>{item.deckName}</Text>
                             )}
                         </View>
                         )}
@@ -517,15 +518,15 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                     
                     {!multiSelectMode && (
                         <TouchableOpacity style={{ padding: 8, marginRight: -8 }} onPress={(e) => { e.stopPropagation(); handleCardOptions(item.id); }}>
-                             <Ionicons name="ellipsis-vertical" size={20} color="#718096" />
+                             <Ionicons name="ellipsis-vertical" size={20} color={theme.textDisabled} />
                         </TouchableOpacity>
                     )}
                  </TouchableOpacity>
              )}}
              ListEmptyComponent={
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="documents-outline" size={48} color="#4A5568" />
-                    <Text style={{ color: '#A0AEC0', marginTop: 10, fontSize: 16 }}>Nenhum card encontrado.</Text>
+                    <Ionicons name="documents-outline" size={48} color={theme.backgroundTertiary} />
+                    <Text style={{ color: theme.textMuted, marginTop: 10, fontSize: theme.fontSize.base }}>Nenhum card encontrado.</Text>
                 </View>
              }
           />
@@ -534,8 +535,8 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
       {/* FAB for Deletion */}
       {/* FAB for Deletion */}
       {multiSelectMode && selectedCards.size > 0 && (
-          <TouchableOpacity 
-            style={[styles.fab, { backgroundColor: '#EF4444' }]} 
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: theme.danger }]}
             onPress={deleteSelected}
           >
               <Ionicons name="trash" size={24} color="white" />
@@ -559,18 +560,18 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
                     <Text style={styles.modalButtonText}>Editar</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4A5568' }]} onPress={() => handleOptionSelect('select')}>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.backgroundTertiary }]} onPress={() => handleOptionSelect('select')}>
                     <Ionicons name="checkbox-outline" size={22} color="white" />
                     <Text style={styles.modalButtonText}>Selecionar</Text>
                 </TouchableOpacity>
 
-                 <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#EF4444' }]} onPress={() => handleOptionSelect('delete')}>
+                 <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.danger }]} onPress={() => handleOptionSelect('delete')}>
                     <Ionicons name="trash-outline" size={22} color="white" />
                     <Text style={styles.modalButtonText}>Apagar</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={[styles.modalButton, { backgroundColor: 'transparent', marginTop: 10 }]} onPress={() => setOptionsModalVisible(false)}>
-                    <Text style={[styles.modalButtonText, { color: '#A0AEC0' }]}>Cancelar</Text>
+                    <Text style={[styles.modalButtonText, { color: theme.textMuted }]}>Cancelar</Text>
                 </TouchableOpacity>
             </View>
          </View>

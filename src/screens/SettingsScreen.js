@@ -6,6 +6,7 @@ import { getAppData, saveAppData } from '../services/storage';
 import { initialData } from '../data/mockData';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 export const SettingsScreen = () => {
   const [allowDefaultDeckEditing, setAllowDefaultDeckEditing] = useState(false);
@@ -243,7 +244,7 @@ export const SettingsScreen = () => {
       <View style={styles.settingsSection}>
         <Text style={styles.settingsSectionTitle}>Configurações Avançadas</Text>
         <View style={styles.settingsButton}>
-          <Ionicons name="shield-outline" size={24} color="#F59E0B" />
+          <Ionicons name="shield-outline" size={24} color={theme.warning} />
           <View style={styles.settingsButtonTextContainer}>
             <Text style={styles.settingsButtonTitle}>Permitir edição de decks padrão</Text>
             <Text style={styles.settingsButtonSubtitle}>Habilita editar e apagar os decks originais do app.</Text>
@@ -260,35 +261,35 @@ export const SettingsScreen = () => {
       <View style={styles.settingsSection}>
         <Text style={styles.settingsSectionTitle}>Resetar Progresso</Text>
         <TouchableOpacity style={styles.settingsButton} onPress={() => handleResetProgress('all')}>
-          <Ionicons name="refresh-circle-outline" size={24} color="#3B82F6" />
+          <Ionicons name="refresh-circle-outline" size={24} color={theme.info} />
           <View style={styles.settingsButtonTextContainer}>
             <Text style={styles.settingsButtonTitle}>Resetar Tudo</Text>
             <Text style={styles.settingsButtonSubtitle}>Zera o progresso de todos os flashcards.</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity style={styles.settingsButton} onPress={() => handleResetProgress('app')}>
-          <Ionicons name="refresh-outline" size={24} color="#3B82F6" />
+          <Ionicons name="refresh-outline" size={24} color={theme.info} />
           <View style={styles.settingsButtonTextContainer}>
             <Text style={styles.settingsButtonTitle}>Resetar Conteúdo do App</Text>
             <Text style={styles.settingsButtonSubtitle}>Zera o progresso dos flashcards originais.</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity style={styles.settingsButton} onPress={() => handleResetProgress('user')}>
-          <Ionicons name="person-outline" size={24} color="#3B82F6" />
+          <Ionicons name="person-outline" size={24} color={theme.info} />
           <View style={styles.settingsButtonTextContainer}>
             <Text style={styles.settingsButtonTitle}>Resetar Meu Conteúdo</Text>
             <Text style={styles.settingsButtonSubtitle}>Zera o progresso dos flashcards que você criou.</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity style={styles.settingsButton} onPress={handleRestoreOnlyDecks}>
-          <Ionicons name="download-outline" size={24} color="#10B981" />
+          <Ionicons name="download-outline" size={24} color={theme.download} />
           <View style={styles.settingsButtonTextContainer}>
             <Text style={styles.settingsButtonTitle}>Restaurar Só Decks</Text>
             <Text style={styles.settingsButtonSubtitle}>Restaura apenas decks padrão apagados.</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity style={styles.settingsButton} onPress={handleRestoreDecksAndSubjects}>
-          <Ionicons name="refresh-circle-outline" size={24} color="#10B981" />
+          <Ionicons name="refresh-circle-outline" size={24} color={theme.download} />
           <View style={styles.settingsButtonTextContainer}>
             <Text style={styles.settingsButtonTitle}>Restaurar Decks e Matérias</Text>
             <Text style={styles.settingsButtonSubtitle}>Restauração completa dos decks originais.</Text>
@@ -299,14 +300,14 @@ export const SettingsScreen = () => {
       <View style={styles.settingsSection}>
         <Text style={styles.settingsSectionTitle}>Apagar Conteúdo Criado</Text>
         <TouchableOpacity style={[styles.settingsButton, styles.dangerButton]} onPress={() => handleDeleteContent('flashcards')}>
-          <Ionicons name="document-text-outline" size={24} color="#EF4444" />
+          <Ionicons name="document-text-outline" size={24} color={theme.danger} />
           <View style={styles.settingsButtonTextContainer}>
             <Text style={styles.settingsButtonTitle}>Apagar Meus Flashcards</Text>
             <Text style={styles.settingsButtonSubtitle}>Remove todos os flashcards criados por você.</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.settingsButton, styles.dangerButton]} onPress={() => handleDeleteContent('all')}>
-          <Ionicons name="trash-outline" size={24} color="#EF4444" />
+          <Ionicons name="trash-outline" size={24} color={theme.danger} />
           <View style={styles.settingsButtonTextContainer}>
             <Text style={styles.settingsButtonTitle}>Apagar Tudo que Criei</Text>
             <Text style={styles.settingsButtonSubtitle}>Remove suas matérias e flashcards.</Text>

@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import theme from '../../styles/theme';
 
 export const SegmentedCounter = ({ text }) => {
   const letterCount = ((text || '').match(/[a-zA-Z]/g) || []).length;
@@ -15,9 +16,9 @@ export const SegmentedCounter = ({ text }) => {
 
   const getColor = (current, max) => {
     const pct = (current / max) * 100;
-    if (pct >= 100) return '#EF4444'; // Vermelho
-    if (pct >= 70) return '#F59E0B';  // Amarelo
-    return '#A0AEC0'; // Cinza padrão
+    if (pct >= 100) return theme.danger;
+    if (pct >= 70) return theme.warning;
+    return theme.textMuted;
   };
 
   return (
@@ -46,12 +47,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   text: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: theme.fontSize.xs + 1,
+    fontWeight: theme.fontWeight.semibold,
   },
   divider: {
-    fontSize: 11,
-    color: '#4A5568',
+    fontSize: theme.fontSize.xs + 1,
+    color: theme.backgroundTertiary,
     marginHorizontal: 6,
   },
 });

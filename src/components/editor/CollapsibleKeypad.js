@@ -7,6 +7,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Vibration } from 'react-native';
 import { getButtonStates } from '../../utils/inputValidation';
+import theme from '../../styles/theme';
 
 /**
  * @param {Object} props
@@ -141,18 +142,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 20,
     borderRadius: 8,
-    backgroundColor: '#2D3748',
+    backgroundColor: theme.backgroundSecondary,
     borderWidth: 1,
-    borderColor: '#4A5568',
+    borderColor: theme.backgroundTertiary,
   },
   toggleActive: {
-    backgroundColor: 'rgba(79, 209, 197, 0.12)',
-    borderColor: '#4FD1C5',
+    backgroundColor: theme.primaryTransparent,
+    borderColor: theme.primary,
   },
   toggleText: {
-    color: '#E2E8F0',
-    fontSize: 13,
-    fontWeight: '600',
+    color: theme.textSecondary,
+    fontSize: theme.fontSize.caption,
+    fontWeight: theme.fontWeight.semibold,
   },
   panel: {
     flexDirection: 'row',
@@ -164,24 +165,24 @@ const styles = StyleSheet.create({
   button: {
     width: 45,
     height: 40,
-    backgroundColor: '#2D3748',
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#4A5568',
+    borderColor: theme.backgroundTertiary,
   },
   buttonDisabled: {
-    backgroundColor: '#1A202C',
-    borderColor: '#2D3748',
+    backgroundColor: theme.background,
+    borderColor: theme.backgroundSecondary,
     opacity: 0.5,
   },
   buttonText: {
-    color: '#E2E8F0',
-    fontSize: 16,
-    fontWeight: '600',
+    color: theme.textSecondary,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.semibold,
   },
   buttonTextDisabled: {
-    color: '#4A5568',
+    color: theme.backgroundTertiary,
   },
 });

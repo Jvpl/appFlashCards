@@ -4,6 +4,7 @@ import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { FormulaEngine } from '../../utils/FormulaEngine';
 import styles from '../../styles/globalStyles';
+import theme from '../../styles/theme';
 import katexScript from './editorTemplates'; // Importando templates existentes
 import { MathToolbar } from './MathToolbar';
 
@@ -138,25 +139,25 @@ export const UnifiedFormulaModal = ({ visible, onClose, onSave, initialLatex = '
                         originWhitelist={['*']}
                         source={{ html: htmlContent }}
                         style={{ backgroundColor: 'transparent' }}
-                        containerStyle={{ backgroundColor: '#2D3748' }}
+                        containerStyle={{ backgroundColor: theme.backgroundSecondary }}
                         onLoadEnd={() => {
                             setLoading(false);
                             updateDisplay(); // Render first frame
                         }}
                     />
-                    {loading && <ActivityIndicator style={StyleSheet.absoluteFill} color="#4FD1C5" />}
+                    {loading && <ActivityIndicator style={StyleSheet.absoluteFill} color={theme.primary} />}
                 </View>
 
                 {/* Navigation Controls */}
                 <View style={modalStyles.navControls}>
                     <TouchableOpacity onPress={() => moveCursor('left')} style={modalStyles.navButton}>
-                        <Ionicons name="arrow-back" size={24} color="#fff" />
+                        <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => engine.delete() && updateDisplay()} style={[modalStyles.navButton, { backgroundColor: '#E53E3E' }]}>
-                        <Ionicons name="backspace" size={24} color="#fff" />
+                    <TouchableOpacity onPress={() => engine.delete() && updateDisplay()} style={[modalStyles.navButton, { backgroundColor: theme.danger }]}>
+                        <Ionicons name="backspace" size={24} color={theme.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => moveCursor('right')} style={modalStyles.navButton}>
-                        <Ionicons name="arrow-forward" size={24} color="#fff" />
+                        <Ionicons name="arrow-forward" size={24} color={theme.textPrimary} />
                     </TouchableOpacity>
                 </View>
 
@@ -172,7 +173,7 @@ export const UnifiedFormulaModal = ({ visible, onClose, onSave, initialLatex = '
                 />
 
                 {/* Math Toolbar Container - Always visible here */}
-                <View style={{ height: 280, backgroundColor: '#252E3D' }}>
+                <View style={{ height: 280, backgroundColor: theme.backgroundDark }}>
                     <MathToolbar onInsert={handleToolbarInsert} onClose={() => { }} />
                 </View>
             </View>
@@ -183,7 +184,7 @@ export const UnifiedFormulaModal = ({ visible, onClose, onSave, initialLatex = '
 const modalStyles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#1A202C',
+        backgroundColor: theme.background,
     },
     header: {
         flexDirection: 'row',
@@ -191,40 +192,40 @@ const modalStyles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         paddingTop: 50, // SafeArea
-        backgroundColor: '#2D3748',
+        backgroundColor: theme.backgroundSecondary,
         borderBottomWidth: 1,
-        borderBottomColor: '#4A5568',
+        borderBottomColor: theme.backgroundTertiary,
     },
     title: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
+        color: theme.textPrimary,
+        fontSize: theme.fontSize.md,
+        fontWeight: theme.fontWeight.bold,
     },
     cancelButton: {
         padding: 8,
     },
     cancelText: {
-        color: '#A0AEC0',
-        fontSize: 16,
+        color: theme.textMuted,
+        fontSize: theme.fontSize.base,
     },
     saveButton: {
         padding: 8,
-        backgroundColor: '#4FD1C5',
+        backgroundColor: theme.primary,
         borderRadius: 8,
     },
     saveText: {
-        color: '#1A202C',
-        fontWeight: 'bold',
-        fontSize: 14,
+        color: theme.background,
+        fontWeight: theme.fontWeight.bold,
+        fontSize: theme.fontSize.body,
     },
     displayContainer: {
         flex: 1,
-        backgroundColor: '#2D3748',
+        backgroundColor: theme.backgroundSecondary,
         margin: 16,
         borderRadius: 12,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: '#4A5568',
+        borderColor: theme.backgroundTertiary,
     },
     navControls: {
         flexDirection: 'row',
@@ -236,7 +237,7 @@ const modalStyles = StyleSheet.create({
         width: 50,
         height: 50,
         borderRadius: 25,
-        backgroundColor: '#4A5568',
+        backgroundColor: theme.backgroundTertiary,
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 5,

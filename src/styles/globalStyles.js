@@ -1,27 +1,28 @@
 import { StyleSheet, Dimensions } from 'react-native';
+import theme from './theme';
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
-  flexOne: { flex: 1 }, // Adicionado para GestureHandlerRootView
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A202C' },
-  baseContainer: { flex: 1, backgroundColor: '#1A202C' },
+  flexOne: { flex: 1 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background },
+  baseContainer: { flex: 1, backgroundColor: theme.background },
   studyContainer: { flex: 1, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
   glow: { position: 'absolute', opacity: 0, width: 100, height: '100%' },
   glowLeft: { left: 0, top: 0, bottom: 0 },
   glowRight: { right: 0, top: 0, bottom: 0 },
   glowTop: { top: 0, left: 0, right: 0, height: 100, width: '100%' },
   cardWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
-  itemContainer: { backgroundColor: '#2D3748', padding: 20, marginVertical: 8, marginHorizontal: 16, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressSubjectContainer: { backgroundColor: '#2D3748', paddingHorizontal: 20, paddingVertical: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  itemContainer: { backgroundColor: theme.backgroundSecondary, padding: 20, marginVertical: 8, marginHorizontal: 16, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressSubjectContainer: { backgroundColor: theme.backgroundSecondary, paddingHorizontal: 20, paddingVertical: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   itemTextContainer: { flex: 1, marginRight: 16 },
-  itemTitle: { fontSize: 18, color: '#FFFFFF', fontWeight: 'bold' },
-  itemSubtitle: { fontSize: 14, color: '#A0AEC0', marginTop: 4 },
-  progressContainer: { width: 50, height: 50, borderRadius: 25, borderWidth: 3, borderColor: '#4FD1C5', justifyContent: 'center', alignItems: 'center' },
-  progressText: { color: '#FFFFFF', fontWeight: 'bold' },
+  itemTitle: { fontSize: theme.fontSize.md, color: theme.textPrimary, fontWeight: theme.fontWeight.bold },
+  itemSubtitle: { fontSize: theme.fontSize.body, color: theme.textMuted, marginTop: 4 },
+  progressContainer: { width: 50, height: 50, borderRadius: 25, borderWidth: 3, borderColor: theme.primary, justifyContent: 'center', alignItems: 'center' },
+  progressText: { color: theme.textPrimary, fontWeight: theme.fontWeight.bold },
   cardContainer: { position: 'absolute' },
-  card: { width: screenWidth * 0.9, height: 380, backgroundColor: '#4A5568', borderRadius: 15, justifyContent: 'space-between', alignItems: 'center', padding: 0, backfaceVisibility: 'hidden', borderWidth: 2, borderColor: 'transparent', overflow: 'hidden' },
-  cardBack: { backgroundColor: '#2D3748', position: 'absolute', top: 0, justifyContent: 'space-between', backfaceVisibility: 'hidden' },
+  card: { width: screenWidth * 0.9, height: 380, backgroundColor: theme.backgroundTertiary, borderRadius: 15, justifyContent: 'space-between', alignItems: 'center', padding: 0, backfaceVisibility: 'hidden', borderWidth: 2, borderColor: 'transparent', overflow: 'hidden' },
+  cardBack: { backgroundColor: theme.backgroundSecondary, position: 'absolute', top: 0, justifyContent: 'space-between', backfaceVisibility: 'hidden' },
   cardOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000000',
@@ -29,114 +30,101 @@ const styles = StyleSheet.create({
   },
   cardContentScrollView: { flex: 1, width: '100%' },
   cardContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  cardText: { fontSize: 22, color: '#FFFFFF', textAlign: 'center' },
-  noCardsText: { fontSize: 18, color: '#A0AEC0', textAlign: 'center', paddingHorizontal: 20 },
+  cardText: { fontSize: theme.fontSize.xl, color: theme.textPrimary, textAlign: 'center' },
+  noCardsText: { fontSize: theme.fontSize.md, color: theme.textMuted, textAlign: 'center', paddingHorizontal: 20 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, backgroundColor: 'rgba(0,0,0,0.2)', width: '100%' },
-  levelCircle: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginRight: 15, borderWidth: 2, borderColor: '#1A202C' },
-  levelText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 32 },
-  progressBarContainer: { height: 16, backgroundColor: '#1A202C', borderRadius: 50, overflow: 'hidden', justifyContent: 'center' },
-  progressPercentageText: { position: 'absolute', alignSelf: 'center', color: 'white', fontWeight: 'bold', fontSize: 10 },
+  levelCircle: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginRight: 15, borderWidth: 2, borderColor: theme.background },
+  levelText: { color: theme.textPrimary, fontWeight: theme.fontWeight.bold, fontSize: theme.fontSize.h1 },
+  progressBarContainer: { height: 16, backgroundColor: theme.background, borderRadius: 50, overflow: 'hidden', justifyContent: 'center' },
+  progressPercentageText: { position: 'absolute', alignSelf: 'center', color: theme.textPrimary, fontWeight: theme.fontWeight.bold, fontSize: theme.fontSize.xs },
   levelNamesContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  levelName: { fontSize: 13, color: '#9CA3AF', fontWeight: 'bold' },
+  levelName: { fontSize: theme.fontSize.caption, color: '#9CA3AF', fontWeight: theme.fontWeight.bold },
   swipeGuideContainer: { position: 'absolute', bottom: 80, left: 0, right: 0, alignItems: 'center' },
-  swipeGuideText: { color: '#A0AEC0', fontSize: 16, fontWeight: 'bold' },
-  feedbackText: { fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
+  swipeGuideText: { color: theme.textMuted, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
+  feedbackText: { fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, marginBottom: 20 },
   progressIndicator: { position: 'absolute', bottom: 20, alignItems: 'center' },
-  userCreatedBanner: { backgroundColor: '#2D3748', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginBottom: 6 },
-  userCreatedText: { color: '#4FD1C5', fontSize: 12, fontWeight: 'bold' },
-  fab: { position: 'absolute', width: 56, height: 56, alignItems: 'center', justifyContent: 'center', right: 20, bottom: 20, backgroundColor: '#4FD1C5', borderRadius: 28, elevation: 8, shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { height: 2, width: 0 } },
-  formContainer: { flex: 1, backgroundColor: '#1A202C', padding: 20 },
-  formLabel: { fontSize: 16, color: 'white', marginBottom: 8, marginTop: 16 },
+  userCreatedBanner: { backgroundColor: theme.backgroundSecondary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginBottom: 6 },
+  userCreatedText: { color: theme.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
+  fab: { position: 'absolute', width: 56, height: 56, alignItems: 'center', justifyContent: 'center', right: 20, bottom: 20, backgroundColor: theme.primary, borderRadius: 28, elevation: 8, shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { height: 2, width: 0 } },
+  formContainer: { flex: 1, backgroundColor: theme.background, padding: 20 },
+  formLabel: { fontSize: theme.fontSize.base, color: theme.textPrimary, marginBottom: 8, marginTop: 16 },
   formInput: {
-    backgroundColor: '#2D3748',
-    color: 'white',
+    backgroundColor: theme.backgroundSecondary,
+    color: theme.textPrimary,
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
+    fontSize: theme.fontSize.base,
     minHeight: 50,
     textAlignVertical: 'top'
   },
-  // Container unificado para MathInput (WebView)
   mathInputContainerUnified: {
-    minHeight: 200, // VOLTEI PARA 200 (Era o tamanho original grande)
-    flex: 1, // Garante que ele cres�a se precisar
-    backgroundColor: '#2D3748',
+    minHeight: 200,
+    flex: 1,
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: 8,
     overflow: 'hidden',
-    // BORDA PADR�O INVIS�VEL (Cor do fundo)
-    // Isso resolve o problema de parecer ativo sem estar
     borderWidth: 2,
-    borderColor: '#2D3748',
+    borderColor: theme.backgroundSecondary,
     marginBottom: 10,
   },
-
-  // Estilo aplicado APENAS quando o MathInput est� focado
   mathInputContainerFocused: {
-    borderColor: '#4FD1C5', // Aqui sim fica verde
+    borderColor: theme.primary,
   },
-  // Estilo para a WebView interna
   webviewStyle: {
     flex: 1,
-    backgroundColor: '#2D3748', // Garante a cor de fundo
-    opacity: 0.99, // Hack para evitar piscar em alguns dispositivos
+    backgroundColor: theme.backgroundSecondary,
+    opacity: 0.99,
   },
-  // Altura maior na tela de cria��o (Aplicado ao container)
   mathInputContainerUnifiedLarge: {
-    minHeight: 180, // Altura m�nima maior
-    flex: 1, // Continua flex�vel
+    minHeight: 180,
+    flex: 1,
   },
-  // Container para agrupar Label + Input na tela de Cria��o
   inputGroup: {
-    marginBottom: 10, // Espa�o entre os grupos
-    flex: 1, // Ocupa espa�o vertical dispon�vel
+    marginBottom: 10,
+    flex: 1,
   },
-  // Container para os controles inferiores (f(x) e Salvar)
   bottomControlsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between', // Espa�a os bot�es
+    justifyContent: 'space-between',
     marginTop: 15,
-    marginBottom: 10, // Espa�o antes de talvez a toolbar aparecer
-    paddingHorizontal: 5, // Pequeno padding lateral
+    marginBottom: 10,
+    paddingHorizontal: 5,
   },
   saveButtonContainer: {
-    flex: 1, // Ocupa espa�o restante
-    marginLeft: 15, // Espa�o entre f(x) e Salvar
+    flex: 1,
+    marginLeft: 15,
   },
-  // Bot�o f(x)
   fxButton: {
-    backgroundColor: '#4A5568',
+    backgroundColor: theme.backgroundTertiary,
     borderRadius: 8,
     paddingVertical: 10,
     paddingHorizontal: 15,
-    alignSelf: 'center', // Centraliza verticalmente com o bot�o Salvar
+    alignSelf: 'center',
   },
   fxButtonActive: {
-    backgroundColor: '#4FD1C5',
-    // Sombras removidas para evitar GPU Overdraw e lag na animação da MathToolbar
+    backgroundColor: theme.primary,
   },
   fxButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.bold,
   },
-  // Estilos para o Teclado/Toolbar Matem�tica Nativa
   mathKeyboardOverlay: {
     backgroundColor: '#252E3D',
     borderTopWidth: 1,
-    borderTopColor: '#4A5568',
+    borderTopColor: theme.backgroundTertiary,
     paddingTop: 8,
-    // paddingBottom ser� tratado pelo Safe Area
   },
   mathToolbarContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     paddingHorizontal: 5,
-    paddingBottom: 5, // Espa�o inferior
+    paddingBottom: 5,
   },
   mathToolbarButton: {
-    backgroundColor: '#4A5568',
+    backgroundColor: theme.backgroundTertiary,
     borderRadius: 8,
     paddingVertical: 10,
     margin: 4,
@@ -146,37 +134,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   mathToolbarButtonText: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.bold,
   },
-  // Ajuste no padding do formContainer para o KeyboardAvoidingView
   formContainerNoPadding: {
     flex: 1,
-    backgroundColor: '#1A202C'
+    backgroundColor: theme.background,
   },
   scrollContentContainer: {
-    flexGrow: 1, // Permite o scroll crescer
-    padding: 20, // Padding aplicado aqui
-    justifyContent: 'flex-start', // Come�a do topo
+    flexGrow: 1,
+    padding: 20,
+    justifyContent: 'flex-start',
   },
-  progressTitle: { fontSize: 24, color: 'white', fontWeight: 'bold' },
-  progressValue: { fontSize: 48, color: '#4FD1C5', fontWeight: 'bold', marginVertical: 10 },
-  progressSubtitle: { fontSize: 16, color: '#A0AEC0' },
-  toggleContainer: { flexDirection: 'row', justifyContent: 'center', marginVertical: 16, backgroundColor: '#2D3748', borderRadius: 8, marginHorizontal: 16, overflow: 'hidden' },
+  progressTitle: { fontSize: theme.fontSize.xxl, color: theme.textPrimary, fontWeight: theme.fontWeight.bold },
+  progressValue: { fontSize: theme.fontSize.display, color: theme.primary, fontWeight: theme.fontWeight.bold, marginVertical: 10 },
+  progressSubtitle: { fontSize: theme.fontSize.base, color: theme.textMuted },
+  toggleContainer: { flexDirection: 'row', justifyContent: 'center', marginVertical: 16, backgroundColor: theme.backgroundSecondary, borderRadius: 8, marginHorizontal: 16, overflow: 'hidden' },
   toggleButton: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-  toggleButtonActive: { backgroundColor: '#4FD1C5' },
-  toggleButtonText: { color: '#A0AEC0', fontWeight: 'bold' },
-  toggleButtonTextActive: { color: '#FFFFFF' },
-  deckGroup: { marginBottom: 16, marginHorizontal: 16, backgroundColor: '#2D3748', borderRadius: 10, overflow: 'hidden' },
+  toggleButtonActive: { backgroundColor: theme.primary },
+  toggleButtonText: { color: theme.textMuted, fontWeight: theme.fontWeight.bold },
+  toggleButtonTextActive: { color: theme.textPrimary },
+  deckGroup: { marginBottom: 16, marginHorizontal: 16, backgroundColor: theme.backgroundSecondary, borderRadius: 10, overflow: 'hidden' },
   deckHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#252E3D' },
-  deckGroupTitle: { fontSize: 18, color: '#FFFFFF', fontWeight: 'bold', flex: 1 },
-  noItemsText: { color: '#A0AEC0', textAlign: 'center', marginTop: 40, fontSize: 16 },
-  divider: { height: 1, backgroundColor: '#4A5568', marginHorizontal: 20 },
+  deckGroupTitle: { fontSize: theme.fontSize.md, color: theme.textPrimary, fontWeight: theme.fontWeight.bold, flex: 1 },
+  noItemsText: { color: theme.textMuted, textAlign: 'center', marginTop: 40, fontSize: theme.fontSize.base },
+  divider: { height: 1, backgroundColor: theme.backgroundTertiary, marginHorizontal: 20 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.6)' },
   alertModalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.6)' },
-  modalContent: { backgroundColor: '#2D3748', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: 'white', textAlign: 'center', marginBottom: 20 },
+  modalContent: { backgroundColor: theme.backgroundSecondary, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  modalTitle: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: theme.textPrimary, textAlign: 'center', marginBottom: 20 },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -197,21 +184,20 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   charCounter: {
-    fontSize: 13,
-    color: '#A0AEC0',
-    fontWeight: '600',
+    fontSize: theme.fontSize.caption,
+    color: theme.textMuted,
+    fontWeight: theme.fontWeight.semibold,
     minWidth: 45,
     textAlign: 'right',
   },
   charCounterWarning: {
-    color: '#F59E0B', // Amarelo quando >= 70%
+    color: theme.warning,
   },
   charCounterError: {
-    color: '#EF4444', // Vermelho quando >= 90%
+    color: theme.danger,
   },
 
-  // ========== ESTILOS DO NOVO MODAL FULLSCREEN ==========
-  // Modal Fullscreen com Glassmorphism
+  // ========== MODAL FULLSCREEN ==========
   modalOverlayFullscreen: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -225,7 +211,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(79, 209, 197, 0.3)',
+    borderColor: theme.primaryTransparent,
   },
   modalHeaderFullscreen: {
     flexDirection: 'row',
@@ -234,12 +220,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitleFullscreen: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.textPrimary,
   },
   modalInputFocusedGreen: {
-    borderColor: '#4FD1C5',
+    borderColor: theme.primary,
     borderWidth: 2,
   },
 
@@ -252,16 +238,16 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   segmentedCounterText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
   },
   segmentedCounterDivider: {
-    color: '#4A5568',
+    color: theme.backgroundTertiary,
     marginHorizontal: 8,
-    fontSize: 12,
+    fontSize: theme.fontSize.sm,
   },
 
-  // Teclado Colaps�vel
+  // Teclado Colapsável
   keypadContainer: {
     marginTop: 16,
     marginBottom: 16,
@@ -272,19 +258,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   keypadToggle: {
-    backgroundColor: '#4A5568',
+    backgroundColor: theme.backgroundTertiary,
     paddingVertical: 10,
     paddingHorizontal: 24,
     borderRadius: 8,
     marginHorizontal: 6,
   },
   keypadToggleActive: {
-    backgroundColor: '#4FD1C5',
+    backgroundColor: theme.primary,
   },
   keypadToggleText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
+    color: theme.textPrimary,
+    fontWeight: theme.fontWeight.bold,
+    fontSize: theme.fontSize.body,
   },
   keypadPanel: {
     flexDirection: 'row',
@@ -293,7 +279,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   keypadButton: {
-    backgroundColor: '#4A5568',
+    backgroundColor: theme.backgroundTertiary,
     width: 48,
     height: 48,
     borderRadius: 10,
@@ -305,101 +291,98 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   keypadButtonText: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.bold,
   },
   keypadButtonTextDisabled: {
-    color: '#718096',
+    color: theme.textDisabled,
   },
 
-  // Bot�es Fullwidth do Modal
+  // Botões Fullwidth do Modal
   modalButtonFullWidth: {
-    backgroundColor: '#4FD1C5',
+    backgroundColor: theme.primary,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalButtonCancelFullWidth: {
-    backgroundColor: '#4A5568',
+    backgroundColor: theme.backgroundTertiary,
     marginTop: 12,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalButtonTextFullWidth: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.bold,
   },
 
   // Input do Modal com foco verde
   modalInputWithFocus: {
-    backgroundColor: '#1A202C',
-    color: 'white',
+    backgroundColor: theme.background,
+    color: theme.textPrimary,
     borderRadius: 10,
     padding: 14,
-    fontSize: 18,
+    fontSize: theme.fontSize.md,
     borderWidth: 2,
-    borderColor: '#4A5568',
+    borderColor: theme.backgroundTertiary,
   },
-  // ========================================================
 
-  modalButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#3B82F6', padding: 15, borderRadius: 10, marginBottom: 10 },
-  modalButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold', marginLeft: 10 },
+  modalButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.info, padding: 15, borderRadius: 10, marginBottom: 10 },
+  modalButtonText: { color: theme.textPrimary, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, marginLeft: 10 },
   userSubjectsDividerContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 10 },
-  userSubjectsDivider: { flex: 1, height: 1, backgroundColor: '#4A5568' },
-  userSubjectsDividerText: { color: '#A0AEC0', marginHorizontal: 10, fontWeight: 'bold' },
+  userSubjectsDivider: { flex: 1, height: 1, backgroundColor: theme.backgroundTertiary },
+  userSubjectsDividerText: { color: theme.textMuted, marginHorizontal: 10, fontWeight: theme.fontWeight.bold },
   subjectRightContainer: { flexDirection: 'row', alignItems: 'center' },
   subjectOptionsButton: { paddingLeft: 16, paddingVertical: 10 },
   searchContainer: { marginHorizontal: 16, marginBottom: 8 },
-  searchInput: { backgroundColor: '#2D3748', color: 'white', borderRadius: 8, padding: 12, fontSize: 16 },
-  alertContent: { backgroundColor: '#2D3748', borderRadius: 15, padding: 20, width: '80%', alignItems: 'center' },
-  alertTitle: { fontSize: 18, fontWeight: 'bold', color: 'white', marginBottom: 10 },
-  alertMessage: { fontSize: 16, color: '#A0AEC0', textAlign: 'center', marginBottom: 20 },
+  searchInput: { backgroundColor: theme.backgroundSecondary, color: theme.textPrimary, borderRadius: 8, padding: 12, fontSize: theme.fontSize.base },
+  alertContent: { backgroundColor: theme.backgroundSecondary, borderRadius: 15, padding: 20, width: '80%', alignItems: 'center' },
+  alertTitle: { fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.bold, color: theme.textPrimary, marginBottom: 10 },
+  alertMessage: { fontSize: theme.fontSize.base, color: theme.textMuted, textAlign: 'center', marginBottom: 20 },
   alertButtonContainer: { flexDirection: 'row', justifyContent: 'center', width: '100%' },
   alertButton: { borderRadius: 8, paddingVertical: 10, paddingHorizontal: 20, marginHorizontal: 10, minWidth: 80, alignItems: 'center' },
-  alertConfirmButton: { backgroundColor: '#4FD1C5' },
-  alertCancelButton: { backgroundColor: '#4A5568' },
-  alertButtonText: { color: '#FFFFFF', fontWeight: 'bold' },
-  progressHeader: { alignItems: 'center', marginBottom: 30, paddingTop: 50 }, // Added padding
+  alertConfirmButton: { backgroundColor: theme.primary },
+  alertCancelButton: { backgroundColor: theme.backgroundTertiary },
+  alertButtonText: { color: theme.textPrimary, fontWeight: theme.fontWeight.bold },
+  progressHeader: { alignItems: 'center', marginBottom: 30, paddingTop: 50 },
   settingsSection: { marginBottom: 12, paddingHorizontal: 16, paddingTop: 12 },
-  settingsSectionTitle: { fontSize: 14, fontWeight: '600', color: '#A0AEC0', marginBottom: 12, letterSpacing: 0.5 },
-  settingsButton: { backgroundColor: '#2D3748', borderRadius: 12, padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
-  switchContainer: { width: 50, height: 30, borderRadius: 15, backgroundColor: '#4A5568', padding: 3, justifyContent: 'center' },
-  switchActive: { backgroundColor: '#22C55E' },
-  switchThumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFFFFF' },
+  settingsSectionTitle: { fontSize: theme.fontSize.body, fontWeight: theme.fontWeight.semibold, color: theme.textMuted, marginBottom: 12, letterSpacing: 0.5 },
+  settingsButton: { backgroundColor: theme.backgroundSecondary, borderRadius: 12, padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
+  switchContainer: { width: 50, height: 30, borderRadius: 15, backgroundColor: theme.backgroundTertiary, padding: 3, justifyContent: 'center' },
+  switchActive: { backgroundColor: theme.success },
+  switchThumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: theme.textPrimary },
   switchThumbActive: { alignSelf: 'flex-end' },
   dangerButton: {},
   settingsButtonTextContainer: { marginLeft: 15, flex: 1 },
-  settingsButtonTitle: { fontSize: 16, color: 'white', fontWeight: 'bold' },
-  settingsButtonSubtitle: { fontSize: 12, color: '#A0AEC0', marginTop: 2 },
-
+  settingsButtonTitle: { fontSize: theme.fontSize.base, color: theme.textPrimary, fontWeight: theme.fontWeight.bold },
+  settingsButtonSubtitle: { fontSize: theme.fontSize.sm, color: theme.textMuted, marginTop: 2 },
 
   editorContainer: {
     flex: 1,
     minHeight: 150,
   },
-
   editorContent: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'center', // Alinhamento central vertical
-    padding: 8, // Padding reduzido
+    alignItems: 'center',
+    padding: 8,
   },
 
   // TEXTO COMUM
   nativeInputText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontFamily: 'serif',
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.md,
+    fontFamily: theme.fontFamily.serif,
     paddingVertical: 4,
     marginVertical: 0,
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
 
-  // --- FRA��O ---
+  // --- FRAÇÃO ---
   fractionContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -407,9 +390,9 @@ const styles = StyleSheet.create({
   },
   fractionInputWrapper: {
     borderWidth: 1,
-    borderColor: '#4A5568', // Borda da caixa
+    borderColor: theme.backgroundTertiary,
     borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.2)', // Fundo escuro sutil
+    backgroundColor: 'rgba(0,0,0,0.2)',
     minWidth: 24,
     minHeight: 24,
     alignItems: 'center',
@@ -417,9 +400,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   fractionInput: {
-    color: 'white',
-    fontSize: 14,
-    fontFamily: 'serif',
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.body,
+    fontFamily: theme.fontFamily.serif,
     textAlign: 'center',
     padding: 0,
     margin: 0,
@@ -428,40 +411,40 @@ const styles = StyleSheet.create({
   fractionLine: {
     width: '100%',
     height: 1.5,
-    backgroundColor: 'white',
+    backgroundColor: theme.textPrimary,
     marginVertical: 2,
   },
 
   // --- RAIZ ---
   rootContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end', // Alinha a base
+    alignItems: 'flex-end',
     marginRight: 4,
     marginLeft: 2,
   },
   rootSymbolWrapper: {
     justifyContent: 'flex-end',
-    marginBottom: -6, // Ajuste para alinhar a base do s�mbolo com o texto
-    marginRight: -2,  // Conecta com a linha superior
+    marginBottom: -6,
+    marginRight: -2,
   },
   rootSymbolText: {
-    color: 'white',
-    fontSize: 28, // Tamanho maior para o s�mbolo
-    fontFamily: 'serif',
-    fontWeight: '300',
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.title,
+    fontFamily: theme.fontFamily.serif,
+    fontWeight: theme.fontWeight.light,
   },
   rootContentWrapper: {
     borderTopWidth: 1.5,
-    borderTopColor: 'white',
+    borderTopColor: theme.textPrimary,
     paddingTop: 2,
     paddingLeft: 2,
     paddingRight: 2,
-    marginBottom: 5, // Levanta o conte�do para ficar sob o teto
+    marginBottom: 5,
   },
   rootInput: {
-    color: 'white',
-    fontSize: 18,
-    fontFamily: 'serif',
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.md,
+    fontFamily: theme.fontFamily.serif,
     padding: 0,
     margin: 0,
     minWidth: 10,
@@ -475,26 +458,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   selectedDeckItem: {
-    backgroundColor: 'rgba(79, 209, 197, 0.1)',
-    borderColor: '#4FD1C5',
+    backgroundColor: theme.primaryTransparent,
+    borderColor: theme.primary,
     borderWidth: 1,
   },
 
   cursor: {
     width: 2,
     height: 16,
-    backgroundColor: '#4FD1C5'
+    backgroundColor: theme.primary,
   },
 
 });
 
-// =================================================================
-// APP ROOT
-// Configura��o da navega��o e renderiza��o principal.
-// =================================================================
-
-// Mant�m a tela de splash vis�vel enquanto as fontes carregam
-// SplashScreen.preventAutoHideAsync();
-
-// Tema customizado para evitar o "flash" de tela branca
 export default styles;

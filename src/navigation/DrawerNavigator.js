@@ -4,6 +4,7 @@ import { Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import HomeStackNavigator from './HomeStackNavigator';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import theme from '../styles/theme';
 
 const Drawer = createDrawerNavigator();
 
@@ -14,15 +15,15 @@ export function DrawerNavigator() {
     return (
         <Drawer.Navigator
             screenOptions={{
-                headerStyle: { backgroundColor: '#2D3748' },
-                headerTintColor: 'white',
+                headerStyle: { backgroundColor: theme.backgroundSecondary },
+                headerTintColor: theme.textPrimary,
                 drawerStyle: {
-                    backgroundColor: '#1A202C',
+                    backgroundColor: theme.background,
                     width: width * 0.75,
                 },
-                drawerLabelStyle: { fontWeight: 'bold', fontSize: 16 },
-                drawerActiveTintColor: '#4FD1C5',
-                drawerInactiveTintColor: '#A0AEC0',
+                drawerLabelStyle: { fontWeight: theme.fontWeight.bold, fontSize: theme.fontSize.base },
+                drawerActiveTintColor: theme.primary,
+                drawerInactiveTintColor: theme.textMuted,
                 drawerPosition: 'right',
                 drawerType: 'front',
                 swipeEnabled: false, // Controlado por DeckListScreen via eventos focus/blur

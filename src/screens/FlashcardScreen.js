@@ -11,6 +11,7 @@ import { FlashcardItem } from '../components/flashcard/FlashcardItem';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
@@ -195,15 +196,15 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
           let opacity = 0;
           if (event.translationX < -30 && xAbs > yAbs) { // Left
-            runOnJS(setFeedbackText)('Errei'); runOnJS(setFeedbackColor)('#EF4444');
+            runOnJS(setFeedbackText)('Errei'); runOnJS(setFeedbackColor)(theme.danger);
             opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
             leftGlowOpacity.value = opacity; rightGlowOpacity.value = 0; topGlowOpacity.value = 0;
           } else if (event.translationX > 30 && xAbs > yAbs) { // Right
-            runOnJS(setFeedbackText)('Memorizado'); runOnJS(setFeedbackColor)('#22C55E');
+            runOnJS(setFeedbackText)('Memorizado'); runOnJS(setFeedbackColor)(theme.success);
             opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
             rightGlowOpacity.value = opacity; leftGlowOpacity.value = 0; topGlowOpacity.value = 0;
           } else if (event.translationY < -30 && yAbs > xAbs) { // Up
-            runOnJS(setFeedbackText)('Quase'); runOnJS(setFeedbackColor)('#3B82F6');
+            runOnJS(setFeedbackText)('Quase'); runOnJS(setFeedbackColor)(theme.info);
             opacity = interpolate(yAbs, [30, screenHeight / 3], [0, 1], 'clamp');
             topGlowOpacity.value = opacity; leftGlowOpacity.value = 0; rightGlowOpacity.value = 0;
           } else {
@@ -335,14 +336,14 @@ export const FlashcardScreen = ({ route, navigation }) => {
   if (cards.length === 0) {
     return isFocused
       ? <View style={styles.centered}><Text style={styles.noCardsText}>Nenhum card para revisar. Volte mais tarde ou adicione novos cards!</Text></View>
-      : <View style={styles.centered}><ActivityIndicator size="large" color="#4A5568" /></View>;
+      : <View style={styles.centered}><ActivityIndicator size="large" color={theme.backgroundTertiary} /></View>;
   }
 
   return (
     <View style={styles.studyContainer}>
-        <Animated.View style={[styles.glow, styles.glowLeft, animatedLeftGlowStyle]}><LinearGradient colors={['rgba(239, 68, 68, 0.5)', 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
-        <Animated.View style={[styles.glow, styles.glowRight, animatedRightGlowStyle]}><LinearGradient colors={['transparent', 'rgba(34, 197, 94, 0.5)']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
-        <Animated.View style={[styles.glow, styles.glowTop, animatedTopGlowStyle]}><LinearGradient colors={['rgba(59, 130, 246, 0.5)', 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:0, y:1}}/></Animated.View>
+        <Animated.View style={[styles.glow, styles.glowLeft, animatedLeftGlowStyle]}><LinearGradient colors={[theme.dangerGlow, 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
+        <Animated.View style={[styles.glow, styles.glowRight, animatedRightGlowStyle]}><LinearGradient colors={['transparent', theme.successGlow]} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
+        <Animated.View style={[styles.glow, styles.glowTop, animatedTopGlowStyle]}><LinearGradient colors={[theme.infoGlow, 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:0, y:1}}/></Animated.View>
 
         {currentCardForModal && <Modal animationType="fade" transparent={true} visible={isOptionsModalVisible} onRequestClose={() => setOptionsModalVisible(false)}>
             <TouchableWithoutFeedback onPress={() => setOptionsModalVisible(false)}>
@@ -356,11 +357,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
                         </TouchableOpacity>
                     )}
                     {currentCardForModal.isUserCreated && (
-                        <TouchableOpacity style={[styles.modalButton, {backgroundColor: '#EF4444'}]} onPress={performDelete}>
+                        <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.danger}]} onPress={performDelete}>
                             <Ionicons name="trash-outline" size={22} color="#FFFFFF" /><Text style={styles.modalButtonText}>Apagar Card</Text>
                         </TouchableOpacity>
                     )}
-                     <TouchableOpacity style={[styles.modalButton, {backgroundColor: '#4A5568', marginTop: 20}]} onPress={() => setOptionsModalVisible(false)}>
+                     <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.backgroundTertiary, marginTop: 20}]} onPress={() => setOptionsModalVisible(false)}>
                         <Text style={styles.modalButtonText}>Cancelar</Text>
                     </TouchableOpacity>
                 </View>
@@ -390,7 +391,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
           <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
              <Text style={styles.swipeGuideText}>
                 {jsIsFlipped ? "Arraste para classificar" : "Toque no card para revelar"}
-                {currentCardForModal?.isUserCreated && <Ionicons name="ellipsis-horizontal" size={16} color="#A0AEC0" />}
+                {currentCardForModal?.isUserCreated && <Ionicons name="ellipsis-horizontal" size={16} color={theme.textMuted} />}
             </Text>
           </TouchableOpacity>
         </View>

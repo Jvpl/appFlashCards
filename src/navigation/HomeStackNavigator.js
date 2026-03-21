@@ -3,6 +3,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { screenOptions } from '../config/navigation';
+import theme from '../styles/theme';
 
 // Importar todas as screens
 import { DeckListScreen } from '../screens/DeckListScreen';
@@ -35,8 +36,8 @@ const fadeTransitionSpec = {
 };
 
 const navScreenOptions = {
-    headerStyle: { backgroundColor: '#2D3748' },
-    headerTintColor: '#FFFFFF',
+    headerStyle: { backgroundColor: theme.backgroundSecondary },
+    headerTintColor: theme.textPrimary,
     headerTitleStyle: { fontWeight: 'bold' },
     // Substituindo Slide por Fade simples
     cardStyleInterpolator: ({ current }) => ({
@@ -48,7 +49,7 @@ const navScreenOptions = {
         open: fadeTransitionSpec.open,
         close: fadeTransitionSpec.close,
     },
-    cardStyle: { backgroundColor: '#1A202C' }, // Evita flash branco nas transições
+    cardStyle: { backgroundColor: theme.background }, // Evita flash branco nas transições
 };
 
 export function HomeStackNavigator({navigation}) {
@@ -102,7 +103,7 @@ export function HomeStackNavigator({navigation}) {
             open: fadeTransitionSpec.open,
             close: fadeTransitionSpec.close,
           },
-          cardStyle: { backgroundColor: '#1A202C' },
+          cardStyle: { backgroundColor: theme.background },
         }}
       />
       <HomeStack.Screen name="EditFlashcard" component={EditFlashcardScreen} options={{ title: 'Editar Flashcard' }} />

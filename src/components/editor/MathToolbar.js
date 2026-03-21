@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path, G, Defs, Filter, FeGaussianBlur, FeMerge, FeMergeNode } from 'react-native-svg';
 import styles from '../../styles/globalStyles';
+import theme from '../../styles/theme';
 
 export const MathToolbar = React.forwardRef(({ onInsert, onClose, onOpen, onOpenAdvancedMode }, ref) => {
   const insets = useSafeAreaInsets();
@@ -58,12 +59,12 @@ export const MathToolbar = React.forwardRef(({ onInsert, onClose, onOpen, onOpen
     });
 
   const basicFormulas = [
-    { icon: 'a/b', label: 'Fração', cmd: '\\\\frac', color: '#4FD1C5' },
-    { icon: 'x²', label: 'Potência', cmd: '²', color: '#F59E0B' },
-    { icon: '√', label: 'Raiz', cmd: '\\\\sqrt', color: '#10B981' },
-    { icon: 'log', label: 'Logaritmo', cmd: '\\\\log', color: '#8B5CF6' },
-    { icon: '|x|', label: 'Valor Absoluto', cmd: '\\\\abs', color: '#06B6D4' },
-    { icon: 'xₙ', label: 'Subscrito', cmd: '\\\\sub', color: '#EF4444' },
+    { icon: 'a/b', label: 'Fração', cmd: '\\\\frac', color: theme.primary },
+    { icon: 'x²', label: 'Potência', cmd: '²', color: theme.warning },
+    { icon: '√', label: 'Raiz', cmd: '\\\\sqrt', color: theme.download },
+    { icon: 'log', label: 'Logaritmo', cmd: '\\\\log', color: theme.accentPurpleLight },
+    { icon: '|x|', label: 'Valor Absoluto', cmd: '\\\\abs', color: theme.accentCyan },
+    { icon: 'xₙ', label: 'Subscrito', cmd: '\\\\sub', color: theme.danger },
   ];
 
   return (
@@ -80,7 +81,7 @@ export const MathToolbar = React.forwardRef(({ onInsert, onClose, onOpen, onOpen
             zIndex: 9999,
             flexDirection: 'column',
             flexWrap: 'nowrap',
-            backgroundColor: '#252E3D',
+            backgroundColor: theme.backgroundDark,
             borderTopLeftRadius: 20,
             borderTopRightRadius: 20,
             paddingTop: 0,
@@ -120,20 +121,20 @@ export const MathToolbar = React.forwardRef(({ onInsert, onClose, onOpen, onOpen
                   {/* Sombra Esfumaçada Real */}
                   <Path
                     d="M 0 0 C 12 0, 18 34, 30 34 L 70 34 C 82 34, 88 0, 100 0 Z"
-                    fill="#4FD1C5"
+                    fill={theme.primary}
                     opacity="0.5"
                     filter="url(#glow)"
                   />
                   {/* Botão Principal Sólido */}
                   <Path
                     d="M 0 0 C 12 0, 18 34, 30 34 L 70 34 C 82 34, 88 0, 100 0 Z"
-                    fill="#4FD1C5"
+                    fill={theme.primary}
                   />
                 </G>
               </Svg>
               {/* Ícone */}
               <View style={{ position: 'absolute', top: 25 }}>
-                <Ionicons name="chevron-down" size={20} color="#1A202C" />
+                <Ionicons name="chevron-down" size={20} color={theme.background} />
               </View>
             </View>
           </TouchableOpacity>
@@ -186,9 +187,9 @@ export default MathToolbar;
 
 const localStyles = StyleSheet.create({
   sectionTitle: {
-    color: '#A0AEC0',
-    fontSize: 11,
-    fontWeight: '700',
+    color: theme.textMuted,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
     letterSpacing: 1.2,
     marginBottom: 10,
     marginTop: 4,
@@ -201,45 +202,45 @@ const localStyles = StyleSheet.create({
   },
   button: {
     width: '31%',
-    backgroundColor: '#323E4F', /* Fundo mais claro para destacar */
+    backgroundColor: theme.backgroundButton,
     borderRadius: 12,
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#4A5568',
+    borderColor: theme.backgroundTertiary,
     paddingVertical: 14,
-    marginBottom: 10, /* Substitui o gap */
+    marginBottom: 10,
   },
   buttonIcon: {
-    fontSize: 28, /* Maior, igual ao original */
-    fontWeight: '700',
+    fontSize: theme.fontSize.title,
+    fontWeight: theme.fontWeight.bold,
     marginBottom: 2,
     textAlign: 'center',
     width: '100%',
   },
   buttonLabel: {
-    color: '#E2E8F0', /* Branco/cinza bem claro, igual ao original */
-    fontSize: 12, /* Maior */
-    fontWeight: '500',
+    color: theme.textSecondary,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
     textAlign: 'center',
     width: '100%',
   },
   advancedBtn: {
-    backgroundColor: '#6B46C1',
+    backgroundColor: theme.accentPurple,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 4,
   },
   advancedBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.bold,
   },
   advancedBtnSub: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
+    fontSize: theme.fontSize.sm,
     marginTop: 2,
   },
 });

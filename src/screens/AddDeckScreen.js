@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Button } from 'rea
 import { getAppData, saveAppData } from '../services/storage';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 export const AddDeckScreen = ({ navigation }) => {
   const [name, setName] = useState('');
@@ -38,12 +39,12 @@ export const AddDeckScreen = ({ navigation }) => {
       <TextInput
         style={styles.formInput}
         placeholder="Ex: Concurso XYZ"
-        placeholderTextColor="#A0AEC0"
+        placeholderTextColor={theme.textMuted}
         value={name}
         onChangeText={setName}
       />
        <View style={{marginTop: 20}}>
-          <Button title="Salvar Deck" onPress={handleSave} color="#4FD1C5" />
+          <Button title="Salvar Deck" onPress={handleSave} color={theme.primary} />
        </View>
        <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
     </View>

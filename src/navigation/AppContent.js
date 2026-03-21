@@ -10,6 +10,7 @@ import { DrawerNavigator } from './DrawerNavigator';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { LojaScreen } from '../screens/LojaScreen';
 import { FadeInView } from '../components/ui/FadeInView';
+import theme from '../styles/theme';
 
 const Tab = createBottomTabNavigator();
 
@@ -33,7 +34,7 @@ export function AppContent() {
 
   return (
     <NavigationContainer theme={AppTheme}>
-      <StatusBar barStyle="light-content" backgroundColor="#1A202C" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.background} />
       <Tab.Navigator
         screenOptions={({ route, navigation }) => ({
           tabBarButton: (props) => (
@@ -55,17 +56,17 @@ export function AppContent() {
             else if (route.name === 'Loja') iconName = focused ? 'cart' : 'cart-outline';
             return <Ionicons name={iconName} size={size} color={color} />;
           },
-          tabBarActiveTintColor: '#4FD1C5',
-          tabBarInactiveTintColor: '#A0AEC0',
+          tabBarActiveTintColor: theme.primary,
+          tabBarInactiveTintColor: theme.textMuted,
           tabBarStyle: {
-            backgroundColor: '#2D3748',
+            backgroundColor: theme.backgroundSecondary,
             borderTopWidth: 0,
             height: 60 + insets.bottom,
             paddingBottom: insets.bottom > 0 ? insets.bottom : 5, // Lógica ajustada
             paddingTop: 5,
           },
           tabBarLabelStyle: {
-            fontWeight: 'bold' // Adicionado
+            fontWeight: theme.fontWeight.bold
           },
           headerShown: false,
         })}
@@ -124,7 +125,7 @@ export function AppContent() {
           })}
         >
           {(props) => (
-            <View style={{ flex: 1, backgroundColor: '#1A202C' }}>
+            <View style={{ flex: 1, backgroundColor: theme.background }}>
               <FadeInView key={props.route.params?.resetTs || 'init'}>
                 <DrawerNavigator />
               </FadeInView>

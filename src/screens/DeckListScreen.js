@@ -10,6 +10,7 @@ import { CustomBottomModal } from '../components/ui/CustomBottomModal';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 export const DeckListScreen = ({ navigation }) => {
   const [decks, setDecks] = useState([]);
@@ -438,7 +439,7 @@ export const DeckListScreen = ({ navigation }) => {
                 <Ionicons 
                   name={selectedDecks.has(item.id) ? "checkbox" : "square-outline"} 
                   size={24} 
-                  color={selectedDecks.has(item.id) ? "#4FD1C5" : "#A0AEC0"} 
+                  color={selectedDecks.has(item.id) ? theme.primary : theme.textMuted}
                 />
               </View>
             )}
@@ -449,9 +450,9 @@ export const DeckListScreen = ({ navigation }) => {
             {!multiSelectMode && (
               allowDefaultDeckEditing ? (
                 <View style={styles.subjectRightContainer}>
-                    <View style={[styles.progressContainer, {borderColor: calculateProgress(item.subjects) === 100 ? '#22C55E' : '#4FD1C5'}]}><Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text></View>
+                    <View style={[styles.progressContainer, {borderColor: calculateProgress(item.subjects) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text></View>
                     <TouchableOpacity onPress={() => handleOptionsPress(item)} style={styles.subjectOptionsButton}>
-                        <Ionicons name="ellipsis-vertical" size={20} color="#A0AEC0" />
+                        <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
                     </TouchableOpacity>
                 </View>
               ) : (
@@ -480,7 +481,7 @@ export const DeckListScreen = ({ navigation }) => {
               <TextInput
                 style={styles.searchInput}
                 placeholder="Pesquisar em meus decks..."
-                placeholderTextColor="#A0AEC0"
+                placeholderTextColor={theme.textMuted}
                 value={searchTerm}
                 onChangeText={setSearchTerm}
                 onPressIn={() => {
@@ -518,12 +519,12 @@ export const DeckListScreen = ({ navigation }) => {
                 <Ionicons 
                   name={selectedDecks.has(item.id) ? "checkbox" : "square-outline"} 
                   size={24} 
-                  color={selectedDecks.has(item.id) ? "#4FD1C5" : "#A0AEC0"} 
+                  color={selectedDecks.has(item.id) ? theme.primary : theme.textMuted}
                 />
               </View>
             )}
             {!multiSelectMode && (
-              <Ionicons name="person-outline" size={16} color="#4FD1C5" style={{marginRight: 8}} />
+              <Ionicons name="person-outline" size={16} color={theme.primary} style={{marginRight: 8}} />
             )}
             <View style={styles.itemTextContainer}>
                 <Text style={styles.itemTitle}>{item.name || 'Deck sem nome'}</Text>
@@ -531,9 +532,9 @@ export const DeckListScreen = ({ navigation }) => {
             </View>
             {!multiSelectMode && (
               <View style={styles.subjectRightContainer}>
-                  <View style={[styles.progressContainer, {borderColor: calculateProgress(item.subjects) === 100 ? '#22C55E' : '#4FD1C5'}]}><Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text></View>
+                  <View style={[styles.progressContainer, {borderColor: calculateProgress(item.subjects) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text></View>
                   <TouchableOpacity onPress={() => handleOptionsPress(item)} style={styles.subjectOptionsButton}>
-                      <Ionicons name="ellipsis-vertical" size={20} color="#A0AEC0" />
+                      <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
                   </TouchableOpacity>
               </View>
             )}
@@ -559,9 +560,9 @@ export const DeckListScreen = ({ navigation }) => {
                      borderRadius: 12,
                      right: 26, // Centering adjustment (Assuming Fab is 56 right 20 -> Center at 48. This center at 26+22=48)
                      borderWidth: 2,
-                     borderColor: '#4FD1C5',
+                     borderColor: theme.primary,
                      // Hollow Logic: Filled if ANY selected
-                     backgroundColor: selectedDecks.size > 0 ? '#4FD1C5' : 'transparent',
+                     backgroundColor: selectedDecks.size > 0 ? theme.primary : 'transparent',
                  }
              ]}
              onPress={handleSelectAll}
@@ -569,15 +570,15 @@ export const DeckListScreen = ({ navigation }) => {
              <Ionicons 
                 name="checkmark-done-outline" 
                 size={22} 
-                color={selectedDecks.size > 0 ? "white" : "#4FD1C5"} 
+                color={selectedDecks.size > 0 ? theme.textPrimary : theme.primary}
              />
            </TouchableOpacity>
 
            <TouchableOpacity
                style={[
-                   styles.fab, 
-                   { backgroundColor: '#EF4444' }, 
-                   selectedDecks.size === 0 && { opacity: 0.5 } 
+                   styles.fab,
+                   { backgroundColor: theme.danger },
+                   selectedDecks.size === 0 && { opacity: 0.5 }
                 ]}
                activeOpacity={selectedDecks.size === 0 ? 1 : 0.7} 
                onPress={selectedDecks.size > 0 ? deleteSelectedDecks : null} 
@@ -619,7 +620,7 @@ export const DeckListScreen = ({ navigation }) => {
                   <Ionicons name="create-outline" size={22} color="#FFFFFF" />
                   <Text style={styles.modalButtonText}>Editar Nome</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4A5568' }]} onPress={() => {
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.backgroundTertiary }]} onPress={() => {
                     setModalVisible(false);
                     setMultiSelectMode(true);
                     toggleDeckSelection(selectedDeck.id);
@@ -627,11 +628,11 @@ export const DeckListScreen = ({ navigation }) => {
                     <Ionicons name="checkbox-outline" size={22} color="white" />
                     <Text style={styles.modalButtonText}>Selecionar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, {backgroundColor: '#EF4444'}]} onPress={performDelete}>
+                <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.danger}]} onPress={performDelete}>
                   <Ionicons name="trash-outline" size={22} color="#FFFFFF" />
                   <Text style={styles.modalButtonText}>Apagar Deck</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, {backgroundColor: '#4A5568', marginTop: 20}]} onPress={() => setModalVisible(false)}>
+                <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.backgroundTertiary, marginTop: 20}]} onPress={() => setModalVisible(false)}>
                   <Text style={styles.modalButtonText}>Cancelar</Text>
                 </TouchableOpacity>
               </View>
@@ -654,11 +655,11 @@ export const DeckListScreen = ({ navigation }) => {
                   <Ionicons name="school-outline" size={22} color="#FFFFFF" />
                   <Text style={styles.modalButtonText}>Estudar (SRS)</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4A5568' }]} onPress={() => startStudy(true)}>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.backgroundTertiary }]} onPress={() => startStudy(true)}>
                   <Ionicons name="refresh-outline" size={22} color="#FFFFFF" />
                   <Text style={styles.modalButtonText}>Revisão Geral</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4A5568', marginTop: 8 }]} onPress={() => setStudyModeModal({ visible: false, deck: null })}>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.backgroundTertiary, marginTop: 8 }]} onPress={() => setStudyModeModal({ visible: false, deck: null })}>
                   <Text style={styles.modalButtonText}>Cancelar</Text>
                 </TouchableOpacity>
               </View>

@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, TouchableWithoutFeedback } from 'react-native';
 import styles from '../../styles/globalStyles';
+import theme from '../../styles/theme';
 
 export const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
   if (!visible) return null;
-  
+
   return (
     <Modal transparent={true} visible={visible} animationType="fade" onRequestClose={onClose}>
         <TouchableWithoutFeedback onPress={onClose}>
@@ -15,13 +16,13 @@ export const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
                         <Text style={styles.alertMessage}>{message}</Text>
                         <View style={[styles.alertButtonContainer, { flexDirection: 'column', alignItems: 'stretch' }]}>
                             {buttons.map((btn, index) => (
-                                <TouchableOpacity 
-                                    key={index} 
+                                <TouchableOpacity
+                                    key={index}
                                     style={[
-                                        styles.alertButton, 
-                                        { marginBottom: 10, width: '100%', marginHorizontal: 0 }, // Full width, spacing
-                                        btn.style === 'destructive' ? {backgroundColor: '#EF4444'} : (btn.style === 'cancel' ? styles.alertCancelButton : styles.alertConfirmButton)
-                                    ]} 
+                                        styles.alertButton,
+                                        { marginBottom: 10, width: '100%', marginHorizontal: 0 },
+                                        btn.style === 'destructive' ? { backgroundColor: theme.danger } : (btn.style === 'cancel' ? styles.alertCancelButton : styles.alertConfirmButton)
+                                    ]}
                                     onPress={btn.onPress}
                                 >
                                     <Text style={styles.alertButtonText}>{btn.text}</Text>

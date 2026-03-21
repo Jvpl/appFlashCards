@@ -9,6 +9,7 @@ import { CustomBottomModal } from '../components/ui/CustomBottomModal';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 export const SubjectListScreen = ({ route, navigation }) => {
   const { deckId, deckName, preloadedSubjects } = route.params;
@@ -262,11 +263,11 @@ export const SubjectListScreen = ({ route, navigation }) => {
           <Text 
             numberOfLines={1} 
             ellipsizeMode="tail" 
-            style={{ 
-              color: 'white', 
-              fontSize: 20, 
-              fontWeight: 'bold', 
-              maxWidth: screenWidth - 140 
+            style={{
+              color: 'white',
+              fontSize: theme.fontSize.lg,
+              fontWeight: theme.fontWeight.bold,
+              maxWidth: screenWidth - 140
             }}
           >
             {isSelectionMode ? `${selectedSubjects.length} selecionado(s)` : deckName}
@@ -304,12 +305,12 @@ export const SubjectListScreen = ({ route, navigation }) => {
                     <View key={item} style={{ 
                         flexDirection: 'row', 
                         alignItems: 'center', 
-                        backgroundColor: '#2D3748', 
-                        padding: 15, 
-                        borderRadius: 12, 
-                        marginBottom: 15, 
-                        borderLeftWidth: 4, 
-                        borderLeftColor: '#4A5568' 
+                        backgroundColor: theme.backgroundSecondary,
+                        padding: 15,
+                        borderRadius: 12,
+                        marginBottom: 15,
+                        borderLeftWidth: 4,
+                        borderLeftColor: theme.backgroundTertiary
                     }}>
                         <SkeletonItem style={{ width: 24, height: 24, borderRadius: 12, marginRight: 15 }} />
                         <View style={{ flex: 1 }}>
@@ -363,11 +364,11 @@ export const SubjectListScreen = ({ route, navigation }) => {
                 <Text style={styles.itemSubtitle}>{item.flashcards.length} flashcard(s)</Text>
             </View>
             <View style={styles.subjectRightContainer}>
-                {!isSelectionMode && <View style={[styles.progressContainer, {borderColor: calculateProgress(item.flashcards) === 100 ? '#22C55E' : '#4FD1C5'}]}><Text style={styles.progressText}>{calculateProgress(item.flashcards)}%</Text></View>}
+                {!isSelectionMode && <View style={[styles.progressContainer, {borderColor: calculateProgress(item.flashcards) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.flashcards)}%</Text></View>}
                 {/* Show ellipsis for default subjects when editing is allowed and NOT in selection mode */}
                 {allowDefaultDeckEditing && !isSelectionMode && (
                   <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleOptionsPress(item); }} style={{marginLeft: 10}}>
-                    <Ionicons name="ellipsis-vertical" size={20} color="#A0AEC0" />
+                    <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
                   </TouchableOpacity>
                 )}
             </View>
@@ -389,7 +390,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
               <TextInput
                 style={styles.searchInput}
                 placeholder="Pesquisar em minhas matérias..."
-                placeholderTextColor="#A0AEC0"
+                placeholderTextColor={theme.textMuted}
                 value={searchTerm}
                 onChangeText={setSearchTerm}
                 onPressIn={() => {
@@ -423,19 +424,19 @@ export const SubjectListScreen = ({ route, navigation }) => {
             }}
           >
             {isSelectionMode ? (
-              <Ionicons name={selectedSubjects.includes(item.id) ? 'checkbox' : 'square-outline'} size={24} color="#4FD1C5" style={{marginRight: 15}} />
+              <Ionicons name={selectedSubjects.includes(item.id) ? 'checkbox' : 'square-outline'} size={24} color={theme.primary} style={{marginRight: 15}}/>
             ) : (
-              <Ionicons name="person-outline" size={16} color="#4FD1C5" style={{marginRight: 8}} />
+              <Ionicons name="person-outline" size={16} color={theme.primary} style={{marginRight: 8}} />
             )}
             <View style={styles.itemTextContainer}>
                 <Text style={styles.itemTitle}>{item.name}</Text>
                 <Text style={styles.itemSubtitle}>{item.flashcards.length} flashcard(s)</Text>
             </View>
             <View style={styles.subjectRightContainer}>
-                {!isSelectionMode && <View style={[styles.progressContainer, {borderColor: calculateProgress(item.flashcards) === 100 ? '#22C55E' : '#4FD1C5'}]}><Text style={styles.progressText}>{calculateProgress(item.flashcards)}%</Text></View>}
+                {!isSelectionMode && <View style={[styles.progressContainer, {borderColor: calculateProgress(item.flashcards) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.flashcards)}%</Text></View>}
                 {!isSelectionMode && (
                   <TouchableOpacity onPress={() => handleOptionsPress(item)} style={styles.subjectOptionsButton}>
-                      <Ionicons name="ellipsis-vertical" size={20} color="#A0AEC0" />
+                      <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
                   </TouchableOpacity>
                 )}
             </View>
@@ -459,9 +460,9 @@ export const SubjectListScreen = ({ route, navigation }) => {
                      borderRadius: 12,
                      right: 26, // Centering adjustment
                      borderWidth: 2,
-                     borderColor: '#4FD1C5',
+                     borderColor: theme.primary,
                      // Hollow Logic: Filled if ANY selected
-                     backgroundColor: selectedSubjects.length > 0 ? '#4FD1C5' : 'transparent',
+                     backgroundColor: selectedSubjects.length > 0 ? theme.primary : 'transparent',
                  }
              ]}
              onPress={handleSelectAll}
@@ -469,15 +470,15 @@ export const SubjectListScreen = ({ route, navigation }) => {
              <Ionicons 
                 name="checkmark-done-outline" 
                 size={22} 
-                color={selectedSubjects.length > 0 ? "white" : "#4FD1C5"} 
+                color={selectedSubjects.length > 0 ? theme.textPrimary : theme.primary}
              />
            </TouchableOpacity>
 
            <TouchableOpacity 
                style={[
-                   styles.fab, 
-                   { backgroundColor: '#EF4444' }, // Always Red
-                   selectedSubjects.length === 0 && { opacity: 0.5 } 
+                   styles.fab,
+                   { backgroundColor: theme.danger },
+                   selectedSubjects.length === 0 && { opacity: 0.5 }
                 ]}
                activeOpacity={selectedSubjects.length === 0 ? 1 : 0.7}
                onPress={selectedSubjects.length > 0 ? handleBulkDelete : null}
@@ -502,7 +503,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
                   <Ionicons name="create-outline" size={22} color="#FFFFFF" />
                   <Text style={styles.modalButtonText}>Editar Nome</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#4A5568' }]} onPress={() => {
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.backgroundTertiary }]} onPress={() => {
                     setModalVisible(false);
                     setSelectionMode(true);
                     setSelectedSubjects([selectedSubject.id]);
@@ -510,11 +511,11 @@ export const SubjectListScreen = ({ route, navigation }) => {
                     <Ionicons name="checkbox-outline" size={22} color="white" />
                     <Text style={styles.modalButtonText}>Selecionar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, {backgroundColor: '#EF4444'}]} onPress={performDelete}>
+                <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.danger}]} onPress={performDelete}>
                   <Ionicons name="trash-outline" size={22} color="#FFFFFF" />
                   <Text style={styles.modalButtonText}>Apagar Matéria</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, {backgroundColor: '#4A5568', marginTop: 20}]} onPress={() => setModalVisible(false)}>
+                <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.backgroundTertiary, marginTop: 20}]} onPress={() => setModalVisible(false)}>
                   <Text style={styles.modalButtonText}>Cancelar</Text>
                 </TouchableOpacity>
               </View>

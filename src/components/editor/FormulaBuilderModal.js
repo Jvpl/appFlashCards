@@ -13,6 +13,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { previewHtml } from './editorTemplates';
+import theme from '../../styles/theme';
 
 // Tap háptico curto (12 ms) — feedback tátil nas teclas
 const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
@@ -1063,11 +1064,11 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
                         // Ajustes específicos para símbolos individuais
                         let customStyle = {};
                         if (d === '∝') {
-                          customStyle = { fontSize: 21 }; // Proporcional precisa ser um pouco maior
+                          customStyle = { fontSize: theme.fontSize.xl }; // Proporcional precisa ser um pouco maior
                         } else if (d === '→') {
-                          customStyle = { fontSize: 19, marginTop: -5 }; // Seta centralizada
+                          customStyle = { fontSize: theme.fontSize.lg, marginTop: -5 }; // Seta centralizada
                         } else if (smallSymbols.includes(d)) {
-                          customStyle = { fontSize: 19 }; // Outros símbolos pequenos
+                          customStyle = { fontSize: theme.fontSize.lg }; // Outros símbolos pequenos
                         }
                         return (
                           <TouchableOpacity key={d} onPress={() => { tap(); insert(l); }} style={s.symKeyBtn}>
@@ -1133,7 +1134,7 @@ const s = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#1A2535',
+    backgroundColor: theme.backgroundEditor,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     paddingHorizontal: 14,
@@ -1148,9 +1149,9 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    color: '#E2E8F0',
-    fontSize: 18,
-    fontWeight: '700',
+    color: theme.textSecondary,
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.bold,
     flex: 1,
     textAlign: 'center',
   },
@@ -1158,60 +1159,60 @@ const s = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 10,
     borderRadius: 8,
-    backgroundColor: 'rgba(139,92,246,0.15)',
+    backgroundColor: theme.accentPurpleBg,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(139,92,246,0.50)',
+    borderColor: theme.accentPurpleBorder,
   },
   clearTxt: {
-    color: '#E2E8F0',
-    fontSize: 12,
-    fontWeight: '600',
+    color: theme.textSecondary,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
   },
   // Preview — altura dinâmica via onMessage (previewH state)
   previewBox: {
-    backgroundColor: '#141D2B',
+    backgroundColor: theme.backgroundEditorPreview,
     borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#2D3748',
+    borderColor: theme.backgroundSecondary,
   },
   wv: { flex: 1, backgroundColor: 'transparent' },
   scroll: { flexShrink: 1 },
   // Blocos
   sectionLabel: {
-    color: '#4A5568',
-    fontSize: 10,
-    fontWeight: '700',
+    color: theme.backgroundTertiary,
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.bold,
     letterSpacing: 1.2,
     marginBottom: 5,
   },
   structRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 10 },
   structBtn: {
-    backgroundColor: '#253045',
+    backgroundColor: theme.backgroundEditorKey,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#3D4F6A',
+    borderColor: theme.borderEditor,
   },
-  structTxt: { color: '#E2E8F0', fontSize: 15, fontWeight: '600' },
+  structTxt: { color: theme.textSecondary, fontSize: theme.fontSize.bodyLg, fontWeight: theme.fontWeight.semibold },
   // Abas
   tabRow: { flexDirection: 'row', gap: 5, marginBottom: 8 },
   tab: {
     flex: 1,
     paddingVertical: 7,
     borderRadius: 8,
-    backgroundColor: '#253045',
+    backgroundColor: theme.backgroundEditorKey,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#3D4F6A',
+    borderColor: theme.borderEditor,
   },
-  tabActive: { backgroundColor: 'rgba(79,209,197,0.15)', borderColor: '#4FD1C5' },
-  tabTxt: { color: '#718096', fontSize: 13, fontWeight: '600' },
-  tabTxtActive: { color: '#4FD1C5' },
+  tabActive: { backgroundColor: theme.primaryTransparent15, borderColor: theme.primary },
+  tabTxt: { color: theme.textDisabled, fontSize: theme.fontSize.caption, fontWeight: theme.fontWeight.semibold },
+  tabTxtActive: { color: theme.primary },
   // Grade unificada — num, abc e sym usam o mesmo layout de linhas
   grid: { gap: 5, marginBottom: 8 },
   gridRow: { flexDirection: 'row', gap: 5 },
@@ -1221,58 +1222,58 @@ const s = StyleSheet.create({
   // Todas as linhas têm o mesmo tamanho de tecla independente da quantidade
   qwertyKey: {
     height: 46,
-    backgroundColor: '#253045',
+    backgroundColor: theme.backgroundEditorKey,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#3D4F6A',
+    borderColor: theme.borderEditor,
   },
   // Letra maiúscula no canto superior direito — indica função de long-press
   qwertySecondary: {
     position: 'absolute',
     top: 3,
     right: 4,
-    color: '#4FD1C5',
-    fontSize: 9,
-    fontWeight: '700',
+    color: theme.primary,
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.bold,
     opacity: 0.7,
   },
   keyBtn: {
     flex: 1,
     height: 46,
-    backgroundColor: '#253045',
+    backgroundColor: theme.backgroundEditorKey,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#3D4F6A',
+    borderColor: theme.borderEditor,
   },
-  keyTxt: { color: '#E2E8F0', fontSize: 17, fontWeight: '600' },
+  keyTxt: { color: theme.textSecondary, fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.semibold },
   // Tecla compacta para ^ e _ na última linha do num (flex menor → 0 igual ao padrão de 5 botões)
   keyBtnSm: {
     flex: 0.5,
     height: 46,
-    backgroundColor: '#253045',
+    backgroundColor: theme.backgroundEditorKey,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#3D4F6A',
+    borderColor: theme.borderEditor,
   },
   // Tecla compacta do painel de símbolos (5 linhas → height menor para igualar altura dos outros painéis)
   // Cálculo: 4 linhas × 46px + 3 gaps × 5px = 199px → 5 linhas × 36px + 4 gaps × 5px = 200px ≈ igual
   symKeyBtn: {
     flex: 1,
     height: 36,
-    backgroundColor: '#253045',
+    backgroundColor: theme.backgroundEditorKey,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#3D4F6A',
+    borderColor: theme.borderEditor,
   },
-  symTxt: { color: '#E2E8F0', fontSize: 16 },
+  symTxt: { color: theme.textSecondary, fontSize: theme.fontSize.base },
   // Navegação (abaixo do teclado)
   navRow: {
     flexDirection: 'row',
@@ -1283,38 +1284,38 @@ const s = StyleSheet.create({
   navBtn: {
     flex: 1,
     height: 44,
-    backgroundColor: '#253045',
+    backgroundColor: theme.backgroundEditorKey,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#3D4F6A',
+    borderColor: theme.borderEditor,
   },
-  navHL: { backgroundColor: 'rgba(79,209,197,0.12)', borderColor: '#4FD1C5' },
-  navDanger: { backgroundColor: '#3B1F1F', borderColor: '#7B2D2D' },
-  navTxt: { color: '#CBD5E0', fontSize: 13, fontWeight: '600' },
-  navHLTxt: { color: '#4FD1C5' },
+  navHL: { backgroundColor: theme.primaryTransparent15, borderColor: theme.primary },
+  navDanger: { backgroundColor: theme.dangerKeyBg, borderColor: theme.dangerKeyBorder },
+  navTxt: { color: theme.textNav, fontSize: theme.fontSize.caption, fontWeight: theme.fontWeight.semibold },
+  navHLTxt: { color: theme.primary },
   navHint: {
-    color: '#4A5568',
-    fontSize: 10,
+    color: theme.backgroundTertiary,
+    fontSize: theme.fontSize.xs,
     textAlign: 'center',
     marginBottom: 8,
   },
   // Ações
   actions: { gap: 8, marginTop: 6 },
   btnConfirm: {
-    backgroundColor: '#4FD1C5',
+    backgroundColor: theme.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
   },
   btnDisabled: { opacity: 0.45 },
-  btnConfirmTxt: { color: '#1A202C', fontSize: 16, fontWeight: '700' },
+  btnConfirmTxt: { color: theme.background, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
   btnCancel: {
-    backgroundColor: '#253045',
+    backgroundColor: theme.backgroundEditorKey,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
   },
-  btnCancelTxt: { color: '#A0AEC0', fontSize: 15, fontWeight: '600' },
+  btnCancelTxt: { color: theme.textMuted, fontSize: theme.fontSize.bodyLg, fontWeight: theme.fontWeight.semibold },
 });

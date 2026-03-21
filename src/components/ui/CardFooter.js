@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LEVEL_CONFIG } from '../../services/srs';
 import styles from '../../styles/globalStyles';
+import theme from '../../styles/theme';
 
 export const CardFooter = ({level}) => {
     const currentLevel = level || 0;
@@ -30,7 +31,7 @@ export const CardFooter = ({level}) => {
                 <Text
                     style={[
                         styles.levelName,
-                        {color: LEVEL_CONFIG[currentLevel].color, fontWeight: 'bold'}
+                        {color: LEVEL_CONFIG[currentLevel].color, fontWeight: theme.fontWeight.bold}
                     ]}
                 >
                     {LEVEL_CONFIG[currentLevel].name}

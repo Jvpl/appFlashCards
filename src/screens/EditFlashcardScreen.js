@@ -13,6 +13,7 @@ import { SegmentedCounter } from '../components/editor/SegmentedCounter';
 import { CollapsibleKeypad } from '../components/editor/CollapsibleKeypad';
 import { validateInput, getButtonStates } from '../utils/inputValidation';
 import styles from '../styles/globalStyles';
+import theme from '../styles/theme';
 
 export const EditFlashcardScreen = ({ route, navigation }) => {
     const { deckId, subjectId, cardId } = route.params;
@@ -144,11 +145,11 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
     // Componente: Contador de caracteres do editor (texto livre)
     const EditorCharCounter = ({ count, max }) => {
         const percentage = (count / max) * 100;
-        const color = percentage >= 95 ? '#EF4444' : percentage >= 80 ? '#F59E0B' : '#718096';
+        const color = percentage >= 95 ? theme.danger : percentage >= 80 ? theme.warning : theme.textDisabled;
 
         return (
-            <View style={{ alignSelf: 'flex-end', marginTop: 3, backgroundColor: '#2D3748', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: percentage >= 95 ? '#EF444440' : percentage >= 80 ? '#F59E0B30' : '#4A5568' }}>
-                <Text style={{ fontSize: 11, fontWeight: '600', color, fontVariant: ['tabular-nums'] }}>
+            <View style={{ alignSelf: 'flex-end', marginTop: 3, backgroundColor: theme.backgroundSecondary, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: percentage >= 95 ? '#EF444440' : percentage >= 80 ? '#F59E0B30' : theme.backgroundTertiary }}>
+                <Text style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color, fontVariant: ['tabular-nums'] }}>
                     {count}/{max}
                 </Text>
             </View>
@@ -346,7 +347,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
         navigation.goBack();
     };
 
-    if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color="#4A5568" /></View>;
+    if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={theme.backgroundTertiary} /></View>;
 
     return (
         <View style={styles.baseContainer}>
@@ -373,7 +374,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                         </TouchableWithoutFeedback>
 
                         <View style={styles.inputGroup}>
-                            <View renderToHardwareTextureAndroid={true} style={{ borderWidth: 2, borderColor: activeEditor === 'question' ? '#4db6ac' : '#444', borderRadius: 8, height: 200, padding: 4, backgroundColor: '#2D3748', overflow: 'hidden' }}>
+                            <View renderToHardwareTextureAndroid={true} style={{ borderWidth: 2, borderColor: activeEditor === 'question' ? '#4db6ac' : '#444', borderRadius: 8, height: 200, padding: 4, backgroundColor: theme.backgroundSecondary, overflow: 'hidden' }}>
                                 <IsolatedMathEditor
                                     editorRef={questionEditorRef}
                                     initialValue={initialQuestion}
@@ -392,7 +393,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                         </TouchableWithoutFeedback>
 
                         <View style={styles.inputGroup}>
-                            <View renderToHardwareTextureAndroid={true} style={{ borderWidth: 2, borderColor: activeEditor === 'answer' ? '#4db6ac' : '#444', borderRadius: 8, height: 200, padding: 4, backgroundColor: '#2D3748', overflow: 'hidden' }}>
+                            <View renderToHardwareTextureAndroid={true} style={{ borderWidth: 2, borderColor: activeEditor === 'answer' ? '#4db6ac' : '#444', borderRadius: 8, height: 200, padding: 4, backgroundColor: theme.backgroundSecondary, overflow: 'hidden' }}>
                                 <IsolatedMathEditor
                                     editorRef={answerEditorRef}
                                     initialValue={initialAnswer}
@@ -414,7 +415,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                 <View style={styles.saveButtonContainer}>
                                     <TouchableOpacity
                                         style={{
-                                            backgroundColor: '#4FD1C5',
+                                            backgroundColor: theme.primary,
                                             borderRadius: 4,
                                             paddingVertical: 8,
                                             paddingHorizontal: 16,
@@ -423,7 +424,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                         }}
                                         onPress={(e) => { e.stopPropagation(); handleSave(); }}
                                     >
-                                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>SALVAR ALTERAÇÕES</Text>
+                                        <Text style={{ color: theme.textPrimary, fontWeight: theme.fontWeight.bold, fontSize: theme.fontSize.body }}>SALVAR ALTERAÇÕES</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -463,7 +464,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                         }}
                                         style={styles.helpIcon}
                                     >
-                                        <Ionicons name="help-circle-outline" size={24} color="#4FD1C5" />
+                                        <Ionicons name="help-circle-outline" size={24} color={theme.primary} />
                                     </TouchableOpacity>
                                 </View>
 
@@ -491,7 +492,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                         }}
                                         onFocus={() => setFocusedInput(1)}
                                         placeholder="Toque para editar..."
-                                        placeholderTextColor="#718096"
+                                        placeholderTextColor={theme.textDisabled}
                                         autoComplete="off"
                                         importantForAutofill="no"
                                     />
@@ -524,7 +525,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                                 }}
                                                 onFocus={() => setFocusedInput(2)}
                                                 placeholder="Toque para editar..."
-                                                placeholderTextColor="#718096"
+                                                placeholderTextColor={theme.textDisabled}
                                                 autoComplete="off"
                                                 importantForAutofill="no"
                                             />
@@ -672,20 +673,20 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                     padding: 20
                 }}>
                     <View style={{
-                        backgroundColor: '#1A202C',
+                        backgroundColor: theme.background,
                         borderRadius: 12,
                         padding: 24,
                         width: '90%',
                         maxWidth: 500,
                         borderWidth: 1,
-                        borderColor: '#2D3748'
+                        borderColor: theme.backgroundSecondary
                     }}>
                         {/* Header */}
-                        <View style={{ borderBottomWidth: 1, borderBottomColor: '#2D3748', paddingBottom: 12, marginBottom: 16 }}>
+                        <View style={{ borderBottomWidth: 1, borderBottomColor: theme.backgroundSecondary, paddingBottom: 12, marginBottom: 16 }}>
                             <Text style={{
-                                fontSize: 20,
-                                fontWeight: 'bold',
-                                color: '#4FD1C5',
+                                fontSize: theme.fontSize.lg,
+                                fontWeight: theme.fontWeight.bold,
+                                color: theme.primary,
                                 textAlign: 'center'
                             }}>Regras de Edição</Text>
                         </View>
@@ -696,71 +697,71 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                 // Página 1: Regras Básicas
                                 <View>
                                     <Text style={{
-                                        fontSize: 16,
-                                        fontWeight: 'bold',
-                                        color: '#E2E8F0',
+                                        fontSize: theme.fontSize.base,
+                                        fontWeight: theme.fontWeight.bold,
+                                        color: theme.textSecondary,
                                         marginBottom: 8
                                     }}>🔢 NÚMEROS</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Sem letras: até 10 dígitos</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Com letras: até 3 dígitos</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Sem letras: até 10 dígitos</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Com letras: até 3 dígitos</Text>
 
                                     <Text style={{
-                                        fontSize: 16,
-                                        fontWeight: 'bold',
-                                        color: '#E2E8F0',
+                                        fontSize: theme.fontSize.base,
+                                        fontWeight: theme.fontWeight.bold,
+                                        color: theme.textSecondary,
                                         marginTop: 16,
                                         marginBottom: 8
                                     }}>🔤 LETRAS</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 letras por entrada</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Número antes de letra precisa de símbolo</Text>
-                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  Exemplo: 1+a ✓  |  1a ✗</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 letras por entrada</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Número antes de letra precisa de símbolo</Text>
+                                    <Text style={{ fontSize: theme.fontSize.caption, color: theme.textMuted, marginLeft: 8 }}>  Exemplo: 1+a ✓  |  1a ✗</Text>
 
                                     <Text style={{
-                                        fontSize: 16,
-                                        fontWeight: 'bold',
-                                        color: '#E2E8F0',
+                                        fontSize: theme.fontSize.base,
+                                        fontWeight: theme.fontWeight.bold,
+                                        color: theme.textSecondary,
                                         marginTop: 16,
                                         marginBottom: 8
                                     }}>➕ SÍMBOLOS BÁSICOS</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 de cada tipo (+, -, ×, ÷, ^, _, (, ))</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Sem símbolos consecutivos</Text>
-                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  Exemplo: 2++3 ✗</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 de cada tipo (+, -, ×, ÷, ^, _, (, ))</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Sem símbolos consecutivos</Text>
+                                    <Text style={{ fontSize: theme.fontSize.caption, color: theme.textMuted, marginLeft: 8 }}>  Exemplo: 2++3 ✗</Text>
                                 </View>
                             ) : (
                                 // Página 2: Regras Avançadas
                                 <View>
                                     <Text style={{
-                                        fontSize: 16,
-                                        fontWeight: 'bold',
-                                        color: '#E2E8F0',
+                                        fontSize: theme.fontSize.base,
+                                        fontWeight: theme.fontWeight.bold,
+                                        color: theme.textSecondary,
                                         marginBottom: 8
                                     }}>🎯 INÍCIO DA ENTRADA</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Pode começar com: +, -, (, )</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com: vírgula, ponto</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Pode começar com: +, -, (, )</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com: vírgula, ponto</Text>
 
                                     <Text style={{
-                                        fontSize: 16,
-                                        fontWeight: 'bold',
-                                        color: '#E2E8F0',
+                                        fontSize: theme.fontSize.base,
+                                        fontWeight: theme.fontWeight.bold,
+                                        color: theme.textSecondary,
                                         marginTop: 16,
                                         marginBottom: 8
                                     }}>🔣 SEPARADORES (vírgula e ponto)</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 separadores no total</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com separador</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Não pode terminar com separador</Text>
-                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8, marginTop: 4 }}>  Exemplos:</Text>
-                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  3,14 ✓  |  0,5 ✓</Text>
-                                    <Text style={{ fontSize: 13, color: '#A0AEC0', marginLeft: 8 }}>  ,5 ✗  |  5, ✗  |  3,1,4 ✗</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Máximo 2 separadores no total</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Não pode começar com separador</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Não pode terminar com separador</Text>
+                                    <Text style={{ fontSize: theme.fontSize.caption, color: theme.textMuted, marginLeft: 8, marginTop: 4 }}>  Exemplos:</Text>
+                                    <Text style={{ fontSize: theme.fontSize.caption, color: theme.textMuted, marginLeft: 8 }}>  3,14 ✓  |  0,5 ✓</Text>
+                                    <Text style={{ fontSize: theme.fontSize.caption, color: theme.textMuted, marginLeft: 8 }}>  ,5 ✗  |  5, ✗  |  3,1,4 ✗</Text>
 
                                     <Text style={{
-                                        fontSize: 16,
-                                        fontWeight: 'bold',
-                                        color: '#E2E8F0',
+                                        fontSize: theme.fontSize.base,
+                                        fontWeight: theme.fontWeight.bold,
+                                        color: theme.textSecondary,
                                         marginTop: 16,
                                         marginBottom: 8
                                     }}>🚫 BLOQUEIOS</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Ponto e vírgula (;) não permitido</Text>
-                                    <Text style={{ fontSize: 14, color: '#CBD5E0', marginBottom: 4 }}>• Confirmação bloqueada se terminar com , ou .</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Ponto e vírgula (;) não permitido</Text>
+                                    <Text style={{ fontSize: theme.fontSize.body, color: '#CBD5E0', marginBottom: 4 }}>• Confirmação bloqueada se terminar com , ou .</Text>
                                 </View>
                             )}
                         </ScrollView>
@@ -773,14 +774,14 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                     width: 8,
                                     height: 8,
                                     borderRadius: 4,
-                                    backgroundColor: helpPage === 0 ? '#4FD1C5' : '#4A5568',
+                                    backgroundColor: helpPage === 0 ? theme.primary : theme.backgroundTertiary,
                                     marginHorizontal: 4
                                 }} />
                                 <View style={{
                                     width: 8,
                                     height: 8,
                                     borderRadius: 4,
-                                    backgroundColor: helpPage === 1 ? '#4FD1C5' : '#4A5568',
+                                    backgroundColor: helpPage === 1 ? theme.primary : theme.backgroundTertiary,
                                     marginHorizontal: 4
                                 }} />
                             </View>
@@ -792,7 +793,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                         onPress={() => setHelpPage(1)}
                                         style={{
                                             flex: 1,
-                                            backgroundColor: '#2D3748',
+                                            backgroundColor: theme.backgroundSecondary,
                                             paddingVertical: 10,
                                             paddingHorizontal: 16,
                                             borderRadius: 8,
@@ -800,14 +801,14 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                             justifyContent: 'center'
                                         }}
                                     >
-                                        <Text style={{ color: '#E2E8F0', fontSize: 15, fontWeight: '600' }}>Mais Detalhes ➡️</Text>
+                                        <Text style={{ color: theme.textSecondary, fontSize: theme.fontSize.bodyLg, fontWeight: theme.fontWeight.semibold }}>Mais Detalhes ➡️</Text>
                                     </TouchableOpacity>
                                 ) : (
                                     <TouchableOpacity
                                         onPress={() => setHelpPage(0)}
                                         style={{
                                             flex: 1,
-                                            backgroundColor: '#2D3748',
+                                            backgroundColor: theme.backgroundSecondary,
                                             paddingVertical: 10,
                                             paddingHorizontal: 16,
                                             borderRadius: 8,
@@ -815,7 +816,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                             justifyContent: 'center'
                                         }}
                                     >
-                                        <Text style={{ color: '#E2E8F0', fontSize: 15, fontWeight: '600' }}>⬅️ Voltar</Text>
+                                        <Text style={{ color: theme.textSecondary, fontSize: theme.fontSize.bodyLg, fontWeight: theme.fontWeight.semibold }}>⬅️ Voltar</Text>
                                     </TouchableOpacity>
                                 )}
 
@@ -823,7 +824,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                     onPress={() => setHelpModalVisible(false)}
                                     style={{
                                         flex: 1,
-                                        backgroundColor: '#4FD1C5',
+                                        backgroundColor: theme.primary,
                                         paddingVertical: 10,
                                         paddingHorizontal: 16,
                                         borderRadius: 8,
@@ -831,7 +832,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
                                         justifyContent: 'center'
                                     }}
                                 >
-                                    <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>Entendi</Text>
+                                    <Text style={{ color: theme.textPrimary, fontSize: theme.fontSize.bodyLg, fontWeight: theme.fontWeight.bold, textAlign: 'center' }}>Entendi</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>

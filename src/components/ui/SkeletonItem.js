@@ -1,13 +1,14 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
+import theme from '../../styles/theme';
 
 export const SkeletonItem = ({ width = '100%', height = 20, style }) => {
     const opacity = useSharedValue(0.3);
 
     useEffect(() => {
         opacity.value = withRepeat(
-            withTiming(0.6, { duration: 800 }), // Pulsa de 0.3 a 0.6
+            withTiming(0.6, { duration: 800 }),
             -1,
             true
         );
@@ -21,7 +22,7 @@ export const SkeletonItem = ({ width = '100%', height = 20, style }) => {
     return (
         <Animated.View
             style={[
-                { backgroundColor: '#4A5568', width, height, borderRadius: 4 },
+                { backgroundColor: theme.backgroundTertiary, width, height, borderRadius: 4 },
                 style,
                 animatedStyle,
             ]}
