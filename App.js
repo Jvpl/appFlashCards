@@ -1,3 +1,4 @@
+import "./global.css";
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -7,6 +8,23 @@ import AppContent from './src/navigation/AppContent';
 import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import * as Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+} from '@expo-google-fonts/manrope';
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+} from '@expo-google-fonts/plus-jakarta-sans';
 import { initializeRevenueCat, getPurchasedProductIds } from './src/services/revenuecat';
 import { getProducts, getDeck } from './src/services/firebase';
 import { getPurchasedDecks, savePurchasedDeck } from './src/services/storage';
@@ -35,6 +53,17 @@ export default function App() {
   // Carrega fontes e captura erro
   const [fontsLoaded, fontError] = useFonts({
     ...Ionicons.font,
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
   });
 
   // Inicializa RevenueCat e restaura compras automaticamente ao abrir o app

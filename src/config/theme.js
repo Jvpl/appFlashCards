@@ -4,8 +4,8 @@ const AppTheme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    background: '#1A202C', // Cor de fundo principal do seu app
-    card: '#2D3748',       // Cor dos cabe�alhos
+    background: '#0D1117', // Cor de fundo principal do seu app
+    card: '#161B22',       // Cor dos cabeçalhos
     text: '#FFFFFF',
     border: 'rgb(30, 30, 30)',
     notification: '#4FD1C5',

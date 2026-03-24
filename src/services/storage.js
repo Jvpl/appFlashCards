@@ -2,15 +2,30 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initialData } from '../data/mockData';
 
 export const STORAGE_KEY = '@FlashcardsApp:data';
+const DATA_VERSION_KEY = '@FlashcardsApp:dataVersion';
+const CURRENT_DATA_VERSION = 'v2';
 
 export const getAppData = async () => {
   try {
     const jsonValue = await AsyncStorage.getItem(STORAGE_KEY);
-    
-    if (jsonValue !== null) {
-      const data = JSON.parse(jsonValue);
 
-      // Migração de dados: garante que todos os cards tenham os campos necessários
+    if (jsonValue !== null) {
+      let data = JSON.parse(jsonValue);
+
+      // Migração v2: remover decks de teste pré-carregados, manter apenas user-created + exemplo
+      const version = await AsyncStorage.getItem(DATA_VERSION_KEY);
+      if (version !== CURRENT_DATA_VERSION) {
+        data = data.filter(deck =>
+          deck.isUserCreated === true || deck.id === 'deck_exemplo'
+        );
+        if (!data.some(d => d.id === 'deck_exemplo')) {
+          data.unshift({ ...initialData[0] });
+        }
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+      }
+
+      // Migração de campos dos cards (existente)
       data.forEach(deck => {
         deck.subjects.forEach(subject => {
           subject.flashcards.forEach(card => {
@@ -23,7 +38,9 @@ export const getAppData = async () => {
       });
       return data;
     }
-    await saveAppData(initialData); // Salva dados iniciais se não houver
+
+    await saveAppData(initialData);
+    await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
     return initialData;
   } catch (e) { console.error("Failed to fetch data", e); return initialData; }
 };
@@ -115,6 +132,64 @@ export const removePurchasedDeck = async (deckId) => {
 };
 
 
+// ============================================
+// Recentes — Decks acessados recentemente
+// ============================================
+
+const RECENT_DECKS_KEY = '@recent_decks';
+
+export const saveRecentDeck = async (deckId) => {
+  try {
+    const json = await AsyncStorage.getItem(RECENT_DECKS_KEY);
+    let recents = json ? JSON.parse(json) : [];
+    recents = [deckId, ...recents.filter(id => id !== deckId)].slice(0, 7);
+    await AsyncStorage.setItem(RECENT_DECKS_KEY, JSON.stringify(recents));
+  } catch (e) {
+    console.warn('Failed to save recent deck:', e);
+  }
+};
+
+export const getRecentDeckIds = async () => {
+  try {
+    const json = await AsyncStorage.getItem(RECENT_DECKS_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+// ============================================
+// Continuar Estudo — última matéria estudada
+// ============================================
+
+const CONTINUE_STUDY_KEY = '@continue_study';
+
+export const saveContinueStudy = async (data) => {
+  // data: { deckId, subjectId, deckName, subjectName, availableCount }
+  try {
+    await AsyncStorage.setItem(CONTINUE_STUDY_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn('Failed to save continue study:', e);
+  }
+};
+
+export const getContinueStudy = async () => {
+  try {
+    const json = await AsyncStorage.getItem(CONTINUE_STUDY_KEY);
+    return json ? JSON.parse(json) : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const clearContinueStudy = async () => {
+  try {
+    await AsyncStorage.removeItem(CONTINUE_STUDY_KEY);
+  } catch (e) {
+    console.warn('Failed to clear continue study:', e);
+  }
+};
+
 export default {
   STORAGE_KEY,
   getAppData,
@@ -122,5 +197,10 @@ export default {
   getPurchasedDecks,
   savePurchasedDeck,
   getDeckCache,
-  removePurchasedDeck
+  removePurchasedDeck,
+  saveRecentDeck,
+  getRecentDeckIds,
+  saveContinueStudy,
+  getContinueStudy,
+  clearContinueStudy,
 };

@@ -4,6 +4,7 @@ import { Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import HomeStackNavigator from './HomeStackNavigator';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { CustomDrawerContent } from '../components/ui/CustomDrawerContent';
 import theme from '../styles/theme';
 
 const Drawer = createDrawerNavigator();
@@ -14,19 +15,19 @@ export function DrawerNavigator() {
 
     return (
         <Drawer.Navigator
+            drawerContent={(props) => <CustomDrawerContent {...props} />}
             screenOptions={{
                 headerStyle: { backgroundColor: theme.backgroundSecondary },
                 headerTintColor: theme.textPrimary,
                 drawerStyle: {
                     backgroundColor: theme.background,
-                    width: width * 0.75,
+                    width: width * 0.72,
+                    borderTopRightRadius: 0,
+                    borderBottomRightRadius: 0,
                 },
-                drawerLabelStyle: { fontWeight: theme.fontWeight.bold, fontSize: theme.fontSize.base },
-                drawerActiveTintColor: theme.primary,
-                drawerInactiveTintColor: theme.textMuted,
                 drawerPosition: 'right',
                 drawerType: 'front',
-                swipeEnabled: false, // Controlado por DeckListScreen via eventos focus/blur
+                swipeEnabled: false,
             }}
         >
           {/* A tela de início ainda faz parte do drawer para a navegação funcionar, mas o item é removido do menu */}
