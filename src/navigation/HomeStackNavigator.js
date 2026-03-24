@@ -1,8 +1,5 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { View, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { screenOptions } from '../config/navigation';
 import theme from '../styles/theme';
 
 // Importar todas as screens
@@ -36,9 +33,9 @@ const fadeTransitionSpec = {
 };
 
 const navScreenOptions = {
-    headerStyle: { backgroundColor: theme.backgroundSecondary },
+    headerStyle: { backgroundColor: theme.backgroundElevated },
     headerTintColor: theme.textPrimary,
-    headerTitleStyle: { fontWeight: 'bold' },
+    headerTitleStyle: { fontWeight: theme.fontWeight.bold },
     // Substituindo Slide por Fade simples
     cardStyleInterpolator: ({ current }) => ({
       cardStyle: {
@@ -59,13 +56,7 @@ export function HomeStackNavigator({navigation}) {
         name="DeckList"
         component={DeckListScreen}
         options={{
-          title: 'Início',
-          headerLeft: () => null, // Remove a seta de voltar
-          headerRight: () => (
-              <TouchableOpacity onPress={() => navigation.openDrawer()} style={{ marginRight: 15 }}>
-                  <Ionicons name="menu" size={28} color="white" />
-              </TouchableOpacity>
-          ),
+          headerShown: false, // Custom header inside DeckListScreen
       }} />
       <HomeStack.Screen 
         name="SubjectList" 
@@ -84,7 +75,7 @@ export function HomeStackNavigator({navigation}) {
           cardStyleInterpolator: ({ current }) => ({ cardStyle: { opacity: current.progress } }),
         })}
       />
-      <HomeStack.Screen name="AddDeck" component={AddDeckScreen} options={{ title: 'Novo Deck' }} />
+      <HomeStack.Screen name="AddDeck" component={AddDeckScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="EditDeck" component={EditDeckScreen} options={{ title: 'Editar Deck' }} />
       <HomeStack.Screen name="AddSubject" component={AddSubjectScreen} options={{ title: 'Nova Matéria' }} />
       <HomeStack.Screen
