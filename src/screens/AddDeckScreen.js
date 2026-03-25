@@ -5,20 +5,23 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
 import { getAppData, saveAppData } from '../services/storage';
 import { CustomAlert } from '../components/ui/CustomAlert';
+import GlowIcon from '../components/ui/GlowIcon';
+import { BlurView } from 'expo-blur';
 import theme from '../styles/theme';
 
-// SVG icons
-import AdministrativoSvg from '../../svg-icones/Administrativo - icone.svg';
-import EducacaoSvg from '../../svg-icones/Educação - icone.svg';
-import FiscalSvg from '../../svg-icones/Fiscal & Controle - icone.svg';
-import JusticaSvg from '../../svg-icones/Justiça & Direito - icone.svg';
-import MilitarSvg from '../../svg-icones/Militar - icone.svg';
-import OperacionalSvg from '../../svg-icones/Operacional & Logística - icone.svg';
-import SaudeSvg from '../../svg-icones/Saúde - icone.svg';
-import SegurancaSvg from '../../svg-icones/Segurança Pública - icone.svg';
+// Dados dos ícones para Skia GlowIcon
+import {
+  administrativoIcon,
+  educacaoIcon,
+  fiscalIcon,
+  justicaIcon,
+  militarIcon,
+  operacionalIcon,
+  saudeIcon,
+  segurancaIcon,
+} from '../assets/svgIconPaths';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -30,44 +33,36 @@ const COL_GAP = 10;
 
 
 const CATEGORIES = [
-  { id: 'seguranca',      name: 'Segurança Pública',  SvgIcon: SegurancaSvg },
-  { id: 'justica',        name: 'Justiça & Direito',   SvgIcon: JusticaSvg },
-  { id: 'administrativo', name: 'Administrativo',      SvgIcon: AdministrativoSvg },
-  { id: 'fiscal',         name: 'Fiscal & Controle',   SvgIcon: FiscalSvg },
-  { id: 'operacional',    name: 'Operacional & Log.',  SvgIcon: OperacionalSvg },
-  { id: 'saude',          name: 'Saúde',               SvgIcon: SaudeSvg },
-  { id: 'educacao',       name: 'Educação',            SvgIcon: EducacaoSvg },
-  { id: 'militar',        name: 'Militar',             SvgIcon: MilitarSvg },
+  { id: 'seguranca',      name: 'Segurança Pública',  icon: segurancaIcon },
+  { id: 'justica',        name: 'Justiça & Direito',   icon: justicaIcon },
+  { id: 'administrativo', name: 'Administrativo',      icon: administrativoIcon },
+  { id: 'fiscal',         name: 'Fiscal & Controle',   icon: fiscalIcon },
+  { id: 'operacional',    name: 'Operacional & Log.',  icon: operacionalIcon },
+  { id: 'saude',          name: 'Saúde',               icon: saudeIcon },
+  { id: 'educacao',       name: 'Educação',            icon: educacaoIcon },
+  { id: 'militar',        name: 'Militar',             icon: militarIcon },
 ];
 
-// ── Category tile (ícone em cima, nome embaixo) ───────────────────
+// ── Category tile ─────────────────────────────────────────────────
 
 const CategoryTile = ({ item, selected, onPress }) => {
-  const SvgIcon = item.SvgIcon;
   return (
     <TouchableOpacity
-      style={[s.catTile, selected && s.catTileSelected]}
       onPress={onPress}
-      activeOpacity={0.72}
+      activeOpacity={0.75}
+      style={[s.catTile, selected && s.catTileSelected]}
     >
-      {/* checkmark badge */}
       {selected && (
         <View style={s.catTileCheck}>
           <Ionicons name="checkmark" size={10} color="#0F0F0F" />
         </View>
       )}
 
-      {/* icon bubble */}
-      <View style={[s.catIconBg, selected && s.catIconBgSelected]}>
-        <SvgIcon width={28} height={28} />
+      <View style={s.catIconArea}>
+        <GlowIcon iconData={item.icon} size={52} color={theme.primary} glowBlur={7} />
       </View>
 
-      {/* name */}
-      <Text
-        style={[s.catTileLabel, selected && s.catTileLabelSelected]}
-        numberOfLines={2}
-        textBreakStrategy="balanced"
-      >
+      <Text style={[s.catTileLabel, selected && s.catTileLabelSelected]} numberOfLines={2}>
         {item.name}
       </Text>
     </TouchableOpacity>
@@ -86,6 +81,7 @@ export const AddDeckScreen = ({ navigation }) => {
   const [alertConfig, setAlertConfig] = useState({
     visible: false, title: '', message: '', buttons: [],
   });
+  const [inputFocused, setInputFocused] = useState(false);
 
   const handleSave = async () => {
     if (name.trim().length === 0) {
@@ -150,13 +146,21 @@ export const AddDeckScreen = ({ navigation }) => {
         <View style={s.section}>
           <Text style={[s.sectionTitle, { marginBottom: 10 }]}>NOME DO DECK</Text>
           <View style={s.inputWrap}>
-            <Ionicons name="albums-outline" size={18} color={theme.textMuted} style={s.inputIcon} />
+            <BlurView
+              intensity={50}
+              tint="dark"
+              experimentalBlurMethod="dimezisBlurView"
+              style={[StyleSheet.absoluteFill, s.inputBlur, inputFocused && s.inputBlurFocused]}
+            />
+            <Ionicons name="albums-outline" size={18} color={inputFocused ? theme.primary : theme.textMuted} style={s.inputIcon} />
             <TextInput
               style={s.input}
               placeholder="Ex: Concurso XYZ"
               placeholderTextColor={theme.textMuted}
               value={name}
               onChangeText={setName}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
               returnKeyType="done"
             />
           </View>
@@ -344,12 +348,24 @@ const s = StyleSheet.create({
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.backgroundSecondary,
-    borderWidth: 1.5,
-    borderColor: theme.backgroundTertiary,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 54,
+    overflow: 'hidden',
+  },
+  inputBlur: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.22)',
+    borderLeftColor: 'rgba(255,255,255,0.12)',
+    borderRightColor: 'rgba(255,255,255,0.04)',
+    borderBottomColor: 'rgba(255,255,255,0.07)',
+  },
+  inputBlurFocused: {
+    borderTopColor: theme.primary,
+    borderLeftColor: 'rgba(111,182,48,0.55)',
+    borderRightColor: 'rgba(111,182,48,0.2)',
+    borderBottomColor: 'rgba(111,182,48,0.12)',
   },
   inputIcon: { marginRight: 10 },
   input: {
@@ -370,49 +386,38 @@ const s = StyleSheet.create({
     gap: 10,
   },
 
-  // ── Category tile (vertical)
+  // ── Category tile — fundo transparente, borda fina cinza
   catTile: {
-    backgroundColor: theme.backgroundSecondary,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: theme.backgroundTertiary,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    minHeight: 110,
-    position: 'relative',
-  },
-  catTileSelected: {
-    backgroundColor: 'rgba(93,214,44,0.08)',
-    borderColor: theme.primary,
-  },
-
-  // icon bubble
-  catIconBg: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: theme.backgroundTertiary,
+    aspectRatio: 1,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    gap: 10,
   },
-  catIconBgSelected: {
-    backgroundColor: 'rgba(93,214,44,0.18)',
+  catTileSelected: {
+    borderColor: theme.primary,
+    borderWidth: 1.5,
   },
 
-  // tile label
+  catIconArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // label
   catTileLabel: {
-    color: theme.textSecondary,
+    color: theme.textPrimary,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 0.1,
     textAlign: 'center',
-    lineHeight: 18,
   },
   catTileLabelSelected: {
     color: theme.primary,
-    fontWeight: '700',
   },
 
   // checkmark badge
@@ -426,6 +431,7 @@ const s = StyleSheet.create({
     backgroundColor: theme.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 10,
   },
 
   // ── Create custom category trigger
