@@ -129,7 +129,7 @@ export const ProgressScreen = () => {
                         screen: 'HomeDrawer',
                         params: {
                             screen: 'Flashcard',
-                            params: { deckId: deck.id, subjectId: subject.id, subjectName: subject.name }
+                            params: { deckId: deck.id, deckName: deck.name, subjectId: subject.id, subjectName: subject.name }
                         }
                     })}
                 >

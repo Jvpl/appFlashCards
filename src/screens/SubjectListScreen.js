@@ -343,7 +343,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
               styles.itemContainer,
               isSelectionMode && selectedSubjects.includes(item.id) && styles.selectedDeckItem
             ]} 
-            onPress={() => isSelectionMode ? (allowDefaultDeckEditing ? handleToggleSelection(item.id) : null) : navigation.navigate('Flashcard', { deckId, subjectId: item.id, subjectName: item.name, preloadedCards: item.flashcards })}
+            onPress={() => isSelectionMode ? (allowDefaultDeckEditing ? handleToggleSelection(item.id) : null) : navigation.navigate('Flashcard', { deckId, deckName, subjectId: item.id, subjectName: item.name, preloadedCards: item.flashcards })}
             onLongPress={() => {
               if (!isSelectionMode && allowDefaultDeckEditing) {
                 setSelectionMode(true);
@@ -415,7 +415,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
               styles.itemContainer,
               isSelectionMode && selectedSubjects.includes(item.id) && styles.selectedDeckItem
             ]} 
-            onPress={() => isSelectionMode ? handleToggleSelection(item.id) : navigation.navigate('Flashcard', { deckId, subjectId: item.id, subjectName: item.name, preloadedCards: item.flashcards })}
+            onPress={() => isSelectionMode ? handleToggleSelection(item.id) : navigation.navigate('Flashcard', { deckId, deckName, subjectId: item.id, subjectName: item.name, preloadedCards: item.flashcards })}
             onLongPress={() => { // Adicionado LongPress
                 if (!isSelectionMode) {
                     setSelectionMode(true);

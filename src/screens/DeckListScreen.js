@@ -323,6 +323,7 @@ export const DeckListScreen = ({ navigation }) => {
       );
       navigation.navigate('Flashcard', {
         deckId: deck.id,
+        deckName: deck.name,
         subjectId: null,
         subjectName: 'Revisão Geral',
         reviewAll: true,

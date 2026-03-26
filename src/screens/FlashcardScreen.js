@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, useAnimatedReaction, interpolate } from 'react-native-reanimated';
-import { getAppData, saveAppData } from '../services/storage';
+import { getAppData, saveAppData, saveStudySession } from '../services/storage';
 import { calculateCardUpdate } from '../services/srs';
 import { FlashcardItem } from '../components/flashcard/FlashcardItem';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
@@ -17,7 +17,7 @@ const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
 export const FlashcardScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, preloadedCards, reviewAll } = route.params;
+  const { deckId, subjectId, deckName, subjectName, preloadedCards, reviewAll } = route.params;
   const [cards, setCards] = useState(() => {
      if (preloadedCards) {
         if (reviewAll) {
@@ -169,8 +169,15 @@ export const FlashcardScreen = ({ route, navigation }) => {
       );
       await saveAppData(newData);
     }
+    await saveStudySession({
+      deckId,
+      deckName: deckName || deckId,
+      subjectId: reviewAll ? 'all' : subjectId,
+      subjectName: reviewAll ? 'Revisão Geral' : (subjectName || subjectId),
+      count: reviewUpdates.current.length,
+    });
     reviewUpdates.current = [];
-  }, [deckId, subjectId, reviewAll]);
+  }, [deckId, subjectId, deckName, subjectName, reviewAll]);
 
   useEffect(() => { return () => { saveSessionProgress(); } }, [saveSessionProgress]);
 

@@ -115,6 +115,49 @@ export const removePurchasedDeck = async (deckId) => {
 };
 
 
+// ============================================
+// Histórico de Estudo
+// ============================================
+
+const STUDY_HISTORY_KEY = '@FlashcardsApp:studyHistory';
+
+/**
+ * Retorna todo o histórico de sessões de estudo
+ * @returns {Promise<Array>}
+ */
+export const getStudyHistory = async () => {
+  try {
+    const json = await AsyncStorage.getItem(STUDY_HISTORY_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch (e) {
+    console.error('Failed to fetch study history', e);
+    return [];
+  }
+};
+
+/**
+ * Salva uma sessão de estudo no histórico
+ * @param {Object} session - { deckId, deckName, subjectId, subjectName, count }
+ */
+export const saveStudySession = async (session) => {
+  try {
+    if (!session.count || session.count === 0) return;
+    const history = await getStudyHistory();
+    const today = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
+    history.push({
+      ...session,
+      date: today,
+      timestamp: Date.now(),
+    });
+    // Manter apenas os últimos 90 dias
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const trimmed = history.filter(s => s.timestamp >= cutoff);
+    await AsyncStorage.setItem(STUDY_HISTORY_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    console.error('Failed to save study session', e);
+  }
+};
+
 export default {
   STORAGE_KEY,
   getAppData,
@@ -122,5 +165,7 @@ export default {
   getPurchasedDecks,
   savePurchasedDeck,
   getDeckCache,
-  removePurchasedDeck
+  removePurchasedDeck,
+  getStudyHistory,
+  saveStudySession,
 };
