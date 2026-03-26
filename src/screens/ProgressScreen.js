@@ -143,18 +143,16 @@ export const ProgressScreen = () => {
                 <Text style={{ color: theme.textMuted, fontSize: 12 }}>{subject.progress}%</Text>
               </View>
 
-              {/* Barras de nível */}
+              {/* Níveis */}
               {Object.values(LEVEL_CONFIG).map((lvl, levelIdx) => {
                 const count = subject.levelCounts[levelIdx] || 0;
-                const total = subject.flashcards.length;
-                const pct = total > 0 ? (count / total) : 0;
                 return (
-                  <View key={levelIdx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 3 }}>
-                    <Text style={{ color: theme.textMuted, fontSize: 10, width: 90 }}>{lvl.name}</Text>
-                    <View style={{ flex: 1, height: 6, backgroundColor: theme.backgroundTertiary, borderRadius: 3, marginHorizontal: 6 }}>
-                      <View style={{ width: `${pct * 100}%`, height: 6, backgroundColor: LEVEL_COLORS[levelIdx], borderRadius: 3 }} />
+                  <View key={levelIdx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: LEVEL_COLORS[levelIdx] }} />
+                      <Text style={{ color: theme.textMuted, fontSize: 12 }}>{lvl.name}</Text>
                     </View>
-                    <Text style={{ color: theme.textMuted, fontSize: 10, width: 24, textAlign: 'right' }}>{count}</Text>
+                    <Text style={{ color: count > 0 ? LEVEL_COLORS[levelIdx] : theme.textMuted, fontSize: 12, fontWeight: count > 0 ? 'bold' : 'normal' }}>{count} cards</Text>
                   </View>
                 );
               })}
