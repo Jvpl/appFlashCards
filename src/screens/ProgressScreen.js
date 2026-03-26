@@ -213,10 +213,13 @@ export const ProgressScreen = () => {
                 {totalToday > 0 ? `${totalToday} cards revisados hoje` : 'Nenhum card revisado hoje'}
               </Text>
             </View>
-            <View style={{ alignItems: 'center', backgroundColor: theme.background, borderRadius: 12, padding: 12 }}>
-              <Text style={{ fontSize: 22 }}>🔥</Text>
-              <Text style={{ color: theme.primary, fontWeight: 'bold', fontSize: 18 }}>{streak}</Text>
-              <Text style={{ color: theme.textMuted, fontSize: 10 }}>{streak === 1 ? 'dia' : 'dias'}</Text>
+            <View style={{ alignItems: 'center', backgroundColor: theme.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 10, color: theme.textMuted, marginBottom: 2 }}>Sequência</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={{ fontSize: 18 }}>🔥</Text>
+                <Text style={{ color: theme.primary, fontWeight: 'bold', fontSize: 20 }}>{streak}</Text>
+              </View>
+              <Text style={{ color: theme.textMuted, fontSize: 10, marginTop: 2 }}>{streak === 1 ? 'dia seguido' : 'dias seguidos'}</Text>
             </View>
           </View>
         </View>
