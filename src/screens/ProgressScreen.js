@@ -144,7 +144,7 @@ export const ProgressScreen = () => {
               </View>
 
               {/* Barras de nível */}
-              {LEVEL_CONFIG.map((lvl, levelIdx) => {
+              {Object.values(LEVEL_CONFIG).map((lvl, levelIdx) => {
                 const count = subject.levelCounts[levelIdx] || 0;
                 const total = subject.flashcards.length;
                 const pct = total > 0 ? (count / total) : 0;
