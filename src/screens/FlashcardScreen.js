@@ -181,10 +181,18 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   useEffect(() => { return () => { saveSessionProgress(); } }, [saveSessionProgress]);
 
-  // Salva ao perder foco (antes da SubjectListScreen carregar os dados atualizados)
+  // Intercepta o botão voltar: salva os dados ANTES de navegar
+  // Assim a SubjectListScreen já encontra os dados atualizados ao recarregar
   useEffect(() => {
-    if (!isFocused) saveSessionProgress();
-  }, [isFocused, saveSessionProgress]);
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (reviewUpdates.current.length === 0) return;
+      e.preventDefault();
+      saveSessionProgress().then(() => {
+        navigation.dispatch(e.data.action);
+      });
+    });
+    return unsubscribe;
+  }, [navigation, saveSessionProgress]);
 
   const onFlip = useCallback(() => { isFlipped.value = !isFlipped.value; }, [isFlipped]);
 
