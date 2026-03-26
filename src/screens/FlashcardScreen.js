@@ -405,7 +405,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
 
         <View style={styles.progressIndicator}>
-          <Text style={styles.progressText}>{Math.min(jsCurrentIndex + 1, totalCardsInSession)} / {totalCardsInSession}</Text>
+          <Text style={styles.progressText}>{Math.min(jsCurrentIndex, totalCardsInSession)} / {totalCardsInSession}</Text>
         </View>
         <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
     </View>
