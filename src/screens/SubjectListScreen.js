@@ -67,12 +67,11 @@ export const SubjectListScreen = ({ route, navigation }) => {
 
 
 
-  const calculateProgress = useCallback((flashcards) => {
+  const calculatePending = useCallback((flashcards) => {
     if (!flashcards || flashcards.length === 0) return 0;
-    let totalMaxLevel = flashcards.length * 5;
-    let currentLevelSum = flashcards.reduce((sum, card) => sum + (card.level || 0), 0);
-    return totalMaxLevel > 0 ? Math.round((currentLevelSum / totalMaxLevel) * 100) : 0;
-  }, []); // Sem dependências
+    const now = new Date();
+    return flashcards.filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now)).length;
+  }, []);
 
   const handleSelectAll = () => {
     if (selectedSubjects.length > 0) {
@@ -364,7 +363,12 @@ export const SubjectListScreen = ({ route, navigation }) => {
                 <Text style={styles.itemSubtitle}>{item.flashcards.length} flashcard(s)</Text>
             </View>
             <View style={styles.subjectRightContainer}>
-                {!isSelectionMode && <View style={[styles.progressContainer, {borderColor: calculateProgress(item.flashcards) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.flashcards)}%</Text></View>}
+                {!isSelectionMode && (() => {
+                  const pending = calculatePending(item.flashcards);
+                  return pending > 0
+                    ? <View style={[styles.progressContainer, { borderColor: theme.primary }]}><Text style={styles.progressText}>{pending}</Text></View>
+                    : <View style={[styles.progressContainer, { borderColor: theme.success }]}><Ionicons name="checkmark" size={16} color={theme.success} /></View>;
+                })()}
                 {/* Show ellipsis for default subjects when editing is allowed and NOT in selection mode */}
                 {allowDefaultDeckEditing && !isSelectionMode && (
                   <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleOptionsPress(item); }} style={{marginLeft: 10}}>
@@ -433,7 +437,12 @@ export const SubjectListScreen = ({ route, navigation }) => {
                 <Text style={styles.itemSubtitle}>{item.flashcards.length} flashcard(s)</Text>
             </View>
             <View style={styles.subjectRightContainer}>
-                {!isSelectionMode && <View style={[styles.progressContainer, {borderColor: calculateProgress(item.flashcards) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.flashcards)}%</Text></View>}
+                {!isSelectionMode && (() => {
+                  const pending = calculatePending(item.flashcards);
+                  return pending > 0
+                    ? <View style={[styles.progressContainer, { borderColor: theme.primary }]}><Text style={styles.progressText}>{pending}</Text></View>
+                    : <View style={[styles.progressContainer, { borderColor: theme.success }]}><Ionicons name="checkmark" size={16} color={theme.success} /></View>;
+                })()}
                 {!isSelectionMode && (
                   <TouchableOpacity onPress={() => handleOptionsPress(item)} style={styles.subjectOptionsButton}>
                       <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
