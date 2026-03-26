@@ -92,17 +92,19 @@ export const ProgressScreen = () => {
       );
     }
 
-    // Agrupar sessões de hoje por deck
+    // Agrupar sessões de hoje por deck e matéria, somando os counts
     const byDeck = {};
     todaySessions.forEach(s => {
-      if (!byDeck[s.deckId]) byDeck[s.deckId] = { deckName: s.deckName, subjects: [] };
-      byDeck[s.deckId].subjects.push({ subjectName: s.subjectName, count: s.count });
+      if (!byDeck[s.deckId]) byDeck[s.deckId] = { deckName: s.deckName, subjects: {} };
+      const key = s.subjectId || s.subjectName;
+      if (!byDeck[s.deckId].subjects[key]) byDeck[s.deckId].subjects[key] = { subjectName: s.subjectName, count: 0 };
+      byDeck[s.deckId].subjects[key].count += s.count;
     });
 
     return Object.entries(byDeck).map(([deckId, deck]) => (
       <View key={deckId} style={[styles.deckGroup, { marginBottom: 12 }]}>
         <Text style={[styles.deckGroupTitle, { padding: 12 }]}>{deck.deckName}</Text>
-        {deck.subjects.map((s, i) => (
+        {Object.values(deck.subjects).map((s, i) => (
           <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 }}>
             <Text style={{ color: theme.textSecondary, fontSize: 14 }}>{s.subjectName}</Text>
             <Text style={{ color: theme.primary, fontWeight: 'bold', fontSize: 14 }}>{s.count} cards</Text>
