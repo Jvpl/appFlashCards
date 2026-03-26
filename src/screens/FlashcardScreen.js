@@ -181,6 +181,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   useEffect(() => { return () => { saveSessionProgress(); } }, [saveSessionProgress]);
 
+  // Salva ao perder foco (antes da SubjectListScreen carregar os dados atualizados)
+  useEffect(() => {
+    if (!isFocused) saveSessionProgress();
+  }, [isFocused, saveSessionProgress]);
+
   const onFlip = useCallback(() => { isFlipped.value = !isFlipped.value; }, [isFlipped]);
 
   const handleReview = useCallback((cardToReview, rating) => {
