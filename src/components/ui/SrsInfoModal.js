@@ -5,7 +5,7 @@ import theme from '../../styles/theme';
 
 const LEVELS = [
   { level: 0, name: 'Marco Zero',   color: '#EF4444', interval: 'Aparece sempre'          },
-  { level: 1, name: 'Aprendiz',     color: '#F59E0B', interval: 'Volta em 10 minutos'     },
+  { level: 1, name: 'Aprendiz',     color: '#F97316', interval: 'Volta em 10 minutos'     },
   { level: 2, name: 'Em Progresso', color: '#EAB308', interval: 'Volta em 1 hora'         },
   { level: 3, name: 'Consolidando', color: '#3B82F6', interval: 'Volta em 6 horas'        },
   { level: 4, name: 'Confiante',    color: '#8B5CF6', interval: 'Volta em 1 dia'          },
