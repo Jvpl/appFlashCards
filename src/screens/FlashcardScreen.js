@@ -52,6 +52,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const feedbackTextOpacity = useSharedValue(0);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackColor, setFeedbackColor] = useState('transparent');
+  const [nextReviewText, setNextReviewText] = useState('');
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
 
   // Adiciona o botão '+' e 'Editar/Historico' no cabeçalho
@@ -196,13 +197,24 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const onFlip = useCallback(() => { isFlipped.value = !isFlipped.value; }, [isFlipped]);
 
+  const getNextReviewText = useCallback((nextReview) => {
+    if (!nextReview) return 'Volta imediatamente';
+    const diffMin = Math.round((new Date(nextReview) - new Date()) / 60000);
+    if (diffMin <= 0)   return 'Volta imediatamente';
+    if (diffMin < 60)   return `Volta em ${diffMin} min`;
+    if (diffMin < 1440) return `Volta em ${Math.round(diffMin / 60)}h`;
+    return `Volta em ${Math.round(diffMin / 1440)} dia${Math.round(diffMin / 1440) > 1 ? 's' : ''}`;
+  }, []);
+
   const handleReview = useCallback((cardToReview, rating) => {
     if (!cardToReview) return;
     const updatedCard = calculateCardUpdate(cardToReview, rating);
     const existingIndex = reviewUpdates.current.findIndex(c => c.id === updatedCard.id);
     if (existingIndex > -1) reviewUpdates.current[existingIndex] = updatedCard;
     else reviewUpdates.current.push(updatedCard);
-  }, []);
+    setNextReviewText(getNextReviewText(updatedCard.nextReview));
+    setTimeout(() => setNextReviewText(''), 2000);
+  }, [getNextReviewText]);
 
   const gesture = useMemo(() => {
     return Gesture.Pan()
@@ -408,6 +420,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
         <View style={styles.swipeGuideContainer}>
           <Animated.Text style={[styles.feedbackText, { color: feedbackColor }, animatedFeedbackStyle]}>{feedbackText}</Animated.Text>
+          {nextReviewText ? <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 2 }}>{nextReviewText}</Text> : null}
           <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
              <Text style={styles.swipeGuideText}>
                 {jsIsFlipped ? "Arraste para classificar" : "Toque no card para revelar"}
