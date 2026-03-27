@@ -4,12 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 
 const LEVELS = [
-  { name: 'Marco Zero',   color: '#EF4444', interval: 'Aparece sempre',       icon: '🔴' },
-  { name: 'Aprendiz',     color: '#F59E0B', interval: 'Volta em 10 minutos',  icon: '🟠' },
-  { name: 'Em Progresso', color: '#EAB308', interval: 'Volta em 1 hora',      icon: '🟡' },
-  { name: 'Consolidando', color: '#3B82F6', interval: 'Volta em 6 horas',     icon: '🔵' },
-  { name: 'Confiante',    color: '#8B5CF6', interval: 'Volta em 1 dia',       icon: '🟣' },
-  { name: 'Dominado',     color: '#22C55E', interval: 'Volta em 7, 14 ou 30 dias', icon: '🟢' },
+  { level: 0, name: 'Marco Zero',   color: '#EF4444', interval: 'Aparece sempre'          },
+  { level: 1, name: 'Aprendiz',     color: '#F59E0B', interval: 'Volta em 10 minutos'     },
+  { level: 2, name: 'Em Progresso', color: '#EAB308', interval: 'Volta em 1 hora'         },
+  { level: 3, name: 'Consolidando', color: '#3B82F6', interval: 'Volta em 6 horas'        },
+  { level: 4, name: 'Confiante',    color: '#8B5CF6', interval: 'Volta em 1 dia'          },
+  { level: 5, name: 'Dominado',     color: '#22C55E', interval: 'Volta em 7, 14 ou 30 dias' },
 ];
 
 export const SrsInfoModal = ({ visible, onClose }) => {
@@ -42,9 +42,11 @@ export const SrsInfoModal = ({ visible, onClose }) => {
                 </Text>
 
                 {/* Tabela de níveis */}
-                {LEVELS.map((lvl, i) => (
-                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary }}>
-                    <Text style={{ fontSize: 20, marginRight: 12 }}>{lvl.icon}</Text>
+                {LEVELS.map((lvl) => (
+                  <View key={lvl.level} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: lvl.color, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                      <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>{lvl.level}</Text>
+                    </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: lvl.color, fontWeight: 'bold', fontSize: 14 }}>{lvl.name}</Text>
                       <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>{lvl.interval}</Text>
