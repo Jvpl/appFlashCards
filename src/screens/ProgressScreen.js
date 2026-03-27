@@ -148,8 +148,10 @@ export const ProgressScreen = () => {
                 const count = subject.levelCounts[levelIdx] || 0;
                 return (
                   <View key={levelIdx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: LEVEL_COLORS[levelIdx] }} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: LEVEL_COLORS[levelIdx], alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{levelIdx}</Text>
+                      </View>
                       <Text style={{ color: theme.textMuted, fontSize: 12 }}>{lvl.name}</Text>
                     </View>
                     <Text style={{ color: count > 0 ? LEVEL_COLORS[levelIdx] : theme.textMuted, fontSize: 12, fontWeight: count > 0 ? 'bold' : 'normal' }}>{count} cards</Text>
