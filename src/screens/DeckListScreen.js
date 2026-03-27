@@ -448,21 +448,12 @@ export const DeckListScreen = ({ navigation }) => {
               <Text style={styles.itemTitle}>{item.name || 'Deck sem nome'}</Text>
               <Text style={styles.itemSubtitle}>{item.subjects?.length || 0} matéria(s)</Text>
             </View>
-            {!multiSelectMode && (
-              allowDefaultDeckEditing ? (
-                <View style={styles.subjectRightContainer}>
-                    <View style={[styles.progressContainer, {borderColor: calculateProgress(item.subjects) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text></View>
-                    <TouchableOpacity onPress={() => handleOptionsPress(item)} style={styles.subjectOptionsButton}>
-                        <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
-                    </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.subjectRightContainer}>
-                    <View style={styles.progressContainer}>
-                        <Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text>
-                    </View>
-                </View>
-              )
+            {!multiSelectMode && allowDefaultDeckEditing && (
+              <View style={styles.subjectRightContainer}>
+                  <TouchableOpacity onPress={() => handleOptionsPress(item)} style={styles.subjectOptionsButton}>
+                      <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
+                  </TouchableOpacity>
+              </View>
             )}
           </TouchableOpacity>
         ))}
@@ -533,7 +524,6 @@ export const DeckListScreen = ({ navigation }) => {
             </View>
             {!multiSelectMode && (
               <View style={styles.subjectRightContainer}>
-                  <View style={[styles.progressContainer, {borderColor: calculateProgress(item.subjects) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text></View>
                   <TouchableOpacity onPress={() => handleOptionsPress(item)} style={styles.subjectOptionsButton}>
                       <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
                   </TouchableOpacity>
