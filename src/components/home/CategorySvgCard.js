@@ -1,6 +1,6 @@
 /**
  * CategorySvgCard
- * Renderiza o card de categoria usando o SVG da pasta SVG-categorias/
+ * Renderiza o card de categoria usando o SVG da pasta src/assets/svg-categorias/
  * com dados dinâmicos (nome, decks, matérias) embutidos sobre o SVG.
  *
  * Design: idêntico à imagem de referência —

@@ -14,10 +14,14 @@ import { Canvas, Group, Path, Skia, BlurMask } from '@shopify/react-native-skia'
 const GlowIcon = ({ iconData, size = 44, color = '#6fb630', glowBlur = 6 }) => {
   const { w, h, paths } = iconData;
 
-  // Escala uniforme para caber no canvas
+  // Padding extra para o glow não ser cortado nas bordas
+  const pad = glowBlur * 2;
+  const canvasSize = size + pad * 2;
+
+  // Escala uniforme para caber no canvas (descontando o padding)
   const scale = size / Math.max(w, h);
-  const offsetX = (size - w * scale) / 2;
-  const offsetY = (size - h * scale) / 2;
+  const offsetX = pad + (size - w * scale) / 2;
+  const offsetY = pad + (size - h * scale) / 2;
 
   // Normaliza path do Illustrator: ,.27 → ,0.27 e M10,.5 → M10,0.5
   const normalizePath = (d) =>
@@ -37,7 +41,7 @@ const GlowIcon = ({ iconData, size = 44, color = '#6fb630', glowBlur = 6 }) => {
   }, [paths]);
 
   return (
-    <Canvas style={{ width: size, height: size }}>
+    <Canvas style={{ width: canvasSize, height: canvasSize, margin: -pad }}>
       <Group transform={[{ translateX: offsetX }, { translateY: offsetY }, { scale }]}>
         {/* Camada 1: glow difuso */}
         {skiaPaths.map((p, i) => (
