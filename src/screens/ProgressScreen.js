@@ -8,7 +8,7 @@ import { LEVEL_CONFIG } from '../services/srs';
 import styles from '../styles/globalStyles';
 import theme from '../styles/theme';
 
-const LEVEL_COLORS = ['#EF4444', '#F59E0B', '#EAB308', '#3B82F6', '#8B5CF6', '#22C55E'];
+const LEVEL_COLORS = ['#EF4444', '#F97316', '#EAB308', '#3B82F6', '#8B5CF6', '#22C55E'];
 
 export const ProgressScreen = () => {
   const navigation = useNavigation();
