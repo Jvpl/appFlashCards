@@ -20,7 +20,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A202C"
       },
-      "package": "com.jvpl.flashcardsconcurso"
+      "package": "com.jvpl.flashcardsconcurso",
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/favicon.png"

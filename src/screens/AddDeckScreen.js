@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Dimensions, LayoutAnimation, Platform, UIManager,
+  View, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, Pressable,
+  StyleSheet, ScrollView, KeyboardAvoidingView, Dimensions, LayoutAnimation, Platform, UIManager, Keyboard, BackHandler,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import GlowIcon from '../components/ui/GlowIcon';
-import { BlurView } from 'expo-blur';
 import theme from '../styles/theme';
 
 // Dados dos ícones para Skia GlowIcon
@@ -45,10 +45,10 @@ const CATEGORIES = [
 
 // ── Category tile ─────────────────────────────────────────────────
 
-const CategoryTile = ({ item, selected, onPress }) => {
+const CategoryTile = ({ item, selected, onPress, onBlurInput }) => {
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={() => { Keyboard.dismiss(); onBlurInput?.(); onPress(); }}
       activeOpacity={0.75}
       style={[s.catTile, selected && s.catTileSelected]}
     >
@@ -82,6 +82,38 @@ export const AddDeckScreen = ({ navigation }) => {
     visible: false, title: '', message: '', buttons: [],
   });
   const [inputFocused, setInputFocused] = useState(false);
+  const [catInputFocused, setCatInputFocused] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const inputRef = useRef(null);
+  const scrollRef = useRef(null);
+  const catInputRef = useRef(null);
+  const catSectionY = useRef(0);
+  const catInputFocusedRef = useRef(false);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', e => {
+      const kh = e.endCoordinates.height;
+      setKeyboardHeight(kh);
+      if (catInputFocusedRef.current) {
+        setTimeout(() => {
+          scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
+        }, 50);
+      }
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  useEffect(() => {
+    const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (selectedCategory) {
+        setSelectedCategory(null);
+        return true;
+      }
+      return false;
+    });
+    return () => backSub.remove();
+  }, [selectedCategory]);
 
   const handleSave = async () => {
     if (name.trim().length === 0) {
@@ -107,14 +139,40 @@ export const AddDeckScreen = ({ navigation }) => {
 
   const toggleCustomCat = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setCustomCatExpanded(prev => !prev);
+    setCustomCatExpanded(prev => {
+      if (!prev) {
+        setTimeout(() => {
+          scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
+        }, 150);
+      }
+      return !prev;
+    });
   };
 
-  const ICON_OPTIONS = [
-    'school-outline', 'trophy-outline', 'briefcase-outline', 'book-outline',
-    'rocket-outline', 'star-outline', 'heart-outline', 'globe-outline',
-    'code-slash-outline', 'calculator-outline', 'megaphone-outline', 'compass-outline',
+  const DEFAULT_CAT_ICON = 'folder-outline';
+  const ICON_GROUPS = [
+    {
+      label: 'Estudo',
+      icons: ['book-outline', 'school-outline', 'document-text-outline', 'library-outline', 'pencil-outline', 'calculator-outline', 'flask-outline', 'language-outline', 'reader-outline', 'journal-outline', 'clipboard-outline', 'easel-outline'],
+    },
+    {
+      label: 'Objetivo',
+      icons: ['trophy-outline', 'star-outline', 'ribbon-outline', 'flag-outline', 'podium-outline', 'rocket-outline', 'diamond-outline', 'sparkles-outline', 'medal-outline', 'trending-up-outline', 'flame-outline', 'compass-outline'],
+    },
+    {
+      label: 'Organização',
+      icons: ['calendar-outline', 'checkmark-circle-outline', 'time-outline', 'people-outline', 'list-outline', 'albums-outline', 'folder-outline', 'bookmark-outline', 'filing-outline', 'grid-outline', 'layers-outline', 'filter-outline'],
+    },
+    {
+      label: 'Concurso',
+      icons: ['shield-outline', 'briefcase-outline', 'globe-outline', 'megaphone-outline', 'newspaper-outline', 'scale-outline', 'build-outline', 'id-card-outline', 'document-outline', 'people-circle-outline', 'chatbubbles-outline', 'pie-chart-outline'],
+    },
+    {
+      label: 'Outros',
+      icons: ['medkit-outline', 'cash-outline', 'hammer-outline', 'stats-chart-outline', 'heart-outline', 'bus-outline', 'car-outline', 'home-outline', 'leaf-outline', 'nutrition-outline', 'fitness-outline', 'bicycle-outline'],
+    },
   ];
+  const [activeIconGroup, setActiveIconGroup] = useState(0);
 
   const leftCol = CATEGORIES.filter((_, i) => i % 2 === 0);
   const rightCol = CATEGORIES.filter((_, i) => i % 2 !== 0);
@@ -136,46 +194,49 @@ export const AddDeckScreen = ({ navigation }) => {
 
       {/* ── Content ─────────────────────────────────────────────── */}
       <ScrollView
+        ref={scrollRef}
         style={s.scroll}
-        contentContainerStyle={s.scrollContent}
+        contentContainerStyle={{ paddingBottom: keyboardHeight + 16 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-
+      <Pressable onPress={() => inputRef.current?.blur()} style={s.scrollContent}>
         {/* ── Nome do deck ────────────────────────────────────── */}
         <View style={s.section}>
           <Text style={[s.sectionTitle, { marginBottom: 10 }]}>NOME DO DECK</Text>
-          <View style={s.inputWrap}>
-            <BlurView
-              intensity={50}
-              tint="dark"
-              experimentalBlurMethod="dimezisBlurView"
-              style={[StyleSheet.absoluteFill, s.inputBlur, inputFocused && s.inputBlurFocused]}
-            />
-            <Ionicons name="albums-outline" size={18} color={inputFocused ? theme.primary : theme.textMuted} style={s.inputIcon} />
+          <TouchableOpacity
+            style={s.inputWrap}
+            onPress={() => inputRef.current?.focus()}
+            activeOpacity={1}
+          >
+            <Ionicons name="albums-outline" size={18} color={inputFocused ? theme.primary : theme.primaryDark} style={s.inputIcon} />
             <TextInput
+              ref={inputRef}
               style={s.input}
               placeholder="Ex: Concurso XYZ"
               placeholderTextColor={theme.textMuted}
               value={name}
-              onChangeText={setName}
-              onFocus={() => setInputFocused(true)}
+              onChangeText={t => setName(t.slice(0, 50))}
+              onFocus={() => {
+                setInputFocused(true);
+                setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 150);
+              }}
               onBlur={() => setInputFocused(false)}
               returnKeyType="done"
+              maxLength={50}
             />
-          </View>
+            {name.length > 0 && (
+              <Text style={[s.charCount, name.length >= 45 && s.charCountWarn]}>
+                {name.length}/50
+              </Text>
+            )}
+          </TouchableOpacity>
+          <View style={[s.inputLine, { backgroundColor: inputFocused ? theme.primary : theme.primaryDark }]} />
         </View>
 
         {/* ── Categoria ───────────────────────────────────────── */}
         <View style={s.section}>
-          <View style={s.sectionTitleRow}>
-            <Text style={s.sectionTitle}>CATEGORIA</Text>
-            {selectedCategory && !selectedCategory.startsWith('custom_') && (
-              <TouchableOpacity onPress={() => setSelectedCategory(null)} hitSlop={HIT_SLOP}>
-                <Text style={s.clearBtn}>Limpar</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <Text style={[s.sectionTitle, { marginBottom: 10 }]}>CATEGORIA</Text>
 
           {/* 2-column tile grid */}
           <View style={s.colsWrap}>
@@ -186,6 +247,7 @@ export const AddDeckScreen = ({ navigation }) => {
                   item={item}
                   selected={selectedCategory === item.id}
                   onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                  onBlurInput={() => inputRef.current?.blur()}
                 />
               ))}
             </View>
@@ -196,6 +258,7 @@ export const AddDeckScreen = ({ navigation }) => {
                   item={item}
                   selected={selectedCategory === item.id}
                   onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                  onBlurInput={() => inputRef.current?.blur()}
                 />
               ))}
             </View>
@@ -203,61 +266,109 @@ export const AddDeckScreen = ({ navigation }) => {
         </View>
 
         {/* ── Criar nova categoria ─────────────────────────────── */}
-        <View style={s.section}>
-          <TouchableOpacity
-            style={[s.newCatTrigger, customCatExpanded && s.newCatTriggerActive]}
-            onPress={toggleCustomCat}
-            activeOpacity={0.75}
-          >
-            <Ionicons
-              name={customCatExpanded ? 'remove-circle-outline' : 'add-circle-outline'}
-              size={18}
-              color={customCatExpanded ? theme.primary : theme.textMuted}
-            />
-            <Text style={[s.newCatTriggerText, customCatExpanded && s.newCatTriggerTextActive]}>
-              {customCatExpanded ? 'Cancelar criação' : 'Criar nova categoria'}
-            </Text>
-          </TouchableOpacity>
-
-          {customCatExpanded && (
+        <View style={s.section} onLayout={e => { catSectionY.current = e.nativeEvent.layout.y; }}>
+          {!customCatExpanded ? (
+            <TouchableOpacity
+              style={s.newCatTrigger}
+              onPress={toggleCustomCat}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="add-circle-outline" size={16} color="rgba(93,214,44,0.7)" />
+              <Text style={s.newCatTriggerText}>Criar nova categoria</Text>
+            </TouchableOpacity>
+          ) : (
             <View style={s.newCatPanel}>
-              <Text style={s.panelSubLabel}>NOME DA CATEGORIA</Text>
-              <View style={s.panelInputWrap}>
-                <TextInput
-                  style={s.panelInput}
-                  placeholder="Ex: Meu concurso especial"
-                  placeholderTextColor={theme.textMuted}
-                  value={customCatName}
-                  onChangeText={setCustomCatName}
-                  returnKeyType="done"
-                />
+              {/* Header do painel */}
+              <View style={s.panelHeader}>
+                <Text style={s.panelTitle}>NOVA CATEGORIA</Text>
+                <TouchableOpacity onPress={toggleCustomCat} hitSlop={HIT_SLOP}>
+                  <Ionicons name="close" size={18} color={theme.textMuted} />
+                </TouchableOpacity>
               </View>
 
-              <Text style={[s.panelSubLabel, { marginTop: 18 }]}>ESCOLHA UM ÍCONE</Text>
-              <View style={s.iconPickerGrid}>
-                {ICON_OPTIONS.map(icon => (
-                  <TouchableOpacity
-                    key={icon}
-                    style={[s.iconOpt, customCatIcon === icon && s.iconOptSelected]}
-                    onPress={() => setCustomCatIcon(p => p === icon ? null : icon)}
-                    activeOpacity={0.75}
-                  >
-                    <Ionicons
-                      name={icon}
-                      size={20}
-                      color={customCatIcon === icon ? theme.primary : theme.textSecondary}
-                    />
-                  </TouchableOpacity>
-                ))}
+              {/* Nome + ícone selecionado lado a lado */}
+              <View style={s.panelNameRow}>
+                <TouchableOpacity
+                  style={s.panelIconPreview}
+                  onPress={() => setCustomCatIcon(p => p === '__picker__' ? null : '__picker__')}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name={customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : DEFAULT_CAT_ICON}
+                    size={22}
+                    color={customCatIcon && customCatIcon !== '__picker__' ? theme.primary : theme.textMuted}
+                  />
+                </TouchableOpacity>
+                <View style={s.panelInputWrap}>
+                  <TextInput
+                    ref={catInputRef}
+                    style={s.panelInput}
+                    placeholder="Nome da categoria"
+                    placeholderTextColor={theme.textMuted}
+                    value={customCatName}
+                    onChangeText={setCustomCatName}
+                    onFocus={() => {
+                      catInputFocusedRef.current = true;
+                      // se teclado já está aberto, rola imediatamente
+                      if (keyboardHeight > 0) {
+                        setTimeout(() => {
+                          scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
+                        }, 50);
+                      }
+                    }}
+                    onBlur={() => { catInputFocusedRef.current = false; }}
+                    returnKeyType="done"
+                    maxLength={30}
+                  />
+                </View>
               </View>
+
+              {/* Hint para abrir picker */}
+              <View style={s.panelIconHint}>
+                <Ionicons name="information-circle-outline" size={14} color={theme.textMuted} />
+                <Text style={s.panelIconHintText}>
+                  Toque no ícone para personalizar. Se não escolher, um ícone padrão será usado.
+                </Text>
+              </View>
+
+              {/* Picker de ícones com abas */}
+              {customCatIcon === '__picker__' && (
+                <View style={s.iconPicker}>
+                  {/* Abas */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.iconTabsScroll} contentContainerStyle={s.iconTabsContent}>
+                    {ICON_GROUPS.map((group, i) => (
+                      <TouchableOpacity
+                        key={group.label}
+                        style={[s.iconTab, activeIconGroup === i && s.iconTabActive]}
+                        onPress={() => setActiveIconGroup(i)}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[s.iconTabText, activeIconGroup === i && s.iconTabTextActive]}>
+                          {group.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  {/* Grid 4x2 */}
+                  <View style={s.iconGrid}>
+                    {ICON_GROUPS[activeIconGroup].icons.map(icon => (
+                      <TouchableOpacity
+                        key={icon}
+                        style={s.iconOpt}
+                        onPress={() => setCustomCatIcon(icon)}
+                        activeOpacity={0.75}
+                      >
+                        <Ionicons name={icon} size={20} color={theme.textSecondary} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
 
               <TouchableOpacity
-                style={[
-                  s.saveCatBtn,
-                  (!customCatName.trim() || !customCatIcon) && s.saveCatBtnOff,
-                ]}
+                style={[s.saveCatBtn, !customCatName.trim() && s.saveCatBtnOff]}
                 onPress={() => {
-                  if (!customCatName.trim() || !customCatIcon) return;
+                  if (!customCatName.trim()) return;
                   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                   setSelectedCategory(`custom_${customCatName.trim().toLowerCase().replace(/\s+/g, '_')}`);
                   setCustomCatExpanded(false);
@@ -266,7 +377,7 @@ export const AddDeckScreen = ({ navigation }) => {
                 }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="checkmark-circle" size={15} color="#0F0F0F" style={{ marginRight: 6 }} />
+                <Ionicons name="checkmark" size={15} color={theme.primary} style={{ marginRight: 6 }} />
                 <Text style={s.saveCatBtnText}>Salvar categoria</Text>
               </TouchableOpacity>
             </View>
@@ -276,13 +387,14 @@ export const AddDeckScreen = ({ navigation }) => {
         {/* ── Salvar deck ──────────────────────────────────────── */}
         <TouchableOpacity
           style={[s.saveBtn, !name.trim() && s.saveBtnOff]}
-          onPress={handleSave}
+          onPress={() => { Keyboard.dismiss(); handleSave(); }}
           activeOpacity={0.85}
         >
           <Text style={s.saveBtnText}>Salvar deck</Text>
         </TouchableOpacity>
 
         <View style={{ height: insets.bottom + 28 }} />
+      </Pressable>
       </ScrollView>
 
       <CustomAlert
@@ -348,26 +460,23 @@ const s = StyleSheet.create({
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    paddingHorizontal: 4,
     height: 54,
-    overflow: 'hidden',
   },
-  inputBlur: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.22)',
-    borderLeftColor: 'rgba(255,255,255,0.12)',
-    borderRightColor: 'rgba(255,255,255,0.04)',
-    borderBottomColor: 'rgba(255,255,255,0.07)',
-  },
-  inputBlurFocused: {
-    borderTopColor: theme.primary,
-    borderLeftColor: 'rgba(111,182,48,0.55)',
-    borderRightColor: 'rgba(111,182,48,0.2)',
-    borderBottomColor: 'rgba(111,182,48,0.12)',
+  inputLine: {
+    height: 1.5,
+    borderRadius: 1,
   },
   inputIcon: { marginRight: 10 },
+  charCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.primaryDark,
+    marginLeft: 6,
+  },
+  charCountWarn: {
+    color: theme.primary,
+  },
   input: {
     flex: 1,
     color: theme.textPrimary,
@@ -440,45 +549,55 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: theme.backgroundTertiary,
-    borderStyle: 'dashed',
-    paddingVertical: 15,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
-  newCatTriggerActive: {
-    borderColor: theme.primary,
-    borderStyle: 'solid',
-    backgroundColor: theme.primaryTransparent,
-  },
-  newCatTriggerIcon: {},
-  newCatTriggerIconActive: {},
   newCatTriggerText: {
-    color: theme.textMuted,
+    color: 'rgba(93,214,44,0.7)',
     fontSize: 13,
     fontWeight: '600',
-  },
-  newCatTriggerTextActive: {
-    color: theme.primary,
+    letterSpacing: 0.2,
   },
 
   // ── Custom category panel
   newCatPanel: {
-    marginTop: 10,
     backgroundColor: theme.backgroundSecondary,
     borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(93,214,44,0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
     padding: 16,
   },
-  panelSubLabel: {
+  panelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  panelTitle: {
     color: theme.primary,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.5,
+  },
+  panelNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 10,
   },
+  panelIconPreview: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: theme.backgroundTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
   panelInputWrap: {
+    flex: 1,
     backgroundColor: theme.backgroundTertiary,
     borderRadius: 12,
     paddingHorizontal: 14,
@@ -491,9 +610,58 @@ const s = StyleSheet.create({
     fontWeight: '500',
     paddingVertical: 0,
   },
-  iconPickerGrid: {
+  panelIconHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  panelIconHintText: {
+    color: theme.textMuted,
+    fontSize: 11,
+    flex: 1,
+    lineHeight: 15,
+  },
+  iconPicker: {
+    marginTop: 4,
+    gap: 8,
+  },
+  iconTabsScroll: {
+    flexGrow: 0,
+  },
+  iconTabsContent: {
+    gap: 6,
+    paddingBottom: 2,
+  },
+  iconTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: theme.backgroundTertiary,
+  },
+  iconTabActive: {
+    backgroundColor: 'rgba(93,214,44,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(93,214,44,0.4)',
+  },
+  iconTabText: {
+    color: theme.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  iconTabTextActive: {
+    color: theme.primary,
+  },
+  iconGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 8,
   },
   iconOpt: {
@@ -515,13 +683,15 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.primary,
+    backgroundColor: 'transparent',
     borderRadius: 12,
     height: 44,
+    borderWidth: 1.5,
+    borderColor: theme.primary,
   },
-  saveCatBtnOff: { opacity: 0.35 },
+  saveCatBtnOff: { opacity: 0.3 },
   saveCatBtnText: {
-    color: '#0F0F0F',
+    color: theme.primary,
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.3,
