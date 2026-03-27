@@ -82,11 +82,41 @@ export const ProgressScreen = () => {
   // --- Aba Hoje ---
   const renderHoje = () => {
     if (totalToday === 0) {
+      const now = new Date();
+      let pendingCount = 0;
+      for (const deck of progressData) {
+        for (const subject of deck.subjects) {
+          const subjectPending = subject.flashcards.filter(c => {
+            if ((c.level || 0) >= 5) return false;
+            if (!c.nextReview) return true;
+            return new Date(c.nextReview) <= now;
+          }).length;
+          pendingCount += subjectPending;
+        }
+      }
+
+      if (pendingCount === 0) {
+        return (
+          <View style={{ alignItems: 'center', padding: 40 }}>
+            <Ionicons name="checkmark-circle-outline" size={48} color={theme.success} />
+            <Text style={{ color: theme.textPrimary, marginTop: 12, fontSize: 16, fontWeight: 'bold', textAlign: 'center' }}>
+              Tudo em dia!
+            </Text>
+            <Text style={{ color: theme.textMuted, marginTop: 6, fontSize: 14, textAlign: 'center' }}>
+              Nenhum card pendente para revisar agora.
+            </Text>
+          </View>
+        );
+      }
+
       return (
-        <View style={{ alignItems: 'center', padding: 40 }}>
-          <Ionicons name="book-outline" size={48} color={theme.textMuted} />
-          <Text style={{ color: theme.textMuted, marginTop: 12, fontSize: 15, textAlign: 'center' }}>
-            Nenhum card revisado hoje ainda.{'\n'}Abra um deck e comece a estudar!
+        <View style={{ alignItems: 'center', padding: 32 }}>
+          <Ionicons name="flame-outline" size={48} color={theme.primary} />
+          <Text style={{ color: theme.textPrimary, marginTop: 12, fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
+            Você tem {pendingCount} {pendingCount === 1 ? 'card' : 'cards'} para revisar hoje
+          </Text>
+          <Text style={{ color: theme.textMuted, marginTop: 6, fontSize: 13, textAlign: 'center' }}>
+            Comece uma sessão e mantenha sua sequência!
           </Text>
         </View>
       );
