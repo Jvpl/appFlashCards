@@ -420,7 +420,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
         <View style={styles.swipeGuideContainer}>
           <Animated.Text style={[styles.feedbackText, { color: feedbackColor }, animatedFeedbackStyle]}>{feedbackText}</Animated.Text>
-          {nextReviewText ? <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 2 }}>{nextReviewText}</Text> : null}
+          {nextReviewText && !reviewAll ? <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 2 }}>{nextReviewText}</Text> : null}
           <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
              <Text style={styles.swipeGuideText}>
                 {jsIsFlipped ? "Arraste para classificar" : "Toque no card para revelar"}
