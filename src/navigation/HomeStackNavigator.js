@@ -13,6 +13,7 @@ import { ManageFlashcardsScreen } from '../screens/ManageFlashcardsScreen';
 import { EditFlashcardScreen } from '../screens/EditFlashcardScreen';
 import { EditSubjectScreen } from '../screens/EditSubjectScreen';
 import { FlashcardHistoryScreen } from '../screens/FlashcardHistoryScreen';
+import { AllItemsScreen } from '../screens/AllItemsScreen';
 
 const HomeStack = createStackNavigator();
 
@@ -58,13 +59,13 @@ export function HomeStackNavigator({navigation}) {
         options={{
           headerShown: false, // Custom header inside DeckListScreen
       }} />
-      <HomeStack.Screen 
-        name="SubjectList" 
-        component={SubjectListScreen} 
-        options={({ route }) => ({ 
-            title: route.params.deckName || 'Matérias',
+      <HomeStack.Screen
+        name="SubjectList"
+        component={SubjectListScreen}
+        options={{
+            headerShown: false,
             cardStyleInterpolator: ({ current }) => ({ cardStyle: { opacity: current.progress } }),
-        })} 
+        }}
       />
       <HomeStack.Screen
         name="Flashcard"
@@ -100,6 +101,11 @@ export function HomeStackNavigator({navigation}) {
       <HomeStack.Screen name="EditFlashcard" component={EditFlashcardScreen} options={{ title: 'Editar Flashcard' }} />
       <HomeStack.Screen name="EditSubject" component={EditSubjectScreen} options={{ title: 'Editar Matéria' }} />
       <HomeStack.Screen name="FlashcardHistory" component={FlashcardHistoryScreen} options={{ title: 'Histórico de Cards' }} />
+      <HomeStack.Screen
+        name="AllItems"
+        component={AllItemsScreen}
+        options={{ headerShown: false }}
+      />
     </HomeStack.Navigator>
   );
 }

@@ -10,6 +10,7 @@
 import React from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, Dimensions } from 'react-native';
 import { SvgXml } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { SVG_STRINGS } from '../../assets/categorySvgs';
 import theme from '../../styles/theme';
 
@@ -26,7 +27,7 @@ const CARD_HEIGHT = CARD_WIDTH / 1.418;
 const countSubjects = (decks = []) =>
   decks.reduce((sum, d) => sum + (d.subjects?.length || 0), 0);
 
-const CategorySvgCard = ({ category, decks = [], onPress }) => {
+const CategorySvgCard = ({ category, decks = [], onPress, onLongPress, isSelected, selectMode }) => {
   const deckCount = decks.length;
   const subjectCount = countSubjects(decks);
   const svgXml = SVG_STRINGS[category.id];
@@ -34,8 +35,9 @@ const CategorySvgCard = ({ category, decks = [], onPress }) => {
   return (
     <TouchableOpacity
       onPress={onPress}
+      onLongPress={onLongPress}
       activeOpacity={0.82}
-      style={[styles.wrapper, { width: CARD_WIDTH, height: CARD_HEIGHT }]}
+      style={[styles.wrapper, { width: CARD_WIDTH, height: CARD_HEIGHT }, isSelected && styles.wrapperSelected]}
     >
       {/* SVG de fundo — ocupa todo o card */}
       {svgXml ? (
@@ -73,6 +75,13 @@ const CategorySvgCard = ({ category, decks = [], onPress }) => {
         </View>
 
       </View>
+
+      {/* Checkbox de seleção */}
+      {selectMode && (
+        <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
+          {isSelected && <Ionicons name="checkmark" size={11} color="#0F0F0F" />}
+        </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -82,6 +91,27 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: '#1f1f1f',
+  },
+  wrapperSelected: {
+    borderWidth: 2,
+    borderColor: theme.primary,
+  },
+  checkCircle: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkCircleActive: {
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   fallbackBg: {
     backgroundColor: '#1f1f1f',

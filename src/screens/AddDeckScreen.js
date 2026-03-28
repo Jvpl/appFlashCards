@@ -134,7 +134,7 @@ export const AddDeckScreen = ({ navigation }) => {
       isUserCreated: true,
     };
     await saveAppData([...allData, newDeck]);
-    navigation.goBack();
+    navigation.replace('SubjectList', { deckId: newDeck.id, deckName: newDeck.name });
   };
 
   const toggleCustomCat = () => {

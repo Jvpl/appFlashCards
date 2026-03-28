@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 
 const { width } = Dimensions.get('window');
@@ -17,7 +18,7 @@ export const MATERIA_CARD_HEIGHT = MATERIA_CARD_WIDTH * 1.3;
 // Largura da faixa do bookmark
 const BOOKMARK_WIDTH = 18;
 
-const MateriaCard = ({ subject, deck, onPress, width, height }) => {
+const MateriaCard = ({ subject, deck, onPress, onLongPress, isSelected, selectMode, width, height }) => {
   const cardCount = subject.flashcards?.length || 0;
   const cardWidth = width || MATERIA_CARD_WIDTH;
   const cardHeight = height || MATERIA_CARD_HEIGHT;
@@ -25,8 +26,9 @@ const MateriaCard = ({ subject, deck, onPress, width, height }) => {
   return (
     <TouchableOpacity
       onPress={onPress}
+      onLongPress={onLongPress}
       activeOpacity={0.80}
-      style={[styles.card, { width: cardWidth, height: cardHeight }]}
+      style={[styles.card, { width: cardWidth, height: cardHeight }, isSelected && styles.cardSelected]}
     >
       {/* Furos decorativos — lado esquerdo */}
       <View style={styles.holesColumn}>
@@ -62,6 +64,13 @@ const MateriaCard = ({ subject, deck, onPress, width, height }) => {
         {/* Ponta V do bookmark */}
         <View style={styles.bookmarkTip} />
       </View>
+
+      {/* Checkbox de seleção */}
+      {selectMode && (
+        <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
+          {isSelected && <Ionicons name="checkmark" size={11} color="#0F0F0F" />}
+        </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -75,6 +84,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     overflow: 'hidden',
     position: 'relative',
+  },
+  cardSelected: {
+    borderColor: theme.primary,
+    borderWidth: 2,
+  },
+  checkCircle: {
+    position: 'absolute',
+    bottom: 8,
+    left: 26,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: theme.textMuted,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkCircleActive: {
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
 
   // Coluna dos furos
