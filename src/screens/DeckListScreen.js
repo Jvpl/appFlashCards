@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
   TextInput, ScrollView, BackHandler, Dimensions,
-  InteractionManager,
+  InteractionManager, Modal, TouchableWithoutFeedback, StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
@@ -30,6 +30,10 @@ const GRID_PADDING = 16;
 const GRID_GAP = 10;
 const CARD_WIDTH = (width - GRID_PADDING * 2 - GRID_GAP) / 2;
 const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.25);
+// Offset da linha esquerda: posiciona o botão "Ordenar" no centro do card da direita
+// Centro do card direito = CARD_WIDTH + GRID_GAP + CARD_WIDTH/2
+// Subtrai metade do botão (~41px) + gap (6px) = ~47px
+const SORT_LINE_W = Math.round(CARD_WIDTH + GRID_GAP + CARD_WIDTH / 2 - 47);
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
 // ─────────────────────────────────────────────
@@ -90,6 +94,22 @@ const CONCURSO_CATEGORIES = [
 
 const leftCats  = CONCURSO_CATEGORIES.filter((_, i) => i % 2 === 0);
 const rightCats = CONCURSO_CATEGORIES.filter((_, i) => i % 2 !== 0);
+
+const SORT_OPTIONS = [
+  { key: 'az',       label: 'A–Z',            icon: 'arrow-up-outline' },
+  { key: 'za',       label: 'Z–A',            icon: 'arrow-down-outline' },
+  { key: 'more',     label: 'Mais matérias',  icon: 'layers-outline' },
+  { key: 'less',     label: 'Menos matérias', icon: 'layers-outline' },
+  { key: 'category', label: 'Por categoria',  icon: 'folder-outline' },
+];
+const SORT_LABELS = Object.fromEntries(SORT_OPTIONS.map(o => [o.key, o.label]));
+
+const getCatLabel = (deck) => {
+  const catId = deck.category;
+  if (!catId || catId === 'personalizados') return null;
+  const cat = CONCURSO_CATEGORIES.find(c => c.id === catId);
+  return cat ? cat.name : null;
+};
 
 const matchConcursoCategory = (deck) => {
   if (deck.isUserCreated || deck.isExample) return 'personalizados';
@@ -399,21 +419,30 @@ const renderGridRows = (items, renderCard) => {
   return rows;
 };
 
+
+// ─────────────────────────────────────────────
+// Cache de módulo: persiste entre re-mounts causados pelo resetTs,
+// evita o flash do estado vazio quando o componente remonta.
+// ─────────────────────────────────────────────
+
+let _cachedDecks = [];
+
 // ─────────────────────────────────────────────
 // Tela principal
 // ─────────────────────────────────────────────
 
 export const DeckListScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const [decks, setDecks] = useState([]);
-  const [loading, setLoading] = useState(!global.screenCache?.decks);
+  const [decks, setDecks] = useState(_cachedDecks);
+  const [loading, setLoading] = useState(_cachedDecks.length === 0);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [recentDeckIds, setRecentDeckIds] = useState([]);
   const [continueStudy, setContinueStudy] = useState(null);
   const [allowDefaultDeckEditing, setAllowDefaultDeckEditing] = useState(false);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
-  const [selectedDecks, setSelectedDecks] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [contextMenu, setContextMenu] = useState({ visible: false, deck: null, x: 0, y: 0 });
   const [selectedDeck, setSelectedDeck] = useState(null);
   const [isModalVisible, setModalVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
@@ -421,15 +450,19 @@ export const DeckListScreen = ({ navigation }) => {
   const [exampleDismissed, setExampleDismissed] = useState(false);
   // Novos estados para o redesign
   const [activeTab, setActiveTab] = useState('decks');          // 'categorias' | 'decks' | 'materias'
-  const [invertedOrder, setInvertedOrder] = useState(false);    // inverter meus/comprados
   const [expandedSections, setExpandedSections] = useState({}); // { 'decks-meus': true, ... }
+  const [sortOrder, setSortOrder] = useState(null);             // 'az'|'za'|'more'|'less'|'category'
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [sortMenuPos, setSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
+  const [deckFilter, setDeckFilter] = useState('all');          // 'all'|'meus'|'comprados'
+  const sortBtnRef = useRef(null);
   const isFocused = useIsFocused();
   const searchRef = useRef(null);
 
   // ── Carregamento ──────────────────────────
 
   const loadData = useCallback(async () => {
-    const shouldShowSkeleton = decks.length === 0 && !global.screenCache?.decks;
+    const shouldShowSkeleton = _cachedDecks.length === 0;
     if (shouldShowSkeleton) setLoading(true);
     const minDelay = shouldShowSkeleton ? new Promise(r => setTimeout(r, 400)) : Promise.resolve();
     try {
@@ -451,16 +484,16 @@ export const DeckListScreen = ({ navigation }) => {
         })
       );
       await minDelay;
-      setDecks([...userDecks, ...purchasedDecks.filter(Boolean)]);
+      _cachedDecks = [...userDecks, ...purchasedDecks.filter(Boolean)];
+      setDecks(_cachedDecks);
       const allowEditing = await canEditDefaultDecks();
       setAllowDefaultDeckEditing(allowEditing);
-      if (global.screenCache) global.screenCache.decks = true;
     } catch (error) {
       console.error('Error loading decks:', error);
     } finally {
-      if (shouldShowSkeleton) setLoading(false);
+      setLoading(false);
     }
-  }, [decks.length]);
+  }, []);
 
   const loadSecondaryData = useCallback(async () => {
     const [ids, continueData, dismissed] = await Promise.all([
@@ -508,15 +541,13 @@ export const DeckListScreen = ({ navigation }) => {
 
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isFocused && multiSelectMode) {
-        setMultiSelectMode(false); setSelectedDecks(new Set()); return true;
-      }
+      if (isFocused && multiSelectMode) { exitSelectMode(); return true; }
       if (isFocused && activeCategoryId) { setActiveCategoryId(null); return true; }
       if (isFocused && searchTerm) { setSearchTerm(''); return true; }
       return false;
     });
     return () => handler.remove();
-  }, [isFocused, multiSelectMode, activeCategoryId, searchTerm]);
+  }, [isFocused, multiSelectMode, activeCategoryId, searchTerm, exitSelectMode]);
 
   // ── Dados derivados ───────────────────────
 
@@ -594,8 +625,23 @@ export const DeckListScreen = ({ navigation }) => {
 
   // Recentes (max 4)
   const recentDecksLimited = useMemo(() =>
-    recentDeckIds.map(id => decks.find(d => d.id === id)).filter(Boolean).slice(0, 4),
+    recentDeckIds.map(id => decks.find(d => d.id === id)).filter(Boolean).slice(0, 3),
   [recentDeckIds, decks]);
+
+  // ── Ordenação ────────────────────────────
+
+  const sortDecks = useCallback((list) => {
+    if (!sortOrder) return list;
+    const copy = [...list];
+    switch (sortOrder) {
+      case 'az':       return copy.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt'));
+      case 'za':       return copy.sort((a, b) => (b.name || '').localeCompare(a.name || '', 'pt'));
+      case 'more':     return copy.sort((a, b) => (b.subjects?.length || 0) - (a.subjects?.length || 0));
+      case 'less':     return copy.sort((a, b) => (a.subjects?.length || 0) - (b.subjects?.length || 0));
+      case 'category': return copy.sort((a, b) => (a.category || '').localeCompare(b.category || '', 'pt'));
+      default:         return list;
+    }
+  }, [sortOrder]);
 
   // ── Search ────────────────────────────────
 
@@ -627,20 +673,71 @@ export const DeckListScreen = ({ navigation }) => {
 
   // ── Handlers ─────────────────────────────
 
+  const toggleSelection = useCallback((id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const enterSelectMode = useCallback((id) => {
+    setMultiSelectMode(true);
+    setSelectedIds(new Set([id]));
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setMultiSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleMenuPress = useCallback((deck, event) => {
+    const { pageX, pageY } = event.nativeEvent;
+    setContextMenu({ visible: true, deck, x: pageX, y: pageY });
+  }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(p => ({ ...p, visible: false }));
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (activeTab === 'decks') {
+      const meusIds = userDecks.filter(d => !d.isExample).map(d => d.id);
+      const compradosIds = purchasedDecks.map(d => d.id);
+      setSelectedIds(new Set([...meusIds, ...compradosIds]));
+    } else if (activeTab === 'materias') {
+      setSelectedIds(new Set(allSubjects.map(i => `${i.deck.id}:${i.subject.id}`)));
+    } else if (activeTab === 'categorias') {
+      setSelectedIds(new Set(activeCategories.map(i => i.category.id)));
+    }
+  }, [activeTab, userDecks, purchasedDecks, allSubjects, activeCategories]);
+
   const handleDeckPress = useCallback(async (deck) => {
-    if (multiSelectMode) { toggleDeckSelection(deck.id); return; }
+    if (multiSelectMode) { toggleSelection(deck.id); return; }
     await saveRecentDeck(deck.id);
     navigation.navigate('SubjectList', {
       deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects,
     });
-  }, [multiSelectMode, navigation]);
+  }, [multiSelectMode, navigation, toggleSelection]);
 
-  const handleDeckLongPress = (deck) => {
+  const handleDeckLongPress = useCallback((deck) => {
     if (!multiSelectMode && (allowDefaultDeckEditing || !isDefaultDeck(deck.id))) {
-      setMultiSelectMode(true);
-      setSelectedDecks(new Set([deck.id]));
+      enterSelectMode(deck.id);
     }
-  };
+  }, [multiSelectMode, allowDefaultDeckEditing, enterSelectMode]);
+
+  const handleSubjectPress = useCallback((item) => {
+    if (multiSelectMode) { toggleSelection(`${item.deck.id}:${item.subject.id}`); return; }
+    navigation.navigate('SubjectList', { deckId: item.deck.id, deckName: item.deck.name, preloadedSubjects: item.deck.subjects });
+  }, [multiSelectMode, navigation, toggleSelection]);
+
+  const handleSubjectLongPress = useCallback((item) => {
+    if (!multiSelectMode) enterSelectMode(`${item.deck.id}:${item.subject.id}`);
+  }, [multiSelectMode, enterSelectMode]);
+
+  const handleCategoryCardLongPress = useCallback((item) => {
+    if (!multiSelectMode) enterSelectMode(item.category.id);
+  }, [multiSelectMode, enterSelectMode]);
 
   const handleContinuePress = () => {
     if (!continueStudy) return;
@@ -654,33 +751,26 @@ export const DeckListScreen = ({ navigation }) => {
     const count = categoryCounts[category.id] || 0;
     if (count === 0 && category.id !== 'personalizados') { navigation.navigate('Loja'); return; }
     setActiveCategoryId(category.id);
-    setMultiSelectMode(false);
-    setSelectedDecks(new Set());
+    exitSelectMode();
   };
 
-  const toggleDeckSelection = (deckId) => {
-    const next = new Set(selectedDecks);
-    next.has(deckId) ? next.delete(deckId) : next.add(deckId);
-    setSelectedDecks(next);
-  };
-
-  const deleteSelectedDecks = async () => {
-    if (selectedDecks.size === 0) return;
+  const deleteSelectedDecks = useCallback(async () => {
+    if (selectedIds.size === 0) return;
     setAlertConfig({
       visible: true, title: 'Apagar Decks',
-      message: `Apagar ${selectedDecks.size} deck(s)? Essa ação não pode ser desfeita.`,
+      message: `Apagar ${selectedIds.size} deck(s)? Essa ação não pode ser desfeita.`,
       buttons: [
         { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
         { text: 'Apagar', style: 'destructive', onPress: async () => {
           const allData = await getAppData();
-          await saveAppData(allData.filter(d => !selectedDecks.has(d.id)));
-          await Promise.all(Array.from(selectedDecks).map(id => removePurchasedDeck(id)));
-          setMultiSelectMode(false); setSelectedDecks(new Set());
+          await saveAppData(allData.filter(d => !selectedIds.has(d.id)));
+          await Promise.all(Array.from(selectedIds).map(id => removePurchasedDeck(id)));
+          exitSelectMode();
           loadData(); setAlertConfig(p => ({ ...p, visible: false }));
         }},
       ],
     });
-  };
+  }, [selectedIds, exitSelectMode, loadData]);
 
   const performDelete = async () => {
     if (!selectedDeck) return;
@@ -708,14 +798,13 @@ export const DeckListScreen = ({ navigation }) => {
   };
 
   const openDrawer = () => navigation.getParent()?.openDrawer();
-  const exitMultiSelect = () => { setMultiSelectMode(false); setSelectedDecks(new Set()); };
 
   // ── Skeleton ──────────────────────────────
 
   if (loading) {
     return (
       <View style={s.container}>
-        <HomeHeader onMenuPress={openDrawer} multiSelectMode={false} selectedCount={0} onBack={exitMultiSelect} insetTop={insets.top} />
+        <HomeHeader onMenuPress={openDrawer} multiSelectMode={false} selectedCount={0} onBack={exitSelectMode} insetTop={insets.top} />
         <View style={s.searchBarWrapper}>
           <View style={s.searchBarSkeleton} />
         </View>
@@ -739,39 +828,64 @@ export const DeckListScreen = ({ navigation }) => {
   // ── Helpers de grid com overflow ──────────
   const MAX_VISIBLE = 8;
 
-  const renderGridWithOverflow = (items, renderCard, sectionKey) => {
-    const isExpanded = expandedSections[sectionKey];
-    const visible = isExpanded ? items : items.slice(0, MAX_VISIBLE);
-    const overflowCount = items.length - (MAX_VISIBLE - 1);
-    const showOverflow = !isExpanded && items.length > MAX_VISIBLE;
+  const SECTION_TITLES = {
+    'categorias':         'Categorias',
+    'decks-meus':         'Meus Decks',
+    'decks-comprados':    'Decks Comprados',
+    'materias-comprados': 'Matérias',
+  };
 
-    const displayItems = showOverflow ? items.slice(0, MAX_VISIBLE - 1) : visible;
+  const renderGridWithOverflow = (items, renderCard, sectionKey) => {
+    const showOverflow = items.length > MAX_VISIBLE;
+    const displayItems = showOverflow ? items.slice(0, MAX_VISIBLE - 1) : items;
+    const overflowCount = items.length - (MAX_VISIBLE - 1);
+    const overflowCard = (
+      <OverflowCard
+        count={overflowCount}
+        width={CARD_WIDTH}
+        height={CARD_HEIGHT}
+        onPress={() => navigation.navigate('AllItems', {
+          sectionKey,
+          title: SECTION_TITLES[sectionKey] || 'Ver todos',
+        })}
+      />
+    );
+
     const rows = [];
     for (let i = 0; i < displayItems.length; i += 2) {
-      rows.push(
-        <View key={i} style={s.gridRow}>
-          {renderCard(displayItems[i], i)}
-          {displayItems[i + 1]
-            ? renderCard(displayItems[i + 1], i + 1)
-            : <View style={{ width: CARD_WIDTH }} />}
-        </View>
-      );
+      const isLastRow = i + 2 >= displayItems.length;
+      const isOddLastItem = isLastRow && !displayItems[i + 1]; // last item is alone
+
+      if (showOverflow && isOddLastItem) {
+        // Pair the lone last item with the overflow card in the same row
+        rows.push(
+          <View key={i} style={s.gridRow}>
+            {renderCard(displayItems[i], i)}
+            {overflowCard}
+          </View>
+        );
+      } else {
+        rows.push(
+          <View key={i} style={s.gridRow}>
+            {renderCard(displayItems[i], i)}
+            {displayItems[i + 1]
+              ? renderCard(displayItems[i + 1], i + 1)
+              : <View style={{ width: CARD_WIDTH }} />}
+          </View>
+        );
+      }
     }
-    if (showOverflow) {
+
+    // If all items fill even rows and there's overflow, add overflow in its own row
+    if (showOverflow && displayItems.length % 2 === 0) {
       rows.push(
         <View key="overflow-row" style={s.gridRow}>
-          {displayItems.length % 2 === 0
-            ? <View style={{ width: CARD_WIDTH }} />
-            : null}
-          <OverflowCard
-            count={overflowCount}
-            width={CARD_WIDTH}
-            height={CARD_HEIGHT}
-            onPress={() => setExpandedSections(prev => ({ ...prev, [sectionKey]: true }))}
-          />
+          {overflowCard}
+          <View style={{ width: CARD_WIDTH }} />
         </View>
       );
     }
+
     return rows;
   };
 
@@ -782,8 +896,8 @@ export const DeckListScreen = ({ navigation }) => {
       <HomeHeader
         onMenuPress={openDrawer}
         multiSelectMode={multiSelectMode}
-        selectedCount={selectedDecks.size}
-        onBack={exitMultiSelect}
+        selectedCount={selectedIds.size}
+        onBack={exitSelectMode}
         insetTop={insets.top}
       />
 
@@ -962,11 +1076,34 @@ export const DeckListScreen = ({ navigation }) => {
 
           {/* 3. TAB BAR */}
           <View style={s.tabBarWrapper}>
-            <HomeTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+            <HomeTabBar activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); exitSelectMode(); setSortMenuOpen(false); }} />
           </View>
 
           {/* 4. CONTEÚDO DA ABA */}
           <View style={s.tabContent}>
+
+            {/* Barra de seleção minimalista — só aparece em modo seleção */}
+            {multiSelectMode && (
+              <View style={s.selectBar}>
+                <TouchableOpacity onPress={exitSelectMode} style={s.selectBarCancel} hitSlop={HIT_SLOP}>
+                  <Ionicons name="close" size={15} color={theme.textSecondary} />
+                  <Text style={s.selectBarCancelTxt}>Cancelar</Text>
+                </TouchableOpacity>
+                <Text style={s.selectBarCount}>
+                  {selectedIds.size === 1 ? '1 selecionado' : `${selectedIds.size} selecionados`}
+                </Text>
+                <View style={s.selectBarActions}>
+                  <TouchableOpacity onPress={handleSelectAll} hitSlop={HIT_SLOP} style={s.selectBarAction}>
+                    <Ionicons name="checkmark-done-outline" size={17} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                  {(activeTab === 'decks' || activeTab === 'categorias') && selectedIds.size > 0 && (
+                    <TouchableOpacity onPress={deleteSelectedDecks} hitSlop={HIT_SLOP} style={[s.selectBarAction, s.selectBarDelete]}>
+                      <Ionicons name="trash-outline" size={15} color={theme.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            )}
 
             {/* ── ABA CATEGORIAS ── */}
             {activeTab === 'categorias' && (
@@ -978,29 +1115,18 @@ export const DeckListScreen = ({ navigation }) => {
                 </View>
               ) : (
                 <>
-                  <View style={s.tabSectionHeader}>
-                    <Text style={s.sectionLabel}>
-                      {invertedOrder ? 'COMPRADOS PRIMEIRO' : 'SEUS PRIMEIRO'}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => setInvertedOrder(v => !v)}
-                      hitSlop={HIT_SLOP}
-                      style={s.invertBtn}
-                    >
-                      <Text style={s.invertBtnText}>Inverter ⇅</Text>
-                    </TouchableOpacity>
-                  </View>
                   {renderGridWithOverflow(
-                    invertedOrder
-                      ? [...activeCategories].reverse()
-                      : activeCategories,
-                    (item, idx) => (
+                    activeCategories,
+                    (item) => (
                       <CategorySvgCard
                         key={item.category.id}
                         category={item.category}
                         decks={item.decks}
                         width={CARD_WIDTH}
-                        onPress={() => handleCategoryPress(item.category)}
+                        onPress={() => multiSelectMode ? toggleSelection(item.category.id) : handleCategoryPress(item.category)}
+                        onLongPress={() => handleCategoryCardLongPress(item)}
+                        isSelected={selectedIds.has(item.category.id)}
+                        selectMode={multiSelectMode}
                       />
                     ),
                     'categorias',
@@ -1015,6 +1141,8 @@ export const DeckListScreen = ({ navigation }) => {
               const compradosDecks = purchasedDecks;
               const hasMeus = meusDecks.length > 0;
               const hasComprados = compradosDecks.length > 0;
+              const totalDecks = meusDecks.length + compradosDecks.length;
+              const showFilters = hasMeus && hasComprados && totalDecks >= 2;
 
               if (!hasMeus && !hasComprados) {
                 return (
@@ -1028,57 +1156,88 @@ export const DeckListScreen = ({ navigation }) => {
                 );
               }
 
-              const sections = invertedOrder
-                ? [
-                    hasComprados && { key: 'comprados', label: 'COMPRADOS', items: compradosDecks },
-                    hasMeus && { key: 'meus', label: 'MEUS', items: meusDecks },
-                  ]
-                : [
-                    hasMeus && { key: 'meus', label: 'MEUS', items: meusDecks },
-                    hasComprados && { key: 'comprados', label: 'COMPRADOS', items: compradosDecks },
-                  ];
+              // Decks a exibir conforme filtro
+              let displayDecks;
+              if (showFilters && deckFilter === 'meus') displayDecks = sortDecks(meusDecks);
+              else if (showFilters && deckFilter === 'comprados') displayDecks = sortDecks(compradosDecks);
+              else displayDecks = sortDecks([...meusDecks, ...compradosDecks]);
+
+              const renderDeckCard = (deck) => (
+                <DeckStackCard
+                  key={deck.id}
+                  deck={deck}
+                  width={CARD_WIDTH}
+                  height={CARD_HEIGHT}
+                  categoryLabel={getCatLabel(deck)}
+                  onPress={() => handleDeckPress(deck)}
+                  onLongPress={() => handleDeckLongPress(deck)}
+                  onMenuPress={(e) => handleMenuPress(deck, e)}
+                  isSelected={selectedIds.has(deck.id)}
+                  multiSelectMode={multiSelectMode}
+                />
+              );
+
+              const sectionKey = showFilters && deckFilter !== 'all'
+                ? `decks-${deckFilter}`
+                : 'decks-meus';
 
               return (
                 <>
-                  <View style={s.tabSectionHeader}>
-                    <Text style={s.sectionLabel}>
-                      {invertedOrder ? 'COMPRADOS PRIMEIRO' : 'SEUS PRIMEIRO'}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => setInvertedOrder(v => !v)}
-                      hitSlop={HIT_SLOP}
-                      style={s.invertBtn}
-                    >
-                      <Text style={s.invertBtnText}>Inverter ⇅</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {sections.filter(Boolean).map(section => (
-                    <View key={section.key} style={s.subSection}>
-                      <Text style={s.subSectionLabel}>{section.label}</Text>
-                      {renderGridWithOverflow(
-                        section.items,
-                        (deck, idx) => (
-                          <DeckStackCard
-                            key={deck.id}
-                            deck={deck}
-                            width={CARD_WIDTH}
-                            height={CARD_HEIGHT}
-                            onPress={() => handleDeckPress(deck)}
-                            onLongPress={() => handleDeckLongPress(deck)}
-                            isSelected={selectedDecks.has(deck.id)}
-                            multiSelectMode={multiSelectMode}
+                  {/* Linha de controles: chips + organizar */}
+                  {!multiSelectMode && totalDecks >= 2 && (
+                    <>
+                      {/* Filter chips — só quando há meus + comprados */}
+                      {showFilters && (
+                        <View style={s.filterChips}>
+                          {[
+                            { key: 'all',       label: 'Todos' },
+                            { key: 'meus',      label: 'Criados' },
+                            { key: 'comprados', label: 'Comprados' },
+                          ].map(chip => (
+                            <TouchableOpacity
+                              key={chip.key}
+                              style={[s.filterChip, deckFilter === chip.key && s.filterChipActive]}
+                              onPress={() => setDeckFilter(chip.key)}
+                              hitSlop={HIT_SLOP}
+                            >
+                              <Text style={[s.filterChipTxt, deckFilter === chip.key && s.filterChipTxtActive]}>
+                                {chip.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Linha longa — gap — botão — gap — linha curta */}
+                      <View style={s.deckMetaRow}>
+                        <View style={[s.deckMetaLine, { flex: 1 }]} />
+                        <TouchableOpacity
+                          ref={sortBtnRef}
+                          style={[s.deckMetaBtn, sortOrder && s.deckMetaBtnActive, { marginHorizontal: 6 }]}
+                          hitSlop={HIT_SLOP}
+                          onPress={() => {
+                            sortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
+                              const sbH = StatusBar.currentHeight || 0;
+                              setSortMenuPos({ x, y: y + bh + sbH, w: bw });
+                              setSortMenuOpen(true);
+                            });
+                          }}
+                        >
+                          <Ionicons
+                            name="swap-vertical-outline"
+                            size={13}
+                            color={sortOrder ? theme.primary : theme.textMuted}
                           />
-                        ),
-                        `decks-${section.key}`,
-                      )}
-                      {multiSelectMode && selectedDecks.size > 0 && (
-                        <TouchableOpacity onPress={deleteSelectedDecks} style={s.deleteSelBtn}>
-                          <Ionicons name="trash-outline" size={14} color={theme.danger} />
-                          <Text style={s.deleteSelBtnText}>Apagar ({selectedDecks.size})</Text>
+                          <Text style={[s.deckMetaBtnTxt, sortOrder && s.deckMetaBtnTxtActive]}>
+                            {sortOrder ? SORT_LABELS[sortOrder] : 'Ordenar'}
+                          </Text>
                         </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
+                        <View style={[s.deckMetaLine, { width: GRID_PADDING + 24 }]} />
+                      </View>
+                    </>
+                  )}
+
+                  {renderGridWithOverflow(displayDecks, renderDeckCard, sectionKey)}
                 </>
               );
             })()}
@@ -1099,14 +1258,17 @@ export const DeckListScreen = ({ navigation }) => {
                     <Text style={s.subSectionLabel}>COMPRADOS</Text>
                     {renderGridWithOverflow(
                       allSubjects,
-                      (item, idx) => (
+                      (item) => (
                         <MateriaCard
                           key={`${item.deck.id}-${item.subject.id}`}
                           subject={item.subject}
                           deck={item.deck}
                           width={CARD_WIDTH}
                           height={CARD_HEIGHT}
-                          onPress={() => handleDeckPress(item.deck)}
+                          onPress={() => handleSubjectPress(item)}
+                          onLongPress={() => handleSubjectLongPress(item)}
+                          isSelected={selectedIds.has(`${item.deck.id}:${item.subject.id}`)}
+                          selectMode={multiSelectMode}
                         />
                       ),
                       'materias-comprados',
@@ -1119,6 +1281,113 @@ export const DeckListScreen = ({ navigation }) => {
           </View>
         </ScrollView>
       )}
+
+      {/* ── Dropdown de ordenação ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={sortMenuOpen}
+        onRequestClose={() => setSortMenuOpen(false)}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setSortMenuOpen(false)}>
+          <View style={{ flex: 1 }}>
+            <View style={[sortStyles.dropdown, {
+              position: 'absolute',
+              right: GRID_PADDING,
+              top: sortMenuPos.y + 10,
+              width: 230,
+            }]}>
+              <View style={sortStyles.header}>
+                <Ionicons name="swap-vertical-outline" size={13} color={theme.primary} />
+                <Text style={sortStyles.headerTxt}>Ordenar por</Text>
+              </View>
+              <View style={sortStyles.sep} />
+              {SORT_OPTIONS.map((opt) => {
+                const isActive = sortOrder === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[sortStyles.item, isActive && sortStyles.itemActive]}
+                    onPress={() => { setSortOrder(isActive ? null : opt.key); setSortMenuOpen(false); }}
+                  >
+                    <View style={[sortStyles.itemIconWrap, isActive && sortStyles.itemIconWrapActive]}>
+                      <Ionicons name={opt.icon} size={14} color={isActive ? theme.primary : theme.textMuted} />
+                    </View>
+                    <Text style={[sortStyles.itemTxt, isActive && sortStyles.itemTxtActive]} numberOfLines={1}>
+                      {opt.label}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={14} color={theme.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Menu de contexto (3 pontos) ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={contextMenu.visible}
+        onRequestClose={closeContextMenu}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={closeContextMenu}>
+          <View style={ctxStyles.overlay}>
+            {(() => {
+              const menuW = 180;
+              const menuH = 104;
+              let menuLeft = contextMenu.x - menuW + 16;
+              let menuTop = contextMenu.y - menuH - 10;
+              if (menuLeft < 8) menuLeft = 8;
+              if (menuLeft + menuW > width - 8) menuLeft = width - menuW - 8;
+              if (menuTop < 60) menuTop = contextMenu.y + 10;
+              return (
+                <View style={[ctxStyles.menu, { left: menuLeft, top: menuTop }]}>
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      closeContextMenu();
+                      if (contextMenu.deck) navigation.navigate('EditDeck', { deckId: contextMenu.deck.id, deckName: contextMenu.deck.name });
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Renomear</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      const deck = contextMenu.deck;
+                      closeContextMenu();
+                      if (!deck) return;
+                      setAlertConfig({
+                        visible: true,
+                        title: 'Apagar Deck',
+                        message: `Apagar "${deck.name}" e todos os seus dados?`,
+                        buttons: [
+                          { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+                          { text: 'Apagar', style: 'destructive', onPress: async () => {
+                            const allData = await getAppData();
+                            await saveAppData(allData.filter(d => d.id !== deck.id));
+                            loadData();
+                            setAlertConfig(p => ({ ...p, visible: false }));
+                          }},
+                        ],
+                      });
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={theme.danger} />
+                    <Text style={[ctxStyles.itemText, { color: theme.danger }]}>Excluir</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       <CustomBottomModal visible={isModalVisible} onClose={() => setModalVisible(false)} title="Opções do Deck">
         <TouchableOpacity style={modalOpt.row} onPress={() => {
@@ -1196,7 +1465,7 @@ const s = StyleSheet.create({
   gridRow: { flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP },
   cardSkeleton: { flex: 1, height: 110, borderRadius: 14, backgroundColor: theme.backgroundSecondary },
 
-  mainContent: { paddingBottom: 120, flexGrow: 1 },
+  mainContent: { paddingBottom: 16 },
   firstAccessScroll: { flex: 1 },
   firstAccessScrollContent: { paddingBottom: 32 },
   searchContent: { paddingHorizontal: GRID_PADDING, paddingTop: 4, paddingBottom: 120 },
@@ -1422,45 +1691,117 @@ const s = StyleSheet.create({
     paddingHorizontal: GRID_PADDING,
     paddingTop: 16,
   },
-  tabSectionHeader: {
+
+  // Barra de seleção minimalista
+  selectBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: theme.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
-  invertBtn: { paddingLeft: 8 },
-  invertBtnText: {
+  selectBarCancel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingRight: 8,
+  },
+  selectBarCancelTxt: {
+    color: theme.textSecondary,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 13,
+  },
+  selectBarCount: {
+    flex: 1,
+    textAlign: 'center',
     color: theme.primary,
+    fontFamily: theme.fontFamily.headingSemiBold,
+    fontSize: 13,
+  },
+  selectBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 8,
+  },
+  selectBarAction: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  selectBarDelete: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+  },
+
+  // Linha de controles (chips + ordenar)
+  // Filter chips (quando há meus + comprados)
+  filterChips: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 10,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: theme.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  filterChipActive: {
+    backgroundColor: theme.primaryTransparent,
+    borderColor: theme.primary + '60',
+  },
+  filterChipTxt: {
+    color: theme.textMuted,
     fontFamily: theme.fontFamily.uiMedium,
     fontSize: 12,
   },
-  subSection: { marginBottom: 20 },
+  filterChipTxtActive: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+  },
+
+  // Linha ordenar por
+  deckMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  deckMetaLine: {
+    height: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  deckMetaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  deckMetaBtnActive: {},
+  deckMetaBtnTxt: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 12,
+  },
+  deckMetaBtnTxtActive: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+  },
+  subSection: { marginBottom: 4 },
   subSectionLabel: {
     color: theme.textMuted,
     fontFamily: theme.fontFamily.uiSemiBold,
     fontSize: 10,
     letterSpacing: 1.5,
     marginBottom: 10,
-  },
-
-  // Multi-select delete
-  deleteSelBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    alignSelf: 'flex-end',
-    marginTop: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: theme.backgroundSecondary,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.danger + '40',
-  },
-  deleteSelBtnText: {
-    color: theme.danger,
-    fontFamily: theme.fontFamily.uiMedium,
-    fontSize: 12,
   },
 
   // Empty states
@@ -1812,6 +2153,126 @@ const cardStyles = StyleSheet.create({
 const modalOpt = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 16 },
   text: { color: theme.textPrimary, fontSize: theme.fontSize.base, fontWeight: '500' },
+});
+
+// ── Sort dropdown modal ──────────────────────
+const sortStyles = StyleSheet.create({
+  dropdown: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  headerTxt: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  sep: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginHorizontal: 0,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  itemActive: {
+    backgroundColor: 'rgba(93,214,44,0.06)',
+  },
+  itemIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  itemIconWrapActive: {
+    backgroundColor: theme.primaryTransparent,
+  },
+  itemTxt: {
+    flex: 1,
+    color: theme.textSecondary,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 14,
+  },
+  itemTxtActive: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+  },
+  resetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  resetTxt: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 12,
+  },
+  clearTxt: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 12,
+  },
+});
+
+// ── Context menu (3 pontos) ──────────────────
+const ctxStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+  },
+  menu: {
+    position: 'absolute',
+    width: 180,
+    backgroundColor: '#2c2c2c',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 14,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  itemText: {
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 14,
+    color: theme.textPrimary,
+  },
+  sep: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
 });
 
 export default DeckListScreen;

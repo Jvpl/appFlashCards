@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 
 const { width } = Dimensions.get('window');
@@ -53,7 +54,7 @@ const getLevelStyle = (pct) => {
   }
 };
 
-const DeckStackCard = ({ deck, onPress, onLongPress, isSelected, multiSelectMode, width, height }) => {
+const DeckStackCard = ({ deck, onPress, onLongPress, onMenuPress, isSelected, multiSelectMode, width, height, categoryLabel }) => {
   const subjectCount = deck.subjects?.length || 0;
   const pct = calcDominio(deck.subjects);
   const { label: statusLabel, color: statusColor } = getDominioInfo(pct);
@@ -72,6 +73,7 @@ const DeckStackCard = ({ deck, onPress, onLongPress, isSelected, multiSelectMode
     <TouchableOpacity
       onPress={onPress}
       onLongPress={onLongPress}
+      delayLongPress={280}
       activeOpacity={0.78}
       style={[styles.container, { width: cardWidth, height: cardHeight }]}
     >
@@ -98,8 +100,10 @@ const DeckStackCard = ({ deck, onPress, onLongPress, isSelected, multiSelectMode
         },
         isSelected && styles.mainCardSelected,
       ]}>
-        {/* Label DECK */}
-        <Text style={styles.deckLabel}>DECK</Text>
+        {/* Label categoria / DECK */}
+        <Text style={styles.deckLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+          {(categoryLabel || 'DECK').toUpperCase()}
+        </Text>
 
         {/* Nome */}
         <Text style={styles.deckName} numberOfLines={3}>{deck.name || 'Deck sem nome'}</Text>
@@ -109,27 +113,34 @@ const DeckStackCard = ({ deck, onPress, onLongPress, isSelected, multiSelectMode
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.subjectCount}>
-            {subjectCount} {subjectCount === 1 ? 'matéria' : 'matérias'}
-          </Text>
+          <View style={styles.subjectRow}>
+            <Text style={styles.subjectNumber}>{subjectCount}</Text>
+            <Text style={styles.subjectWord}>{subjectCount === 1 ? ' matéria' : ' matérias'}</Text>
+          </View>
+          {pct > 0 && (
+            <Text style={styles.pctLabel}>{pct}%</Text>
+          )}
           <Text style={[styles.statusLabel, { color: statusColor }]}>
             {statusLabel}
           </Text>
         </View>
       </View>
 
-      {/* Checkmark (modo multi-select) */}
-      {multiSelectMode && (
+      {/* Checkmark (seleção) ou botão de menu (···) */}
+      {multiSelectMode ? (
         <View style={styles.checkOverlay}>
-          <View style={[
-            styles.checkCircle,
-            isSelected && styles.checkCircleActive,
-          ]}>
-            {isSelected && (
-              <Text style={styles.checkMark}>✓</Text>
-            )}
+          <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
+            {isSelected && <Text style={styles.checkMark}>✓</Text>}
           </View>
         </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.menuBtn}
+          onPress={onMenuPress}
+          hitSlop={{ top: 10, bottom: 10, left: 14, right: 10 }}
+        >
+          <Ionicons name="ellipsis-vertical" size={17} color="rgba(255,255,255,0.35)" />
+        </TouchableOpacity>
       )}
     </TouchableOpacity>
   );
@@ -188,24 +199,40 @@ const styles = StyleSheet.create({
   deckLabel: {
     fontFamily: theme.fontFamily.uiMedium,
     fontSize: 10,
-    color: theme.textMuted,
-    letterSpacing: 1,
+    color: theme.primary,
+    letterSpacing: 0.8,
     marginBottom: 6,
+    paddingRight: 28, // espaço para o botão ···
   },
   deckName: {
     fontFamily: theme.fontFamily.headingSemiBold,
-    fontSize: 14,
+    fontSize: 17,
     color: theme.textPrimary,
-    lineHeight: 19,
+    lineHeight: 22,
   },
 
   footer: {
-    gap: 2,
+    gap: 1,
   },
-  subjectCount: {
-    fontFamily: theme.fontFamily.body,
-    fontSize: 12,
+  subjectRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  subjectNumber: {
+    fontFamily: theme.fontFamily.heading,
+    fontSize: 20,
+    color: theme.primary,
+    lineHeight: 24,
+  },
+  subjectWord: {
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 11,
     color: theme.textMuted,
+  },
+  pctLabel: {
+    fontFamily: theme.fontFamily.heading,
+    fontSize: 13,
+    color: theme.primary,
   },
   statusLabel: {
     fontFamily: theme.fontFamily.uiSemiBold,
@@ -236,6 +263,17 @@ const styles = StyleSheet.create({
     color: '#0F0F0F',
     fontSize: 11,
     fontWeight: '700',
+  },
+
+  // Botão ···
+  menuBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
