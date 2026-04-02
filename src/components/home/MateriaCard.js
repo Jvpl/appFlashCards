@@ -1,10 +1,4 @@
-/**
- * MateriaCard
- * Design de caderno com marcador (bookmark) verde fixo no topo direito.
- * 3 furos decorativos no lado esquerdo.
- * Label "MATÉRIA", nome da matéria e quantidade de cards.
- */
-import React from 'react';
+import React, { useRef } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
@@ -15,60 +9,80 @@ const GRID_GAP = 10;
 export const MATERIA_CARD_WIDTH = (width - GRID_PADDING * 2 - GRID_GAP) / 2;
 export const MATERIA_CARD_HEIGHT = MATERIA_CARD_WIDTH * 1.3;
 
-// Largura da faixa do bookmark
-const BOOKMARK_WIDTH = 18;
+const MateriaCard = ({
+  subject, deck, onPress, onLongPress,
+  isSelected, selectMode,
+  width: propWidth, height: propHeight,
+  onMenuPress,
+}) => {
+  const cardCount  = subject.flashcards?.length || 0;
+  const isReview   = !!subject.reviewMode;
+  const cardWidth  = propWidth  || MATERIA_CARD_WIDTH;
+  const cardHeight = propHeight || MATERIA_CARD_HEIGHT;
+  const touchStart = useRef(null);
 
-const MateriaCard = ({ subject, deck, onPress, onLongPress, isSelected, selectMode, width, height }) => {
-  const cardCount = subject.flashcards?.length || 0;
-  const cardWidth = width || MATERIA_CARD_WIDTH;
-  const cardHeight = height || MATERIA_CARD_HEIGHT;
+  const handlePressIn = (e) => {
+    touchStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+  };
+
+  const handlePress = (e) => {
+    const start = touchStart.current;
+    if (start) {
+      const dx = Math.abs(e.nativeEvent.pageX - start.x);
+      const dy = Math.abs(e.nativeEvent.pageY - start.y);
+      if (dx > 8 || dy > 8) return;
+    }
+    onPress?.();
+  };
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPress={handlePress}
       onLongPress={onLongPress}
       activeOpacity={0.80}
-      style={[styles.card, { width: cardWidth, height: cardHeight }, isSelected && styles.cardSelected]}
+      style={[styles.card, { width: cardWidth, height: cardHeight }, isSelected && styles.cardSelected, isReview && styles.cardReview]}
     >
-      {/* Furos decorativos — lado esquerdo */}
+      {/* Furos decorativos */}
       <View style={styles.holesColumn}>
         <View style={styles.hole} />
         <View style={styles.hole} />
         <View style={styles.hole} />
       </View>
 
-      {/* Conteúdo principal */}
+      {/* Conteúdo */}
       <View style={styles.content}>
-        {/* Label */}
-        <Text style={styles.label}>MATÉRIA</Text>
-
-        {/* Nome — com paddingRight para não passar pelo bookmark */}
-        <Text
-          style={styles.name}
-          numberOfLines={3}
-        >
-          {subject.name || 'Matéria'}
-        </Text>
-
+        <Text style={styles.label} numberOfLines={1}>{(deck?.name || 'Matéria').toUpperCase()}</Text>
+        <Text style={styles.name} numberOfLines={3}>{subject.name || 'Matéria'}</Text>
         <View style={{ flex: 1 }} />
-
-        {/* Quantidade de cards */}
-        <Text style={styles.cardCount}>
-          {cardCount} {cardCount === 1 ? 'card' : 'cards'}
-        </Text>
+        <View style={styles.cardCountRow}>
+          <Text style={styles.cardCountNumber}>{cardCount}</Text>
+          <Text style={styles.cardCountWord}>{cardCount === 1 ? ' card' : ' cards'}</Text>
+          {isReview && (
+            <View style={styles.reviewBadge}>
+              <Text style={styles.reviewBadgeTxt}>Revisão</Text>
+            </View>
+          )}
+        </View>
       </View>
 
-      {/* Bookmark — topo direito */}
-      <View style={styles.bookmarkWrapper}>
-        <View style={styles.bookmarkBody} />
-        {/* Ponta V do bookmark */}
-        <View style={styles.bookmarkTip} />
-      </View>
+      {/* Menu 3 pontos */}
+      {!selectMode && (
+        <TouchableOpacity
+          style={styles.menuBtn}
+          onPress={onMenuPress}
+          hitSlop={{ top: 8, bottom: 8, left: 10, right: 8 }}
+        >
+          <Ionicons name="ellipsis-vertical" size={17} color={theme.textMuted} />
+        </TouchableOpacity>
+      )}
 
       {/* Checkbox de seleção */}
       {selectMode && (
-        <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
-          {isSelected && <Ionicons name="checkmark" size={11} color="#0F0F0F" />}
+        <View style={styles.checkOverlay}>
+          <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
+            {isSelected && <Ionicons name="checkmark" size={11} color="#0F0F0F" />}
+          </View>
         </View>
       )}
     </TouchableOpacity>
@@ -89,25 +103,13 @@ const styles = StyleSheet.create({
     borderColor: theme.primary,
     borderWidth: 2,
   },
-  checkCircle: {
-    position: 'absolute',
-    bottom: 8,
-    left: 26,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: theme.textMuted,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkCircleActive: {
-    backgroundColor: theme.primary,
+  cardReview: {
     borderColor: theme.primary,
+    borderWidth: 2,
+    backgroundColor: 'rgba(93,214,44,0.04)',
   },
 
-  // Coluna dos furos
+  // Furos
   holesColumn: {
     width: 20,
     paddingVertical: 16,
@@ -125,12 +127,12 @@ const styles = StyleSheet.create({
     backgroundColor: theme.background,
   },
 
-  // Conteúdo central
+  // Conteúdo
   content: {
     flex: 1,
     paddingVertical: 12,
     paddingLeft: 10,
-    paddingRight: BOOKMARK_WIDTH + 6,
+    paddingRight: 10,
   },
   label: {
     fontFamily: theme.fontFamily.uiMedium,
@@ -145,34 +147,64 @@ const styles = StyleSheet.create({
     color: theme.textPrimary,
     lineHeight: 18,
   },
-  cardCount: {
-    fontFamily: theme.fontFamily.body,
-    fontSize: 12,
+  cardCountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  cardCountNumber: {
+    fontFamily: theme.fontFamily.heading,
+    fontSize: 20,
+    color: theme.primary,
+    lineHeight: 24,
+  },
+  cardCountWord: {
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 11,
     color: theme.textMuted,
   },
+  reviewBadge: {
+    marginLeft: 'auto',
+    backgroundColor: 'rgba(93,214,44,0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  reviewBadgeTxt: {
+    color: theme.primary,
+    fontSize: 10,
+    fontFamily: theme.fontFamily.uiSemiBold,
+  },
 
-  // Bookmark
-  bookmarkWrapper: {
+  // Menu 3 pontos
+  menuBtn: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    width: BOOKMARK_WIDTH,
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  bookmarkBody: {
-    width: BOOKMARK_WIDTH,
-    height: 38,
+
+  // Checkbox
+  checkOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  checkCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: theme.textMuted,
+    backgroundColor: theme.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkCircleActive: {
     backgroundColor: theme.primary,
-  },
-  bookmarkTip: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: BOOKMARK_WIDTH / 2,
-    borderRightWidth: BOOKMARK_WIDTH / 2,
-    borderTopWidth: 10,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: theme.primary,
+    borderColor: theme.primary,
   },
 });
 

@@ -2,164 +2,54 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Platform, BackHandler, Dimensions, TextInput,
-  Keyboard, LayoutAnimation, UIManager, FlatList,
-  InteractionManager,
+  Keyboard, UIManager, ScrollView,
+  InteractionManager, Modal, TouchableWithoutFeedback,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
+import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
-import { CustomBottomModal } from '../components/ui/CustomBottomModal';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
+import MateriaCard, { MATERIA_CARD_WIDTH, MATERIA_CARD_HEIGHT } from '../components/home/MateriaCard';
 import theme from '../styles/theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+const { width } = Dimensions.get('window');
+const GRID_PADDING = 16;
+const GRID_GAP = 10;
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
-// ── Progress bar ──────────────────────────────────────────────────
-
-const ProgressBar = ({ progress }) => (
-  <View style={s.progressTrack}>
-    <View style={[s.progressFill, { width: `${progress}%` }]} />
-  </View>
-);
-
-// ── Subject card (accordion) ──────────────────────────────────────
-
-const SubjectItem = React.memo(({
-  item,
-  isExpanded,
-  onToggle,
-  onStudy,
-  onManageCards,
-  onOptions,
-  isSelectionMode,
-  isSelected,
-  onToggleSelection,
-  allowDefaultDeckEditing,
-  calculateProgress,
-}) => {
-  const progress = calculateProgress(item.flashcards);
-  const cardCount = item.flashcards?.length ?? 0;
-  const isDefault = !item.isUserCreated;
-  const canSelect = !isDefault || allowDefaultDeckEditing;
-
-  const handlePress = () => {
-    if (isSelectionMode) {
-      if (canSelect) onToggleSelection(item.id);
-    } else {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      onToggle(item.id);
-    }
-  };
-
-  const handleLongPress = () => {
-    if (!isSelectionMode && (!isDefault || allowDefaultDeckEditing)) {
-      onToggleSelection(item.id);
-    }
-  };
-
-  return (
-    <TouchableOpacity
-      style={[s.card, isExpanded && s.cardExpanded, isSelected && s.cardSelected]}
-      onPress={handlePress}
-      onLongPress={handleLongPress}
-      activeOpacity={0.75}
-    >
-      {/* Left accent stripe */}
-      <View style={[s.cardAccent, isExpanded && s.cardAccentOn]} />
-
-      <View style={s.cardBody}>
-        {/* Top row */}
-        <View style={s.cardRow}>
-          {isSelectionMode ? (
-            <Ionicons
-              name={isSelected ? 'checkbox' : 'square-outline'}
-              size={20}
-              color={isSelected ? theme.primary : theme.textMuted}
-              style={{ marginRight: 10 }}
-            />
-          ) : (
-            <View style={[s.dot, isDefault && s.dotDefault]} />
-          )}
-
-          <View style={s.cardMeta}>
-            <Text style={s.cardTitle} numberOfLines={1}>{item.name}</Text>
-            <Text style={s.cardSub}>
-              {cardCount} {cardCount === 1 ? 'card' : 'cards'}
-              {isDefault ? <Text style={s.badgeDefault}> · padrão</Text> : null}
-            </Text>
-          </View>
-
-          <View style={s.cardRight}>
-            <Text style={[s.pct, progress === 100 && s.pctDone]}>{progress}%</Text>
-            {!isSelectionMode && (
-              <Ionicons
-                name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                size={14}
-                color={theme.textMuted}
-                style={{ marginLeft: 4 }}
-              />
-            )}
-          </View>
-        </View>
-
-        {/* Progress bar */}
-        <ProgressBar progress={progress} />
-
-        {/* Expanded actions */}
-        {isExpanded && !isSelectionMode && (
-          <View style={s.actions}>
-            <TouchableOpacity style={s.btnStudy} onPress={() => onStudy(item)} activeOpacity={0.8}>
-              <Ionicons name="play" size={13} color="#0F0F0F" style={{ marginRight: 5 }} />
-              <Text style={s.btnStudyTxt}>Estudar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={s.btnManage} onPress={() => onManageCards(item)} activeOpacity={0.8}>
-              <Ionicons name="layers-outline" size={13} color={theme.primary} style={{ marginRight: 5 }} />
-              <Text style={s.btnManageTxt}>Gerenciar Cards</Text>
-            </TouchableOpacity>
-
-            {(item.isUserCreated || allowDefaultDeckEditing) && (
-              <TouchableOpacity
-                style={s.btnMore}
-                onPress={() => onOptions(item)}
-                activeOpacity={0.8}
-                hitSlop={HIT_SLOP}
-              >
-                <Ionicons name="ellipsis-horizontal" size={16} color={theme.textMuted} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-});
+const SORT_OPTIONS = [
+  { key: 'az', label: 'A–Z', icon: 'arrow-up-outline' },
+  { key: 'za', label: 'Z–A', icon: 'arrow-down-outline' },
+  { key: 'more', label: 'Mais cards', icon: 'layers-outline' },
+  { key: 'less', label: 'Menos cards', icon: 'layers-outline' },
+  { key: 'recent', label: 'Mais novos', icon: 'time-outline' },
+];
+const SORT_LABELS = Object.fromEntries(SORT_OPTIONS.map(o => [o.key, o.label]));
 
 // ── Skeleton ──────────────────────────────────────────────────────
 
 const Skeleton = () => (
-  <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-    {[1, 2, 3, 4].map(i => (
-      <View key={i} style={[s.card, { marginBottom: 10, overflow: 'hidden' }]}>
-        <View style={s.cardAccent} />
-        <View style={s.cardBody}>
-          <View style={s.cardRow}>
-            <SkeletonItem style={{ width: 8, height: 8, borderRadius: 4, marginRight: 12 }} />
-            <View style={{ flex: 1 }}>
-              <SkeletonItem style={{ width: '55%', height: 15, marginBottom: 6 }} />
-              <SkeletonItem style={{ width: '30%', height: 11 }} />
-            </View>
-            <SkeletonItem style={{ width: 34, height: 14, borderRadius: 4 }} />
+  <View style={{ paddingHorizontal: GRID_PADDING, paddingTop: 8 }}>
+    {[[1, 2], [3, 4]].map((row, ri) => (
+      <View key={ri} style={{ flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP }}>
+        {row.map(i => (
+          <View key={i} style={{
+            width: MATERIA_CARD_WIDTH, height: MATERIA_CARD_HEIGHT,
+            borderRadius: 12, overflow: 'hidden',
+            backgroundColor: theme.backgroundSecondary,
+            opacity: 1 - ri * 0.3,
+          }}>
+            <SkeletonItem style={{ flex: 1 }} />
           </View>
-          <SkeletonItem style={{ height: 4, borderRadius: 2, marginTop: 10 }} />
-        </View>
+        ))}
       </View>
     ))}
   </View>
@@ -173,35 +63,77 @@ const STEPS = [
   { icon: 'trending-up-outline', label: 'Estude e evolua', hint: 'O app adapta a revisão ao seu ritmo' },
 ];
 
-const EmptyState = ({ onAdd }) => (
+const EmptyState = ({ onCreatePress }) => (
   <View style={s.emptyWrap}>
     <View style={s.emptyIconRing}>
-      <Ionicons name="albums-outline" size={30} color={theme.primary} />
+      <Ionicons name="albums-outline" size={32} color={theme.primary} />
     </View>
-    <Text style={s.emptyTitle}>Deck vazio</Text>
-    <Text style={s.emptyHint}>Siga os passos para começar a estudar</Text>
-
-    <View style={s.stepsList}>
+    <Text style={s.emptyTitle}>Deck sem matérias</Text>
+    <Text style={s.emptyHint}>Adicione matérias para organizar seus flashcards e começar a estudar.</Text>
+    <View style={s.stepsCard}>
       {STEPS.map((step, i) => (
-        <View key={i} style={s.stepRow}>
-          <View style={s.stepNumWrap}>
-            <Text style={s.stepNum}>{i + 1}</Text>
-            {i < STEPS.length - 1 && <View style={s.stepLine} />}
+        <View key={i} style={[s.stepRow, i > 0 && s.stepRowBorder]}>
+          <View style={s.stepIcon}>
+            <Ionicons name={step.icon} size={16} color={theme.primary} />
           </View>
           <View style={s.stepContent}>
             <Text style={s.stepLabel}>{step.label}</Text>
-            <Text style={s.stepHint}>{step.hint}</Text>
+            <Text style={s.stepHintTxt}>{step.hint}</Text>
           </View>
         </View>
       ))}
     </View>
-
-    <TouchableOpacity style={s.emptyBtn} onPress={onAdd} activeOpacity={0.85}>
-      <Ionicons name="add" size={18} color="#0F0F0F" style={{ marginRight: 7 }} />
-      <Text style={s.emptyBtnTxt}>Adicionar matéria</Text>
+    <TouchableOpacity style={s.emptyCreateBtn} onPress={onCreatePress} activeOpacity={0.8}>
+      <Ionicons name="add-circle" size={18} color="#0F0F0F" />
+      <Text style={s.emptyCreateTxt}>Adicionar matéria</Text>
     </TouchableOpacity>
   </View>
 );
+
+
+// ── InputBar — hook só ativo quando montado (isCreating) ─────────
+
+function InputBar({ inputRef, value, onChange, saving, onSave }) {
+  return (
+    <View style={s.inputBar}>
+      <View style={s.inputBarInner}>
+        <View style={s.inputUnderlineWrap}>
+          <View style={s.inputBarRow}>
+            <TextInput
+              ref={inputRef}
+              style={s.inputBarInput}
+              placeholder="Nome da matéria..."
+              placeholderTextColor={theme.textMuted}
+              value={value}
+              onChangeText={t => onChange(t.slice(0, 25))}
+              maxLength={25}
+              returnKeyType="done"
+              autoFocus
+              onSubmitEditing={() => onSave()}
+            />
+            {value.length > 0 && (
+              <Text style={[s.createCounter, value.length >= 20 && s.createCounterWarn]}>
+                {value.length}/25
+              </Text>
+            )}
+          </View>
+          <View style={[s.inputLine, { backgroundColor: value.length > 0 ? theme.primary : theme.primaryDark }]} />
+        </View>
+        <TouchableOpacity
+          style={[s.inputBarBtn, (!value.trim() || saving) && { opacity: 0.35 }]}
+          disabled={!value.trim() || saving}
+          onPress={() => onSave()}
+          activeOpacity={0.75}
+        >
+          {saving
+            ? <Text style={{ color: '#0F0F0F', fontSize: 16, fontWeight: '700' }}>…</Text>
+            : <Ionicons name="checkmark" size={22} color="#0F0F0F" />
+          }
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
 
 // ── Main screen ───────────────────────────────────────────────────
 
@@ -214,29 +146,35 @@ export const SubjectListScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(preloadedSubjects ? false : true);
   const [allowDefaultDeckEditing, setAllowDefaultDeckEditing] = useState(false);
 
-  // Accordion
-  const [expandedId, setExpandedId] = useState(null);
-
-  // Search
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Selection mode
   const [isSelectionMode, setSelectionMode] = useState(false);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
 
-  // Options modal
-  const [selectedSubject, setSelectedSubject] = useState(null);
-  const [isOptionsVisible, setOptionsVisible] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createText, setCreateText] = useState('');
+  const [createSaving, setCreateSaving] = useState(false);
+  const createInputRef = useRef(null);
 
-  // Add subject modal
-  const [isAddVisible, setAddVisible] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const addInputRef = useRef(null);
+  // Sort
+  const [sortOrder, setSortOrder] = useState(null);
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [sortMenuPos, setSortMenuPos] = useState({ x: 0, y: 0 });
+  const sortBtnRef = useRef(null);
+
+  // Header menu (3-dot)
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [headerMenuPos, setHeaderMenuPos] = useState({ x: 0, y: 0 });
+  const headerMenuBtnRef = useRef(null);
+
+  // Context menu (3-dot)
+  const [contextMenu, setContextMenu] = useState({ visible: false, subject: null, x: 0, y: 0 });
+  const [renameModal, setRenameModal] = useState({ visible: false, subject: null, text: '' });
 
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
 
-  // ── Data ────────────────────────────────────────────────────────
+  const deckObj = useMemo(() => ({ id: deckId, name: deckName }), [deckId, deckName]);
+
+  // ── Data ──────────────────────────────────────────────────────────
 
   const loadData = useCallback(async () => {
     if (!preloadedSubjects && subjects.length === 0) setLoading(true);
@@ -257,11 +195,12 @@ export const SubjectListScreen = ({ route, navigation }) => {
     }
   }, [isFocused, loadData]);
 
-  const calculateProgress = useCallback((flashcards) => {
-    if (!flashcards?.length) return 0;
-    const total = flashcards.length * 5;
-    const current = flashcards.reduce((s, c) => s + (c.level || 0), 0);
-    return total > 0 ? Math.round((current / total) * 100) : 0;
+  useEffect(() => {
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setIsCreating(false);
+      setCreateText('');
+    });
+    return () => hide.remove();
   }, []);
 
   const filteredSubjects = useMemo(() => {
@@ -270,200 +209,168 @@ export const SubjectListScreen = ({ route, navigation }) => {
     return subjects.filter(s => s.name.toLowerCase().includes(q));
   }, [subjects, searchTerm]);
 
-  // ── Accordion ────────────────────────────────────────────────────
-
-  const handleToggle = useCallback((id) => {
-    setExpandedId(prev => prev === id ? null : id);
-  }, []);
-
-  // ── Navigation ───────────────────────────────────────────────────
+  // ── Navigation ────────────────────────────────────────────────────
 
   const handleStudy = useCallback((subject) => {
     navigation.navigate('Flashcard', {
-      deckId,
-      subjectId: subject.id,
-      subjectName: subject.name,
-      preloadedCards: subject.flashcards,
+      deckId, subjectId: subject.id, subjectName: subject.name,
+      preloadedCards: subject.reviewMode ? subject.flashcards : subject.flashcards,
+      reviewMode: !!subject.reviewMode,
     });
   }, [navigation, deckId]);
 
   const handleManageCards = useCallback((subject) => {
-    navigation.navigate('ManageFlashcards', {
-      deckId,
-      subjectId: subject.id,
-      preloadedCards: subject.flashcards,
-    });
+    navigation.navigate('ManageFlashcards', { deckId, subjectId: subject.id, preloadedCards: subject.flashcards });
   }, [navigation, deckId]);
 
-  // ── Add subject inline ───────────────────────────────────────────
+  // ── Delete deck ───────────────────────────────────────────────────
 
-  const openAdd = useCallback(() => {
-    setNewName('');
-    setAddVisible(true);
-    setTimeout(() => addInputRef.current?.focus(), 200);
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    const trimmed = newName.trim();
-    if (!trimmed) {
-      setAlertConfig({
-        visible: true,
-        title: 'Atenção',
-        message: 'Por favor, insira um nome para a matéria.',
-        buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
-      });
-      return;
-    }
-    setIsSaving(true);
-    Keyboard.dismiss();
-    const allData = await getAppData();
-    const newSubject = {
-      id: `subject_${Date.now()}`,
-      name: trimmed,
-      flashcards: [],
-      isUserCreated: true,
-    };
-    const newData = allData.map(d =>
-      d.id === deckId ? { ...d, subjects: [...d.subjects, newSubject] } : d
-    );
-    await saveAppData(newData);
-    setSubjects(prev => [...prev, newSubject]);
-    setIsSaving(false);
-    setAddVisible(false);
-    setNewName('');
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedId(newSubject.id);
-  }, [newName, deckId]);
-
-  // ── Selection ────────────────────────────────────────────────────
-
-  const handleToggleSelection = useCallback((id) => {
-    setSelectionMode(true);
-    setSelectedSubjects(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  }, []);
-
-  const exitSelection = useCallback(() => {
-    setSelectionMode(false);
-    setSelectedSubjects([]);
-  }, []);
-
-  const handleSelectAll = () => {
-    if (selectedSubjects.length > 0) { setSelectedSubjects([]); return; }
-    if (!allowDefaultDeckEditing) {
-      setSelectedSubjects(subjects.filter(s => s.isUserCreated).map(s => s.id));
-      return;
-    }
+  const handleDeleteDeck = useCallback(() => {
+    setHeaderMenuOpen(false);
     setAlertConfig({
-      visible: true,
-      title: 'Seleção Rápida',
-      message: 'O que você deseja selecionar?',
+      visible: true, title: 'Excluir Deck',
+      message: `Excluir "${deckName}" e todos os seus flashcards permanentemente?`,
       buttons: [
-        { text: 'Todas', onPress: () => { setSelectedSubjects(subjects.map(s => s.id)); setAlertConfig(p => ({ ...p, visible: false })); } },
-        { text: 'Apenas padrão', onPress: () => { setSelectedSubjects(subjects.filter(s => !s.isUserCreated).map(s => s.id)); setAlertConfig(p => ({ ...p, visible: false })); } },
-        { text: 'Apenas minhas', onPress: () => { setSelectedSubjects(subjects.filter(s => s.isUserCreated).map(s => s.id)); setAlertConfig(p => ({ ...p, visible: false })); } },
         { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
-      ],
-    });
-  };
-
-  // ── Options ──────────────────────────────────────────────────────
-
-  const handleOptions = useCallback(async (subject) => {
-    if (isDefaultDeck(deckId) && !subject.isUserCreated) {
-      const canEdit = await canEditDefaultDecks();
-      if (!canEdit) {
-        setAlertConfig({
-          visible: true,
-          title: 'Matéria Protegida',
-          message: 'Para editá-la, ative a opção nas Configurações.',
-          buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
-        });
-        return;
-      }
-    }
-    setSelectedSubject(subject);
-    setOptionsVisible(true);
-  }, [deckId]);
-
-  const performDelete = useCallback(async () => {
-    if (!selectedSubject) return;
-    if (isDefaultDeck(deckId) && !selectedSubject.isUserCreated) {
-      const canEdit = await canEditDefaultDecks();
-      if (!canEdit) {
-        setOptionsVisible(false);
-        setAlertConfig({
-          visible: true,
-          title: 'Matéria Protegida',
-          message: 'Ative a edição de decks padrão nas Configurações.',
-          buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
-        });
-        return;
-      }
-    }
-    setOptionsVisible(false);
-    setAlertConfig({
-      visible: true,
-      title: 'Apagar Matéria',
-      message: `Tem certeza que deseja apagar "${selectedSubject.name}" e todos os seus flashcards?`,
-      buttons: [
-        { text: 'Cancelar', style: 'cancel', onPress: () => { setSelectedSubject(null); setAlertConfig(p => ({ ...p, visible: false })); } },
         {
-          text: 'Confirmar', style: 'destructive',
-          onPress: async () => {
+          text: 'Excluir', style: 'destructive', onPress: async () => {
             const allData = await getAppData();
-            await saveAppData(allData.map(d =>
-              d.id === deckId ? { ...d, subjects: d.subjects.filter(s => s.id !== selectedSubject.id) } : d
-            ));
-            setSubjects(prev => prev.filter(s => s.id !== selectedSubject.id));
-            setSelectedSubject(null);
+            await saveAppData(allData.filter(d => d.id !== deckId));
             setAlertConfig(p => ({ ...p, visible: false }));
-          },
+            navigation.goBack();
+          }
         },
       ],
     });
-  }, [selectedSubject, deckId]);
+  }, [deckId, deckName, navigation]);
+
+  // ── Add subject ───────────────────────────────────────────────────
+
+  const handleAddSave = useCallback(async (name) => {
+    const newSubject = { id: `subject_${Date.now()}`, name, flashcards: [], isUserCreated: true };
+    const allData = await getAppData();
+    await saveAppData(allData.map(d => d.id === deckId ? { ...d, subjects: [...(d.subjects || []), newSubject] } : d));
+    setSubjects(prev => [...prev, newSubject]);
+  }, [deckId]);
+
+  // ── Selection ─────────────────────────────────────────────────────
+
+  const handleToggleSelection = useCallback((id) => {
+    setSelectionMode(true);
+    setSelectedSubjects(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }, []);
+
+  const exitSelection = useCallback(() => { setSelectionMode(false); setSelectedSubjects([]); }, []);
+
+  const handleSelectAll = () => {
+    // Se todos já estão selecionados, desmarca tudo
+    if (selectedSubjects.length === subjects.length) {
+      setSelectedSubjects([]);
+      return;
+    }
+    // Caso contrário, seleciona todos
+    setSelectedSubjects(subjects.map(s => s.id));
+  };
+
+  // ── Review mode ───────────────────────────────────────────────────
+
+  const handleToggleReview = useCallback(async (subject) => {
+    const newVal = !subject.reviewMode;
+    const allData = await getAppData();
+    await saveAppData(allData.map(d => {
+      if (d.id !== deckId) return d;
+      return { ...d, subjects: d.subjects.map(s => s.id === subject.id ? { ...s, reviewMode: newVal } : s) };
+    }));
+    setSubjects(prev => prev.map(s => s.id === subject.id ? { ...s, reviewMode: newVal } : s));
+  }, [deckId]);
+
+  // ── Sort ──────────────────────────────────────────────────────────
+
+  const sortedSubjects = useMemo(() => {
+    const list = [...filteredSubjects];
+    if (!sortOrder) return list;
+    switch (sortOrder) {
+      case 'az': return list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt'));
+      case 'za': return list.sort((a, b) => (b.name || '').localeCompare(a.name || '', 'pt'));
+      case 'more': return list.sort((a, b) => (b.flashcards?.length || 0) - (a.flashcards?.length || 0));
+      case 'less': return list.sort((a, b) => (a.flashcards?.length || 0) - (b.flashcards?.length || 0));
+      case 'recent': return list.reverse();
+      default: return list;
+    }
+  }, [filteredSubjects, sortOrder]);
+
+  // ── Context menu ──────────────────────────────────────────────────
+
+  const handleMenuPress = useCallback((subject, event) => {
+    const { pageX, pageY } = event.nativeEvent;
+    setContextMenu({ visible: true, subject, x: pageX, y: pageY });
+  }, []);
+
+  const closeContextMenu = useCallback(() => setContextMenu(p => ({ ...p, visible: false })), []);
+
+  // ── Rename ────────────────────────────────────────────────────────
+
+  const handleRenameConfirm = useCallback(async () => {
+    const newName = renameModal.text.trim();
+    if (!newName || !renameModal.subject) return;
+    const allData = await getAppData();
+    await saveAppData(allData.map(d => {
+      if (d.id !== deckId) return d;
+      return { ...d, subjects: d.subjects.map(s => s.id === renameModal.subject.id ? { ...s, name: newName } : s) };
+    }));
+    setSubjects(prev => prev.map(s => s.id === renameModal.subject.id ? { ...s, name: newName } : s));
+    setRenameModal({ visible: false, subject: null, text: '' });
+  }, [renameModal, deckId]);
+
+  // ── Delete ────────────────────────────────────────────────────────
+
+  const handleDeleteSubject = useCallback((subject) => {
+    setAlertConfig({
+      visible: true, title: 'Apagar Matéria',
+      message: `Apagar "${subject.name}" e todos os seus flashcards?`,
+      buttons: [
+        { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+        {
+          text: 'Apagar', style: 'destructive', onPress: async () => {
+            const allData = await getAppData();
+            await saveAppData(allData.map(d => d.id === deckId ? { ...d, subjects: d.subjects.filter(s => s.id !== subject.id) } : d));
+            setSubjects(prev => prev.filter(s => s.id !== subject.id));
+            setAlertConfig(p => ({ ...p, visible: false }));
+          }
+        },
+      ],
+    });
+  }, [deckId]);
 
   const handleBulkDelete = useCallback(async () => {
     if (!selectedSubjects.length) return;
-    const items = subjects.filter(s => selectedSubjects.includes(s.id));
-    const hasDefault = items.some(s => !s.isUserCreated);
+    const hasDefault = subjects.filter(s => selectedSubjects.includes(s.id)).some(s => !s.isUserCreated);
     if (hasDefault) {
       const canEdit = await canEditDefaultDecks();
       if (!canEdit) {
-        setAlertConfig({
-          visible: true,
-          title: 'Matérias Protegidas',
-          message: 'Sua seleção contém matérias padrão. Ative nas Configurações.',
-          buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
-        });
+        setAlertConfig({ visible: true, title: 'Matérias Protegidas', message: 'Sua seleção contém matérias padrão. Ative nas Configurações.', buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }] });
         return;
       }
     }
     setAlertConfig({
-      visible: true,
-      title: `Apagar ${selectedSubjects.length} matérias`,
+      visible: true, title: `Apagar ${selectedSubjects.length} matérias`,
       message: 'Esta ação apagará todos os flashcards dentro delas. Continuar?',
       buttons: [
         { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
         {
-          text: 'Confirmar', style: 'destructive',
-          onPress: async () => {
+          text: 'Confirmar', style: 'destructive', onPress: async () => {
             const allData = await getAppData();
-            await saveAppData(allData.map(d =>
-              d.id === deckId ? { ...d, subjects: d.subjects.filter(s => !selectedSubjects.includes(s.id)) } : d
-            ));
-            setSubjects(prev => prev.filter(s => !selectedSubjects.includes(s.id)));
+            await saveAppData(allData.map(d => d.id === deckId ? { ...d, subjects: d.subjects.filter(sub => !selectedSubjects.includes(sub.id)) } : d));
+            setSubjects(prev => prev.filter(sub => !selectedSubjects.includes(sub.id)));
             exitSelection();
             setAlertConfig(p => ({ ...p, visible: false }));
-          },
+          }
         },
       ],
     });
   }, [selectedSubjects, deckId, subjects, exitSelection]);
 
-  // ── Back handler ─────────────────────────────────────────────────
+  // ── Back handler ──────────────────────────────────────────────────
 
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -473,7 +380,42 @@ export const SubjectListScreen = ({ route, navigation }) => {
     return () => handler.remove();
   }, [isFocused, isSelectionMode, exitSelection]);
 
-  // ── Render ───────────────────────────────────────────────────────
+  // ── Grid ──────────────────────────────────────────────────────────
+
+  const renderGrid = (items) => {
+    const rows = [];
+    for (let i = 0; i < items.length; i += 2) {
+      rows.push(
+        <View key={i} style={s.gridRow}>
+          <MateriaCard
+            subject={items[i]} deck={deckObj}
+            width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
+            onPress={() => isSelectionMode ? handleToggleSelection(items[i].id) : handleStudy(items[i])}
+            onLongPress={() => handleToggleSelection(items[i].id)}
+            onMenuPress={(e) => handleMenuPress(items[i], e)}
+            isSelected={selectedSubjects.includes(items[i].id)}
+            selectMode={isSelectionMode}
+          />
+          {items[i + 1] ? (
+            <MateriaCard
+              subject={items[i + 1]} deck={deckObj}
+              width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
+              onPress={() => isSelectionMode ? handleToggleSelection(items[i + 1].id) : handleStudy(items[i + 1])}
+              onLongPress={() => handleToggleSelection(items[i + 1].id)}
+              onMenuPress={(e) => handleMenuPress(items[i + 1], e)}
+              isSelected={selectedSubjects.includes(items[i + 1].id)}
+              selectMode={isSelectionMode}
+            />
+          ) : (
+            <View style={{ width: MATERIA_CARD_WIDTH }} />
+          )}
+        </View>
+      );
+    }
+    return rows;
+  };
+
+  // ── Render ────────────────────────────────────────────────────────
 
   const subjectCount = subjects.length;
   const selCount = selectedSubjects.length;
@@ -481,7 +423,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
 
-      {/* ── Custom header ─────────────────────────────────────── */}
+      {/* Header */}
       <View style={s.header}>
         <View style={s.headerInner}>
           {isSelectionMode ? (
@@ -493,50 +435,46 @@ export const SubjectListScreen = ({ route, navigation }) => {
               <Ionicons name="arrow-back" size={22} color={theme.textPrimary} />
             </TouchableOpacity>
           )}
-
           <View style={s.headerCenter}>
             {isSelectionMode ? (
               <Text style={s.headerTitle}>{selCount} selecionado{selCount !== 1 ? 's' : ''}</Text>
             ) : (
               <>
                 <Text style={s.headerTitle} numberOfLines={1}>{deckName}</Text>
-                <Text style={s.headerSub}>
-                  {loading ? '...' : `${subjectCount} ${subjectCount === 1 ? 'matéria' : 'matérias'}`}
-                </Text>
+                <Text style={s.headerSub}>{loading ? '…' : `${subjectCount} ${subjectCount === 1 ? 'matéria' : 'matérias'}`}</Text>
               </>
             )}
           </View>
-
           {isSelectionMode ? (
-            <TouchableOpacity
-              onPress={handleSelectAll}
-              style={s.headerBtn}
-              hitSlop={HIT_SLOP}
-            >
-              <Ionicons
-                name={selCount > 0 ? 'checkbox' : 'square-outline'}
-                size={20}
-                color={theme.primary}
-              />
+            <TouchableOpacity onPress={handleSelectAll} style={s.headerBtn} hitSlop={HIT_SLOP}>
+              <Ionicons name={selCount === subjectCount && subjectCount > 0 ? 'checkbox' : 'square-outline'} size={20} color={theme.primary} />
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={openAdd} style={s.headerBtn} hitSlop={HIT_SLOP}>
-              <Ionicons name="add" size={24} color={theme.primary} />
+            <TouchableOpacity
+              ref={headerMenuBtnRef}
+              style={s.headerBtn}
+              hitSlop={HIT_SLOP}
+              onPress={() => {
+                headerMenuBtnRef.current?.measureInWindow((x, y, bw, bh) => {
+                  setHeaderMenuPos({ x: x + bw, y: y + bh });
+                  setHeaderMenuOpen(true);
+                });
+              }}
+            >
+              <Ionicons name="ellipsis-vertical" size={20} color={theme.textPrimary} />
             </TouchableOpacity>
           )}
         </View>
         <View style={s.headerDivider} />
       </View>
 
-      {/* ── Loading ────────────────────────────────────────────── */}
       {loading && <Skeleton />}
 
-      {/* ── List ──────────────────────────────────────────────── */}
       {!loading && (
         <>
-          {/* Search — only show when there are subjects */}
-          {subjectCount > 0 && (
-            <View style={s.searchRow}>
+          {/* Toolbar — search (8+) acima do grid, sort como linha cortada à direita */}
+          {subjectCount >= 8 && !isCreating && (
+            <View style={s.searchWrap}>
               <Ionicons name="search-outline" size={15} color={theme.textMuted} style={{ marginRight: 7 }} />
               <TextInput
                 style={s.searchInput}
@@ -552,132 +490,226 @@ export const SubjectListScreen = ({ route, navigation }) => {
               )}
             </View>
           )}
+          {subjectCount >= 2 && !isCreating && (
+            <View style={s.sortRow}>
+              <View style={[s.sortLine, { flex: 1 }]} />
+              <TouchableOpacity
+                ref={sortBtnRef}
+                style={s.sortBtn}
+                hitSlop={HIT_SLOP}
+                onPress={() => {
+                  sortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
+                    setSortMenuPos({ x: x + bw, y: y + bh });
+                    setSortMenuOpen(true);
+                  });
+                }}
+              >
+                <Ionicons name="swap-vertical-outline" size={13} color={sortOrder ? theme.primary : theme.textMuted} />
+                <Text style={[s.sortBtnTxt, sortOrder && s.sortBtnTxtActive]}>
+                  {sortOrder ? SORT_LABELS[sortOrder] : 'Ordenar'}
+                </Text>
+              </TouchableOpacity>
+              <View style={[s.sortLine, { width: 40 }]} />
+            </View>
+          )}
 
-          <FlatList
-            data={filteredSubjects}
-            keyExtractor={item => item.id}
-            contentContainerStyle={{
-              paddingHorizontal: 16,
-              paddingBottom: isSelectionMode ? 110 : 32,
-              paddingTop: subjectCount > 0 ? 8 : 0,
-              flexGrow: 1,
-            }}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              searchTerm ? (
+          {subjectCount === 0 ? (
+            // Empty state
+            <View style={s.emptyOuter}>
+              {!isSelectionMode && <EmptyState onCreatePress={() => setIsCreating(true)} />}
+            </View>
+          ) : (
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={[s.gridContent, { paddingBottom: 90 + Math.max(insets.bottom, 0) }]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {sortedSubjects.length === 0 ? (
                 <View style={s.emptySearch}>
                   <Text style={s.emptySearchTxt}>Nenhuma matéria encontrada</Text>
                 </View>
-              ) : (
-                <EmptyState onAdd={openAdd} />
-              )
-            }
-            renderItem={({ item }) => (
-              <SubjectItem
-                item={item}
-                isExpanded={expandedId === item.id}
-                onToggle={handleToggle}
-                onStudy={handleStudy}
-                onManageCards={handleManageCards}
-                onOptions={handleOptions}
-                isSelectionMode={isSelectionMode}
-                isSelected={selectedSubjects.includes(item.id)}
-                onToggleSelection={handleToggleSelection}
-                allowDefaultDeckEditing={allowDefaultDeckEditing}
-                calculateProgress={calculateProgress}
-              />
-            )}
-            ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          />
+              ) : renderGrid(sortedSubjects)}
+            </ScrollView>
+          )}
 
-          {/* FAB — only when there are subjects and NOT empty */}
-          {subjectCount > 0 && (
-            !isSelectionMode ? (
-              <TouchableOpacity style={s.fab} onPress={openAdd} activeOpacity={0.85}>
-                <Ionicons name="add" size={26} color="#0F0F0F" />
-              </TouchableOpacity>
-            ) : (
-              <View style={s.selectionBar}>
-                <TouchableOpacity
-                  style={[s.selBtn, s.selBtnDanger, selCount === 0 && { opacity: 0.4 }]}
-                  onPress={selCount > 0 ? handleBulkDelete : null}
-                  activeOpacity={selCount === 0 ? 1 : 0.8}
-                >
-                  <Ionicons name="trash-outline" size={18} color="white" style={{ marginRight: 6 }} />
-                  <Text style={s.selBtnTxt}>
-                    Apagar{selCount > 0 ? ` (${selCount})` : ''}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )
+          {/* FAB — + normal ou lixeira no modo seleção */}
+          {subjectCount > 0 && !isCreating && (
+            <TouchableOpacity
+              style={[
+                s.fab,
+                { bottom: 20 },
+                isSelectionMode && selCount === 0 && { opacity: 0.4 },
+                isSelectionMode && s.fabDanger,
+              ]}
+              onPress={isSelectionMode ? (selCount > 0 ? handleBulkDelete : null) : () => setIsCreating(true)}
+              activeOpacity={isSelectionMode && selCount === 0 ? 1 : 0.85}
+            >
+              {isSelectionMode
+                ? <Ionicons name="trash-outline" size={24} color="white" />
+                : <Ionicons name="add" size={26} color="#0F0F0F" />
+              }
+            </TouchableOpacity>
           )}
         </>
       )}
 
-      {/* ── Options modal ────────────────────────────────────── */}
-      <CustomBottomModal
-        visible={isOptionsVisible}
-        onClose={() => setOptionsVisible(false)}
-        title="Opções da Matéria"
-      >
-        <TouchableOpacity
-          style={s.optRow}
-          onPress={() => { setOptionsVisible(false); navigation.navigate('EditSubject', { deckId, subjectId: selectedSubject?.id }); }}
-        >
-          <Ionicons name="create-outline" size={19} color={theme.textSecondary} style={s.optIcon} />
-          <Text style={s.optTxt}>Editar nome</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={s.optRow}
-          onPress={() => { setOptionsVisible(false); setSelectionMode(true); setSelectedSubjects([selectedSubject?.id]); }}
-        >
-          <Ionicons name="checkbox-outline" size={19} color={theme.textSecondary} style={s.optIcon} />
-          <Text style={s.optTxt}>Selecionar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.optRow, s.optRowLast]} onPress={performDelete}>
-          <Ionicons name="trash-outline" size={19} color={theme.danger} style={s.optIcon} />
-          <Text style={[s.optTxt, { color: theme.danger }]}>Apagar matéria</Text>
-        </TouchableOpacity>
-      </CustomBottomModal>
-
-      {/* ── Add subject modal ─────────────────────────────────── */}
-      <CustomBottomModal
-        visible={isAddVisible}
-        onClose={() => { setAddVisible(false); setNewName(''); }}
-        title="Nova Matéria"
-      >
-        <View style={s.addRow}>
-          <Ionicons name="layers-outline" size={17} color={theme.primary} style={{ marginRight: 10 }} />
-          <TextInput
-            ref={addInputRef}
-            style={s.addInput}
-            placeholder="Ex: Direito Penal"
-            placeholderTextColor={theme.textMuted}
-            value={newName}
-            onChangeText={setNewName}
-            returnKeyType="done"
-            onSubmitEditing={handleSave}
-            maxLength={60}
+      {/* InputBar colada acima do teclado via KeyboardStickyView */}
+      <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
+        {isCreating && (
+          <InputBar
+            inputRef={createInputRef}
+            value={createText}
+            onChange={setCreateText}
+            saving={createSaving}
+            onSave={async () => {
+              const name = createText.trim();
+              if (!name) return;
+              setCreateSaving(true);
+              await handleAddSave(name);
+              setCreateSaving(false);
+              setCreateText('');
+              setIsCreating(false);
+            }}
+            onClose={() => { setIsCreating(false); setCreateText(''); }}
           />
-        </View>
-        <View style={s.addLine} />
-        <TouchableOpacity
-          style={[s.addBtn, (!newName.trim() || isSaving) && { opacity: 0.4 }]}
-          onPress={handleSave}
-          activeOpacity={0.85}
-          disabled={!newName.trim() || isSaving}
-        >
-          <Text style={s.addBtnTxt}>{isSaving ? 'Salvando...' : 'Criar Matéria'}</Text>
-        </TouchableOpacity>
-      </CustomBottomModal>
+        )}
+      </KeyboardStickyView>
 
-      <CustomAlert
-        visible={alertConfig.visible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        buttons={alertConfig.buttons}
-        onClose={() => setAlertConfig(p => ({ ...p, visible: false }))}
-      />
+
+      {/* Context menu (matéria) */}
+      <Modal transparent animationType="fade" visible={contextMenu.visible} onRequestClose={closeContextMenu} statusBarTranslucent>
+        <TouchableWithoutFeedback onPress={closeContextMenu}>
+          <View style={ctx.overlay}>
+            {(() => {
+              const menuW = 210, menuH = 196;
+              let menuLeft = contextMenu.x - menuW + 16;
+              let menuTop = contextMenu.y - menuH - 10;
+              if (menuLeft < 8) menuLeft = 8;
+              if (menuLeft + menuW > width - 8) menuLeft = width - menuW - 8;
+              if (menuTop < 60) menuTop = contextMenu.y + 10;
+              const sub = contextMenu.subject;
+              const isReview = sub?.reviewMode;
+              return (
+                <View style={[ctx.menu, { left: menuLeft, top: menuTop }]}>
+                  <TouchableOpacity style={[ctx.item, ctx.itemReview, isReview && ctx.itemReviewActive]} onPress={() => { closeContextMenu(); if (sub) handleToggleReview(sub); }}>
+                    <View style={[ctx.reviewIconWrap, isReview && ctx.reviewIconWrapActive]}>
+                      <Ionicons name="repeat-outline" size={16} color={isReview ? '#0F0F0F' : theme.primary} />
+                    </View>
+                    <Text style={[ctx.itemText, ctx.reviewText, isReview && ctx.reviewTextActive]}>
+                      {isReview ? 'Desativar Revisão' : 'Modo Revisão'}
+                    </Text>
+                    {isReview && <Ionicons name="checkmark-circle" size={16} color={theme.primary} />}
+                  </TouchableOpacity>
+                  <View style={ctx.sep} />
+                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) handleManageCards(sub); }}>
+                    <Ionicons name="layers-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Gerenciar Cards</Text>
+                  </TouchableOpacity>
+                  <View style={ctx.sep} />
+                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) setRenameModal({ visible: true, subject: sub, text: sub.name || '' }); }}>
+                    <Ionicons name="create-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Renomear</Text>
+                  </TouchableOpacity>
+                  <View style={ctx.sep} />
+                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) handleDeleteSubject(sub); }}>
+                    <Ionicons name="trash-outline" size={16} color={theme.danger} /><Text style={[ctx.itemText, { color: theme.danger }]}>Excluir</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Rename modal */}
+      <Modal transparent animationType="fade" visible={renameModal.visible} onRequestClose={() => setRenameModal(p => ({ ...p, visible: false }))} statusBarTranslucent>
+        <TouchableWithoutFeedback onPress={() => setRenameModal(p => ({ ...p, visible: false }))}>
+          <View style={ren.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={ren.card}>
+                <View style={ren.titleRow}>
+                  <Text style={ren.title}>Renomear matéria</Text>
+                  {renameModal.text.length > 0 && (
+                    <Text style={[ren.charCount, renameModal.text.length >= 20 && ren.charCountWarn]}>{renameModal.text.length}/25</Text>
+                  )}
+                </View>
+                <TextInput
+                  style={ren.input}
+                  value={renameModal.text}
+                  onChangeText={t => setRenameModal(p => ({ ...p, text: t.slice(0, 25) }))}
+                  autoFocus selectTextOnFocus
+                  placeholderTextColor={theme.textMuted}
+                  placeholder="Nome da matéria"
+                  maxLength={25}
+                />
+                <View style={ren.actions}>
+                  <TouchableOpacity style={ren.btnCancel} onPress={() => setRenameModal(p => ({ ...p, visible: false }))}>
+                    <Text style={ren.btnCancelTxt}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[ren.btnSave, !renameModal.text.trim() && ren.btnSaveDisabled]}
+                    disabled={!renameModal.text.trim()}
+                    onPress={handleRenameConfirm}
+                  >
+                    <Text style={ren.btnSaveTxt}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Header menu (3 pontos) */}
+      <Modal transparent animationType="fade" visible={headerMenuOpen} onRequestClose={() => setHeaderMenuOpen(false)} statusBarTranslucent>
+        <TouchableWithoutFeedback onPress={() => setHeaderMenuOpen(false)}>
+          <View style={{ flex: 1 }}>
+            <View style={[ctx.menu, { position: 'absolute', right: 12, top: headerMenuPos.y + 4, width: 200 }]}>
+              <TouchableOpacity style={ctx.item} onPress={() => { setHeaderMenuOpen(false); navigation.navigate('AddDeck', { editDeckId: deckId }); }}>
+                <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
+                <Text style={ctx.itemText}>Editar deck</Text>
+              </TouchableOpacity>
+              <View style={ctx.sep} />
+              <TouchableOpacity style={ctx.item} onPress={handleDeleteDeck}>
+                <Ionicons name="trash-outline" size={16} color={theme.danger} />
+                <Text style={[ctx.itemText, { color: theme.danger }]}>Excluir deck</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Sort dropdown */}
+      <Modal transparent animationType="fade" visible={sortMenuOpen} onRequestClose={() => setSortMenuOpen(false)} statusBarTranslucent>
+        <TouchableWithoutFeedback onPress={() => setSortMenuOpen(false)}>
+          <View style={{ flex: 1 }}>
+            <View style={[sortDrop.dropdown, { position: 'absolute', right: GRID_PADDING, top: sortMenuPos.y + 4, width: 220 }]}>
+              <View style={sortDrop.header}>
+                <Ionicons name="swap-vertical-outline" size={13} color={theme.primary} />
+                <Text style={sortDrop.headerTxt}>Ordenar por</Text>
+              </View>
+              <View style={sortDrop.sep} />
+              {SORT_OPTIONS.map(opt => {
+                const isActive = sortOrder === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[sortDrop.item, isActive && sortDrop.itemActive]}
+                    onPress={() => { setSortOrder(isActive ? null : opt.key); setSortMenuOpen(false); }}
+                  >
+                    <View style={[sortDrop.iconWrap, isActive && sortDrop.iconWrapActive]}>
+                      <Ionicons name={opt.icon} size={14} color={isActive ? theme.primary : theme.textMuted} />
+                    </View>
+                    <Text style={[sortDrop.itemTxt, isActive && sortDrop.itemTxtActive]} numberOfLines={1}>{opt.label}</Text>
+                    {isActive && <Ionicons name="checkmark" size={14} color={theme.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(p => ({ ...p, visible: false }))} />
     </View>
   );
 };
@@ -685,414 +717,224 @@ export const SubjectListScreen = ({ route, navigation }) => {
 // ── Styles ────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
+  root: { flex: 1, backgroundColor: theme.background },
 
-  // ── Header
-  header: {
-    backgroundColor: theme.background,
+  header: { backgroundColor: theme.background },
+  headerInner: { height: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
+  headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  headerTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
+  headerSub: { color: theme.textMuted, fontSize: 12, marginTop: 1 },
+  headerDivider: { height: 1, backgroundColor: theme.backgroundSecondary },
+
+  searchInput: { flex: 1, color: theme.textPrimary, fontSize: 14, paddingVertical: 0 },
+
+  gridContent: { paddingHorizontal: GRID_PADDING, paddingTop: 12 },
+  gridRow: { flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP },
+
+  // Empty state
+  emptyOuter: { flex: 1 },
+  emptyWrap: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 80 },
+  emptyIconRing: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(93,214,44,0.08)',
+    borderWidth: 1.5, borderColor: 'rgba(93,214,44,0.2)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 20,
   },
-  headerInner: {
-    height: 56,
+  emptyTitle: { color: theme.textPrimary, fontSize: 22, fontFamily: theme.fontFamily.heading, letterSpacing: -0.3, marginBottom: 8, textAlign: 'center' },
+  emptyHint: { color: theme.textSecondary, fontSize: 14, fontFamily: theme.fontFamily.ui, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  stepsCard: {
+    width: '100%', backgroundColor: theme.backgroundSecondary,
+    borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden', marginBottom: 20,
+  },
+  stepRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  stepRowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
+  stepIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(93,214,44,0.1)', alignItems: 'center', justifyContent: 'center' },
+  stepContent: { flex: 1 },
+  stepLabel: { color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiSemiBold, marginBottom: 2 },
+  stepHintTxt: { color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontFamily.ui, lineHeight: 16 },
+  emptyCreateBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: theme.primary, borderRadius: 14, height: 50, width: '100%',
+    shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+  },
+  emptyCreateTxt: { color: '#0F0F0F', fontSize: 15, fontFamily: theme.fontFamily.uiBold },
+
+  // Floating input bar above keyboard (KeyboardStickyView cuida do posicionamento)
+  inputBar: {
+    backgroundColor: theme.background,
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(93,214,44,0.35)',
+  },
+  inputBarInner: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12, gap: 14,
+  },
+  inputUnderlineWrap: {
+    flex: 1,
+  },
+  inputBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingBottom: 6,
   },
-  headerBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  headerTitle: {
-    color: theme.textPrimary,
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  headerSub: {
-    color: theme.textMuted,
-    fontSize: 12,
-    marginTop: 1,
-  },
-  headerDivider: {
-    height: 1,
-    backgroundColor: theme.backgroundSecondary,
-  },
-
-  // ── Search
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    backgroundColor: theme.backgroundSecondary,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 40,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  searchInput: {
+  inputBarInput: {
     flex: 1,
     color: theme.textPrimary,
-    fontSize: 14,
+    fontSize: 16,
+    fontFamily: theme.fontFamily.ui,
     paddingVertical: 0,
   },
-
-  // ── Subject card
-  card: {
-    flexDirection: 'row',
-    backgroundColor: theme.backgroundSecondary,
-    borderRadius: 14,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  cardExpanded: {
-    borderColor: 'rgba(93,214,44,0.2)',
-  },
-  cardSelected: {
-    borderColor: theme.primary,
-    backgroundColor: 'rgba(93,214,44,0.06)',
-  },
-  cardAccent: {
-    width: 4,
-    backgroundColor: theme.backgroundTertiary,
-  },
-  cardAccentOn: {
+  inputLine: {
+    height: 1.5,
+    borderRadius: 1,
     backgroundColor: theme.primary,
   },
-  cardBody: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  cardRow: {
-    flexDirection: 'row',
+  inputBarBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: theme.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.primary,
-    marginRight: 12,
-  },
-  dotDefault: {
-    backgroundColor: theme.textMuted,
-  },
-  cardMeta: { flex: 1 },
-  cardTitle: {
-    color: theme.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  cardSub: {
-    color: theme.textSecondary,
-    fontSize: 12,
-  },
-  badgeDefault: {
-    color: theme.textMuted,
+  createCounter: {
+    color: theme.primaryDark,
     fontSize: 11,
-  },
-  cardRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  pct: {
-    color: theme.textSecondary,
-    fontSize: 13,
     fontWeight: '600',
+    marginLeft: 6,
   },
-  pctDone: { color: theme.primary },
-
-  // ── Progress bar
-  progressTrack: {
-    height: 3,
-    backgroundColor: theme.backgroundTertiary,
-    borderRadius: 2,
-    marginTop: 10,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: theme.primary,
-    borderRadius: 2,
-  },
-
-  // ── Expanded actions
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-    gap: 8,
-  },
-  btnStudy: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.primary,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  btnStudyTxt: {
-    color: '#0F0F0F',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  btnManage: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1.5,
-    borderColor: theme.primary,
-  },
-  btnManageTxt: {
+  createCounterWarn: {
     color: theme.primary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  btnMore: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    backgroundColor: theme.backgroundTertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 
-  // ── FAB
+  // FAB
   fab: {
     position: 'absolute',
-    bottom: 28,
     right: 20,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: theme.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-
-  // ── Selection bar
-  selectionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    paddingBottom: 28,
-    backgroundColor: theme.backgroundSecondary,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-  },
-  selBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    height: 50,
-  },
-  selBtnDanger: {
-    backgroundColor: theme.danger,
-  },
-  selBtnTxt: {
-    color: 'white',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-
-  // ── Empty state
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
-    paddingTop: 48,
-    paddingHorizontal: 24,
-  },
-  emptyIconRing: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(93,214,44,0.1)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(93,214,44,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
-  },
-  emptyTitle: {
-    color: theme.textPrimary,
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  emptyHint: {
-    color: theme.textSecondary,
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-
-  // Steps
-  stepsList: {
-    width: '100%',
-    marginBottom: 32,
-  },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 0,
-  },
-  stepNumWrap: {
-    width: 32,
-    alignItems: 'center',
-  },
-  stepNum: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(93,214,44,0.15)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(93,214,44,0.35)',
-    textAlign: 'center',
-    lineHeight: 24,
-    color: theme.primary,
-    fontSize: 12,
-    fontWeight: '700',
-    overflow: 'hidden',
-  },
-  stepLine: {
-    width: 1.5,
-    flex: 1,
-    minHeight: 20,
-    backgroundColor: 'rgba(93,214,44,0.15)',
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  stepContent: {
-    flex: 1,
-    paddingLeft: 12,
-    paddingBottom: 20,
-  },
-  stepLabel: {
-    color: theme.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 3,
-  },
-  stepHint: {
-    color: theme.textSecondary,
-    fontSize: 12,
-    lineHeight: 17,
-  },
-
-  emptyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.primary,
-    borderRadius: 14,
-    paddingHorizontal: 24,
-    paddingVertical: 13,
     shadowColor: theme.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 8,
   },
-  emptyBtnTxt: {
-    color: '#0F0F0F',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-
-  // ── Empty search
-  emptySearch: {
-    alignItems: 'center',
-    paddingTop: 60,
-  },
-  emptySearchTxt: {
-    color: theme.textSecondary,
-    fontSize: 14,
+  fabDanger: {
+    backgroundColor: theme.danger,
+    shadowColor: theme.danger,
   },
 
-  // ── Options modal
-  optRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  optRowLast: {
-    borderBottomWidth: 0,
-  },
-  optIcon: { marginRight: 14 },
-  optTxt: {
-    color: theme.textPrimary,
-    fontSize: 15,
-    fontWeight: '500',
+  // Search wrap
+  searchWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: 16, marginTop: 12, marginBottom: 4,
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 12, paddingHorizontal: 12, height: 40,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',
   },
 
-  // ── Add modal
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    height: 52,
+  // Sort row (linha + botão + linha)
+  sortRow: {
+    flexDirection: 'row', alignItems: 'center',
+    marginTop: 14, marginBottom: 2,
+    marginHorizontal: GRID_PADDING,
   },
-  addInput: {
-    flex: 1,
-    color: theme.textPrimary,
-    fontSize: 16,
-    fontWeight: '500',
-    paddingVertical: 0,
+  sortLine: { height: 1.5, backgroundColor: 'rgba(255,255,255,0.1)' },
+  sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginHorizontal: 6 },
+  sortBtnTxt: { color: theme.textMuted, fontFamily: theme.fontFamily.uiMedium, fontSize: 12 },
+  sortBtnTxtActive: { color: theme.primary, fontFamily: theme.fontFamily.uiSemiBold },
+
+  emptySearch: { flex: 1, alignItems: 'center', paddingTop: 40 },
+  emptySearchTxt: { color: theme.textMuted, fontSize: 14 },
+
+  // Selection bar
+  selectionBar: {
+    backgroundColor: theme.backgroundSecondary,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
+    padding: 16,
   },
-  addLine: {
-    height: 1.5,
-    backgroundColor: theme.primary,
-    opacity: 0.5,
-    borderRadius: 1,
-    marginBottom: 20,
+  selBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 14, height: 50 },
+  selBtnDanger: { backgroundColor: theme.danger },
+  selBtnTxt: { color: 'white', fontSize: 15, fontWeight: '700' },
+
+});
+
+// ── Context menu styles ───────────────────────────────────────────
+
+const ctx = StyleSheet.create({
+  overlay: { flex: 1 },
+  menu: {
+    position: 'absolute', backgroundColor: theme.backgroundElevated,
+    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    width: 200, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
   },
-  addBtn: {
-    backgroundColor: theme.primary,
-    borderRadius: 14,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+  item: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
+  itemText: { flex: 1, color: theme.textPrimary, fontSize: 14 },
+  sep: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
+
+  // Modo revisão destacado
+  itemReview: { paddingVertical: 14 },
+  itemReviewActive: { backgroundColor: 'rgba(93,214,44,0.06)' },
+  reviewIconWrap: {
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: 'rgba(93,214,44,0.12)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  addBtnTxt: {
-    color: '#0F0F0F',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+  reviewIconWrapActive: { backgroundColor: theme.primary },
+  reviewText: { flex: 1, color: theme.primary, fontSize: 14, fontFamily: theme.fontFamily.uiSemiBold },
+  reviewTextActive: { color: theme.textPrimary },
+});
+
+// ── Rename modal styles ───────────────────────────────────────────
+
+const ren = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  card: {
+    backgroundColor: theme.backgroundElevated, borderRadius: 16, padding: 20, width: '85%',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  title: { color: theme.textPrimary, fontSize: 16, fontWeight: '700' },
+  charCount: { color: theme.textMuted, fontSize: 12 },
+  charCountWarn: { color: theme.primary },
+  input: {
+    backgroundColor: theme.backgroundSecondary, borderRadius: 10, padding: 12,
+    color: theme.textPrimary, fontSize: 15,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 16,
+  },
+  actions: { flexDirection: 'row', gap: 10 },
+  btnCancel: { flex: 1, height: 44, borderRadius: 10, backgroundColor: theme.backgroundTertiary, alignItems: 'center', justifyContent: 'center' },
+  btnCancelTxt: { color: theme.textSecondary, fontSize: 14, fontWeight: '600' },
+  btnSave: { flex: 1, height: 44, borderRadius: 10, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center' },
+  btnSaveDisabled: { opacity: 0.4 },
+  btnSaveTxt: { color: '#0F0F0F', fontSize: 14, fontWeight: '700' },
+});
+
+// ── Sort dropdown styles ──────────────────────────────────────────
+
+const sortDrop = StyleSheet.create({
+  dropdown: {
+    backgroundColor: '#1e1e1e', borderRadius: 16,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
+    overflow: 'hidden', shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 16,
+  },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 16, paddingVertical: 12 },
+  headerTxt: { color: theme.primary, fontFamily: theme.fontFamily.uiSemiBold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase' },
+  sep: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13 },
+  itemActive: { backgroundColor: 'rgba(93,214,44,0.06)' },
+  iconWrap: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.05)' },
+  iconWrapActive: { backgroundColor: 'rgba(93,214,44,0.12)' },
+  itemTxt: { flex: 1, color: theme.textSecondary, fontFamily: theme.fontFamily.uiMedium, fontSize: 14 },
+  itemTxtActive: { color: theme.primary, fontFamily: theme.fontFamily.uiSemiBold },
 });
 
 export default SubjectListScreen;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, BackHandler, Alert, InteractionManager, ActivityIndicator, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -17,10 +18,11 @@ const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
 export const FlashcardScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, preloadedCards, reviewAll } = route.params;
+  const { deckId, subjectId, subjectName, preloadedCards, reviewAll, reviewMode } = route.params;
+  const insets = useSafeAreaInsets();
   const [cards, setCards] = useState(() => {
      if (preloadedCards) {
-        if (reviewAll) {
+        if (reviewAll || reviewMode) {
           return [...preloadedCards].sort((a,b) => (a.nextReview || 0) - (b.nextReview || 0));
         }
         const now = new Date();
@@ -54,26 +56,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const [feedbackColor, setFeedbackColor] = useState('transparent');
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
 
-  // Adiciona o botão '+' e 'Editar/Historico' no cabeçalho
+  // Oculta o header padrão — usamos header customizado
   useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 15 }}>
-             <TouchableOpacity
-              onPress={() => navigation.navigate('FlashcardHistory', { deckId, subjectId })}
-              style={{ marginRight: 20 }}
-            >
-              <Ionicons name="create-outline" size={26} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards })}
-            >
-              <Ionicons name="add" size={30} color="white" />
-            </TouchableOpacity>
-        </View>
-      ),
-    });
-  }, [navigation, deckId, subjectId, cards]); // Added cards dependency
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
   const loadCards = useCallback(async () => {
       reviewUpdates.current = [];
@@ -276,11 +262,53 @@ export const FlashcardScreen = ({ route, navigation }) => {
         });
   }, [cards, handleReview, isFlipped, translateX, translateY, currentIndex]); // Adicionado dependências
 
+  const handleReviewComplete = useCallback(async () => {
+    if (!reviewMode || !subjectId) { navigation.goBack(); return; }
+    // Pergunta se quer continuar no modo revisão ou sair
+    setAlertConfig({
+      visible: true,
+      title: 'Revisão concluída!',
+      message: 'Você completou todos os cards. Deseja continuar no modo revisão ou sair dele?',
+      buttons: [
+        {
+          text: 'Continuar revisão',
+          onPress: async () => {
+            setAlertConfig(p => ({ ...p, visible: false }));
+            // Recarrega cards e reseta índice
+            const allData = await getAppData();
+            const deck = allData.find(d => d.id === deckId);
+            const subject = deck?.subjects?.find(s => s.id === subjectId);
+            if (subject?.flashcards) {
+              setCards([...subject.flashcards]);
+              setTotalCardsInSession(subject.flashcards.length);
+              currentIndex.value = 0;
+              isFlipped.value = 0;
+            } else {
+              navigation.goBack();
+            }
+          },
+        },
+        {
+          text: 'Sair do modo revisão',
+          onPress: async () => {
+            setAlertConfig(p => ({ ...p, visible: false }));
+            const allData = await getAppData();
+            await saveAppData(allData.map(d => {
+              if (d.id !== deckId) return d;
+              return { ...d, subjects: d.subjects.map(s => s.id === subjectId ? { ...s, reviewMode: false } : s) };
+            }));
+            navigation.goBack();
+          },
+        },
+      ],
+    });
+  }, [reviewMode, subjectId, deckId, navigation, currentIndex, isFlipped]);
+
   useAnimatedReaction(() => currentIndex.value, (value) => {
     if (value >= totalCardsInSession && totalCardsInSession > 0) {
-        runOnJS(navigation.goBack)();
+      runOnJS(handleReviewComplete)();
     }
-  }, [totalCardsInSession, navigation]); // Adicionado dependências
+  }, [totalCardsInSession, handleReviewComplete]);
 
   const [isOptionsModalVisible, setOptionsModalVisible] = useState(false);
   const currentCardForModal = cards[jsCurrentIndex];
@@ -320,27 +348,109 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const animatedRightGlowStyle = useAnimatedStyle(()=>({opacity: rightGlowOpacity.value}));
   const animatedTopGlowStyle = useAnimatedStyle(()=>({opacity: topGlowOpacity.value}));
 
-  if (loading) {
-      return (
-        <View style={[styles.baseContainer, { justifyContent: 'center', alignItems: 'center' }]}>
-            <SkeletonItem width={screenWidth * 0.9} height={380} style={{borderRadius: 15, marginBottom: 20}} />
-            <View style={{width: '90%', flexDirection: 'row', justifyContent: 'space-between'}}>
-                 <SkeletonItem width={80} height={80} style={{borderRadius: 40}} />
-                 <SkeletonItem width={80} height={80} style={{borderRadius: 40}} />
-                 <SkeletonItem width={80} height={80} style={{borderRadius: 40}} />
-            </View>
+  const CustomHeader = () => (
+    <View style={[fcs.header, { paddingTop: insets.top }]}>
+      <View style={fcs.headerInner}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={fcs.headerBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="arrow-back" size={22} color={theme.textPrimary} />
+        </TouchableOpacity>
+        <View style={fcs.headerCenter}>
+          <Text style={fcs.headerTitle} numberOfLines={1}>{subjectName || 'Estudar'}</Text>
+          {cards.length > 0 && (
+            <Text style={fcs.headerSub}>{Math.min(jsCurrentIndex + 1, totalCardsInSession)} / {totalCardsInSession}</Text>
+          )}
         </View>
-      );
+        <View style={fcs.headerActions}>
+          {cards.length > 0 && (
+            <>
+              <TouchableOpacity
+                style={fcs.headerBtn}
+                onPress={() => navigation.navigate('FlashcardHistory', { deckId, subjectId })}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="create-outline" size={20} color={theme.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={fcs.headerBtn}
+                onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards })}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="add" size={24} color={theme.primary} />
+              </TouchableOpacity>
+            </>
+          )}
+          {cards.length === 0 && <View style={{ width: 36 }} />}
+        </View>
+      </View>
+      <View style={fcs.headerDivider} />
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={[fcs.root, { paddingTop: insets.top }]}>
+        <View style={fcs.headerInner}>
+          <View style={{ width: 36 }} />
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <SkeletonItem style={{ width: 120, height: 16, borderRadius: 8 }} />
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+          <SkeletonItem style={{ width: screenWidth * 0.88, height: 380, borderRadius: 20 }} />
+        </View>
+      </View>
+    );
   }
 
   if (cards.length === 0) {
-    return isFocused
-      ? <View style={styles.centered}><Text style={styles.noCardsText}>Nenhum card para revisar. Volte mais tarde ou adicione novos cards!</Text></View>
-      : <View style={styles.centered}><ActivityIndicator size="large" color={theme.backgroundTertiary} /></View>;
+    return (
+      <View style={fcs.root}>
+        <CustomHeader />
+        <View style={fcs.emptyContainer}>
+          {/* Ícone central */}
+          <View style={fcs.emptyIconRing}>
+            <Ionicons name="layers-outline" size={36} color={theme.primary} />
+          </View>
+
+          <Text style={fcs.emptyTitle}>Nenhum flashcard ainda</Text>
+          <Text style={fcs.emptySubtitle}>
+            Crie seu primeiro flashcard para começar a estudar {subjectName ? `"${subjectName}"` : 'esta matéria'}.
+          </Text>
+
+          {/* Steps */}
+          <View style={fcs.stepsCard}>
+            {[
+              { icon: 'add-circle-outline', text: 'Toque em + para criar um flashcard' },
+              { icon: 'sync-outline', text: 'Estude com revisão espaçada inteligente' },
+              { icon: 'trending-up-outline', text: 'Acompanhe seu progresso evoluindo' },
+            ].map((step, i) => (
+              <View key={i} style={[fcs.stepRow, i > 0 && fcs.stepRowBorder]}>
+                <View style={fcs.stepIcon}>
+                  <Ionicons name={step.icon} size={16} color={theme.primary} />
+                </View>
+                <Text style={fcs.stepText}>{step.text}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* CTA */}
+          <TouchableOpacity
+            style={fcs.emptyBtn}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: [] })}
+          >
+            <Ionicons name="add" size={20} color="#0F0F0F" style={{ marginRight: 8 }} />
+            <Text style={fcs.emptyBtnTxt}>Criar primeiro flashcard</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   return (
-    <View style={styles.studyContainer}>
+    <View style={[styles.studyContainer, { paddingTop: insets.top }]}>
+        <CustomHeader />
         <Animated.View style={[styles.glow, styles.glowLeft, animatedLeftGlowStyle]}><LinearGradient colors={[theme.dangerGlow, 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
         <Animated.View style={[styles.glow, styles.glowRight, animatedRightGlowStyle]}><LinearGradient colors={['transparent', theme.successGlow]} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
         <Animated.View style={[styles.glow, styles.glowTop, animatedTopGlowStyle]}><LinearGradient colors={[theme.infoGlow, 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:0, y:1}}/></Animated.View>
@@ -397,9 +507,6 @@ export const FlashcardScreen = ({ route, navigation }) => {
         </View>
 
 
-        <View style={styles.progressIndicator}>
-          <Text style={styles.progressText}>{Math.min(jsCurrentIndex + 1, totalCardsInSession)} / {totalCardsInSession}</Text>
-        </View>
         <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
     </View>
   );
@@ -407,5 +514,143 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
 
 // =================================================================
+// Estilos do novo header e tela vazia
+// =================================================================
+
+const fcs = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+
+  // Header
+  header: {
+    backgroundColor: theme.background,
+  },
+  headerInner: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  headerTitle: {
+    color: theme.textPrimary,
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  headerSub: {
+    color: theme.textMuted,
+    fontSize: 12,
+    marginTop: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: theme.backgroundSecondary,
+  },
+
+  // Empty state
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingBottom: 40,
+  },
+  emptyIconRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(93,214,44,0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(93,214,44,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    color: theme.textPrimary,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    color: theme.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 28,
+  },
+  stepsCard: {
+    width: '100%',
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    marginBottom: 28,
+    overflow: 'hidden',
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  stepRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  stepIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(93,214,44,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepText: {
+    flex: 1,
+    color: theme.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  emptyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.primary,
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 15,
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  emptyBtnTxt: {
+    color: '#0F0F0F',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+});
 
 export default FlashcardScreen;
