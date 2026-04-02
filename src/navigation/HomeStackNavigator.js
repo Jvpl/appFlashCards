@@ -7,7 +7,6 @@ import { DeckListScreen } from '../screens/DeckListScreen';
 import { SubjectListScreen } from '../screens/SubjectListScreen';
 import { FlashcardScreen } from '../screens/FlashcardScreen';
 import { AddDeckScreen } from '../screens/AddDeckScreen';
-import { EditDeckScreen } from '../screens/EditDeckScreen';
 import { AddSubjectScreen } from '../screens/AddSubjectScreen';
 import { ManageFlashcardsScreen } from '../screens/ManageFlashcardsScreen';
 import { EditFlashcardScreen } from '../screens/EditFlashcardScreen';
@@ -77,8 +76,7 @@ export function HomeStackNavigator({navigation}) {
         })}
       />
       <HomeStack.Screen name="AddDeck" component={AddDeckScreen} options={{ headerShown: false }} />
-      <HomeStack.Screen name="EditDeck" component={EditDeckScreen} options={{ title: 'Editar Deck' }} />
-      <HomeStack.Screen name="AddSubject" component={AddSubjectScreen} options={{ title: 'Nova Matéria' }} />
+<HomeStack.Screen name="AddSubject" component={AddSubjectScreen} options={{ title: 'Nova Matéria' }} />
       <HomeStack.Screen
         name="ManageFlashcards"
         component={ManageFlashcardsScreen}

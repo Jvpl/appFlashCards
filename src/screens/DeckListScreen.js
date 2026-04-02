@@ -101,8 +101,19 @@ const SORT_OPTIONS = [
   { key: 'more',     label: 'Mais matérias',  icon: 'layers-outline' },
   { key: 'less',     label: 'Menos matérias', icon: 'layers-outline' },
   { key: 'category', label: 'Por categoria',  icon: 'folder-outline' },
+  { key: 'recent',   label: 'Mais recentes',  icon: 'time-outline' },
 ];
 const SORT_LABELS = Object.fromEntries(SORT_OPTIONS.map(o => [o.key, o.label]));
+
+const SUBJECT_SORT_OPTIONS = [
+  { key: 'az',     label: 'A–Z',           icon: 'arrow-up-outline' },
+  { key: 'za',     label: 'Z–A',           icon: 'arrow-down-outline' },
+  { key: 'more',   label: 'Mais cards',    icon: 'layers-outline' },
+  { key: 'less',   label: 'Menos cards',   icon: 'layers-outline' },
+  { key: 'deck',   label: 'Por deck',      icon: 'folder-outline' },
+  { key: 'recent', label: 'Mais recentes', icon: 'time-outline' },
+];
+const SUBJECT_SORT_LABELS = Object.fromEntries(SUBJECT_SORT_OPTIONS.map(o => [o.key, o.label]));
 
 const getCatLabel = (deck) => {
   const catId = deck.category;
@@ -260,7 +271,9 @@ const RecentDeckCard = ({ deck, onPress }) => {
   const progressPct = getProgressPercent(deck.subjects);
   const totalCards = getTotalCards(deck.subjects);
   // Decks sem progresso teriam cinza -- usar cor da categoria ou azul como fallback
-  const catId = matchConcursoCategory(deck);
+  const rawCatId = deck.category;
+  const catId = (rawCatId && rawCatId !== 'personalizados' && CONCURSO_CATEGORIES.find(c => c.id === rawCatId))
+    ? rawCatId : 'personalizados';
   const catColor = CONCURSO_CATEGORIES.find(c => c.id === catId)?.color;
   const iconColor = progressPct > 0 ? srsColor : (catColor || '#6366F1');
 
@@ -443,6 +456,9 @@ export const DeckListScreen = ({ navigation }) => {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [contextMenu, setContextMenu] = useState({ visible: false, deck: null, x: 0, y: 0 });
+  const [renameModal, setRenameModal] = useState({ visible: false, deck: null, text: '' });
+  const [subjectContextMenu, setSubjectContextMenu] = useState({ visible: false, item: null, x: 0, y: 0 });
+  const [renameSubjectModal, setRenameSubjectModal] = useState({ visible: false, item: null, text: '' });
   const [selectedDeck, setSelectedDeck] = useState(null);
   const [isModalVisible, setModalVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
@@ -456,6 +472,10 @@ export const DeckListScreen = ({ navigation }) => {
   const [sortMenuPos, setSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
   const [deckFilter, setDeckFilter] = useState('all');          // 'all'|'meus'|'comprados'
   const sortBtnRef = useRef(null);
+  const [subjectSortOrder, setSubjectSortOrder] = useState(null);
+  const [subjectSortMenuOpen, setSubjectSortMenuOpen] = useState(false);
+  const [subjectSortMenuPos, setSubjectSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
+  const subjectSortBtnRef = useRef(null);
   const isFocused = useIsFocused();
   const searchRef = useRef(null);
 
@@ -552,27 +572,38 @@ export const DeckListScreen = ({ navigation }) => {
   // ── Dados derivados ───────────────────────
 
   const userDecks = useMemo(() =>
-    decks.filter(d => d.isUserCreated === true || d.isExample === true),
+    decks.filter(d => d.isPurchased !== true),
   [decks]);
 
   const purchasedDecks = useMemo(() =>
     decks.filter(d => d.isPurchased === true),
   [decks]);
 
+  // Retorna o catId efetivo de um deck (usa deck.category se for categoria válida)
+  const getDeckCatId = useCallback((deck) => {
+    const catId = deck.category;
+    if (catId && catId !== 'personalizados' && CONCURSO_CATEGORIES.find(c => c.id === catId)) {
+      return catId;
+    }
+    return 'personalizados';
+  }, []);
+
   const categoryCounts = useMemo(() => {
-    const counts = { personalizados: userDecks.length };
-    purchasedDecks.forEach(deck => {
-      const catId = matchConcursoCategory(deck);
-      if (catId) counts[catId] = (counts[catId] || 0) + 1;
+    const counts = {};
+    decks.filter(d => !d.isExample).forEach(deck => {
+      const catId = getDeckCatId(deck);
+      counts[catId] = (counts[catId] || 0) + 1;
     });
     return counts;
-  }, [purchasedDecks, userDecks]);
+  }, [decks, getDeckCatId]);
 
   const expandedDecks = useMemo(() => {
     if (!activeCategoryId) return [];
-    if (activeCategoryId === 'personalizados') return userDecks;
-    return purchasedDecks.filter(d => matchConcursoCategory(d) === activeCategoryId);
-  }, [activeCategoryId, userDecks, purchasedDecks]);
+    if (activeCategoryId === 'personalizados') {
+      return decks.filter(d => !d.isExample && getDeckCatId(d) === 'personalizados');
+    }
+    return decks.filter(d => getDeckCatId(d) === activeCategoryId);
+  }, [activeCategoryId, decks, getDeckCatId]);
 
   const recentDecks = useMemo(() =>
     recentDeckIds.map(id => decks.find(d => d.id === id)).filter(Boolean).slice(0, 3),
@@ -595,33 +626,38 @@ export const DeckListScreen = ({ navigation }) => {
     !exampleDismissed,
   [userDecks, purchasedDecks, exampleDismissed]);
 
-  // Categorias que têm pelo menos 1 deck
+  // Categorias que têm pelo menos 1 deck (agrupa TODOS os decks pelo campo category)
   const activeCategories = useMemo(() => {
-    const result = [];
-    // Categorias de concurso com decks comprados
-    CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados').forEach(cat => {
-      const catDecks = purchasedDecks.filter(d => matchConcursoCategory(d) === cat.id);
-      if (catDecks.length > 0) result.push({ category: cat, decks: catDecks });
+    const nonExample = decks.filter(d => !d.isExample);
+    const catMap = {};
+    nonExample.forEach(deck => {
+      const catId = getDeckCatId(deck);
+      if (!catMap[catId]) catMap[catId] = [];
+      catMap[catId].push(deck);
     });
-    // "Meus estudos" — decks do usuário (exceto exemplo)
-    const myDecks = userDecks.filter(d => !d.isExample);
-    if (myDecks.length > 0) {
+    const result = [];
+    // Categorias de concurso na ordem definida
+    CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados').forEach(cat => {
+      if (catMap[cat.id]?.length > 0) result.push({ category: cat, decks: catMap[cat.id] });
+    });
+    // "Meus estudos" por último
+    if (catMap['personalizados']?.length > 0) {
       const meusEstudos = CONCURSO_CATEGORIES.find(c => c.id === 'personalizados');
-      result.push({ category: meusEstudos, decks: myDecks });
+      result.push({ category: meusEstudos, decks: catMap['personalizados'] });
     }
     return result;
-  }, [purchasedDecks, userDecks]);
+  }, [decks, getDeckCatId]);
 
-  // Flat list de matérias dos decks comprados
+  // Flat list de matérias de todos os decks (exceto deck de exemplo)
   const allSubjects = useMemo(() => {
     const result = [];
-    purchasedDecks.forEach(deck => {
+    decks.filter(d => !d.isExample).forEach(deck => {
       (deck.subjects || []).forEach(subject => {
-        result.push({ subject, deck, isPurchased: true });
+        result.push({ subject, deck, isPurchased: deck.isPurchased === true });
       });
     });
     return result;
-  }, [purchasedDecks]);
+  }, [decks]);
 
   // Recentes (max 4)
   const recentDecksLimited = useMemo(() =>
@@ -629,6 +665,29 @@ export const DeckListScreen = ({ navigation }) => {
   [recentDeckIds, decks]);
 
   // ── Ordenação ────────────────────────────
+
+  const sortSubjects = useCallback((list) => {
+    if (!subjectSortOrder) return list;
+    const copy = [...list];
+    switch (subjectSortOrder) {
+      case 'az':     return copy.sort((a, b) => (a.subject.name || '').localeCompare(b.subject.name || '', 'pt'));
+      case 'za':     return copy.sort((a, b) => (b.subject.name || '').localeCompare(a.subject.name || '', 'pt'));
+      case 'more':   return copy.sort((a, b) => (b.subject.flashcards?.length || 0) - (a.subject.flashcards?.length || 0));
+      case 'less':   return copy.sort((a, b) => (a.subject.flashcards?.length || 0) - (b.subject.flashcards?.length || 0));
+      case 'deck':   return copy.sort((a, b) => (a.deck.name || '').localeCompare(b.deck.name || '', 'pt'));
+      case 'recent': return copy.reverse();
+      default:       return list;
+    }
+  }, [subjectSortOrder]);
+
+  const handleSubjectMenuPress = useCallback((item, event) => {
+    const { pageX, pageY } = event.nativeEvent;
+    setSubjectContextMenu({ visible: true, item, x: pageX, y: pageY });
+  }, []);
+
+  const closeSubjectContextMenu = useCallback(() => {
+    setSubjectContextMenu(p => ({ ...p, visible: false }));
+  }, []);
 
   const sortDecks = useCallback((list) => {
     if (!sortOrder) return list;
@@ -639,6 +698,7 @@ export const DeckListScreen = ({ navigation }) => {
       case 'more':     return copy.sort((a, b) => (b.subjects?.length || 0) - (a.subjects?.length || 0));
       case 'less':     return copy.sort((a, b) => (a.subjects?.length || 0) - (b.subjects?.length || 0));
       case 'category': return copy.sort((a, b) => (a.category || '').localeCompare(b.category || '', 'pt'));
+      case 'recent':   return copy.reverse();
       default:         return list;
     }
   }, [sortOrder]);
@@ -728,7 +788,12 @@ export const DeckListScreen = ({ navigation }) => {
 
   const handleSubjectPress = useCallback((item) => {
     if (multiSelectMode) { toggleSelection(`${item.deck.id}:${item.subject.id}`); return; }
-    navigation.navigate('SubjectList', { deckId: item.deck.id, deckName: item.deck.name, preloadedSubjects: item.deck.subjects });
+    navigation.navigate('Flashcard', {
+      deckId: item.deck.id,
+      subjectId: item.subject.id,
+      subjectName: item.subject.name,
+      preloadedCards: item.subject.flashcards,
+    });
   }, [multiSelectMode, navigation, toggleSelection]);
 
   const handleSubjectLongPress = useCallback((item) => {
@@ -758,7 +823,7 @@ export const DeckListScreen = ({ navigation }) => {
     if (selectedIds.size === 0) return;
     setAlertConfig({
       visible: true, title: 'Apagar Decks',
-      message: `Apagar ${selectedIds.size} deck(s)? Essa ação não pode ser desfeita.`,
+      message: `Apagar ${selectedIds.size} deck(s) e todas as matérias e flashcards dentro deles? Essa ação não pode ser desfeita.`,
       buttons: [
         { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
         { text: 'Apagar', style: 'destructive', onPress: async () => {
@@ -785,7 +850,7 @@ export const DeckListScreen = ({ navigation }) => {
     setModalVisible(false);
     setAlertConfig({
       visible: true, title: 'Apagar Deck',
-      message: `Apagar "${selectedDeck.name}" e todos os seus dados?`,
+      message: `Apagar "${selectedDeck.name}"? Isso também apagará todas as matérias e flashcards dentro dele.`,
       buttons: [
         { text: 'Cancelar', style: 'cancel', onPress: () => { setSelectedDeck(null); setAlertConfig(p => ({ ...p, visible: false })); } },
         { text: 'Apagar', style: 'destructive', onPress: async () => {
@@ -833,6 +898,7 @@ export const DeckListScreen = ({ navigation }) => {
     'decks-meus':         'Meus Decks',
     'decks-comprados':    'Decks Comprados',
     'materias-comprados': 'Matérias',
+    'materias': 'Matérias',
   };
 
   const renderGridWithOverflow = (items, renderCard, sectionKey) => {
@@ -1101,6 +1167,35 @@ export const DeckListScreen = ({ navigation }) => {
                       <Ionicons name="trash-outline" size={15} color={theme.danger} />
                     </TouchableOpacity>
                   )}
+                  {activeTab === 'materias' && selectedIds.size > 0 && (
+                    <TouchableOpacity
+                      hitSlop={HIT_SLOP}
+                      style={[s.selectBarAction, s.selectBarDelete]}
+                      onPress={() => {
+                        setAlertConfig({
+                          visible: true,
+                          title: 'Apagar Matérias',
+                          message: `Apagar ${selectedIds.size} matéria(s) e todos os flashcards dentro delas? Essa ação não pode ser desfeita.`,
+                          buttons: [
+                            { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+                            { text: 'Apagar', style: 'destructive', onPress: async () => {
+                              const allData = await getAppData();
+                              const updated = allData.map(deck => ({
+                                ...deck,
+                                subjects: (deck.subjects || []).filter(s => !selectedIds.has(`${deck.id}:${s.id}`)),
+                              }));
+                              await saveAppData(updated);
+                              exitSelectMode();
+                              loadData();
+                              setAlertConfig(p => ({ ...p, visible: false }));
+                            }},
+                          ],
+                        });
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={15} color={theme.danger} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             )}
@@ -1247,33 +1342,56 @@ export const DeckListScreen = ({ navigation }) => {
               allSubjects.length === 0 ? (
                 <View style={s.emptyTab}>
                   <Ionicons name="book-outline" size={36} color={theme.backgroundTertiary} />
-                  <Text style={s.emptyTabText}>Nenhuma matéria comprada ainda.</Text>
-                  <TouchableOpacity style={s.emptyTabAction} onPress={() => navigation.navigate('Loja')}>
-                    <Text style={s.emptyTabActionText}>Ver na loja</Text>
-                  </TouchableOpacity>
+                  <Text style={s.emptyTabText}>Nenhuma matéria ainda.</Text>
+                  <Text style={s.emptyTabSub}>Crie um deck e adicione matérias para estudar.</Text>
                 </View>
               ) : (
                 <>
-                  <View style={s.subSection}>
-                    <Text style={s.subSectionLabel}>COMPRADOS</Text>
-                    {renderGridWithOverflow(
-                      allSubjects,
-                      (item) => (
-                        <MateriaCard
-                          key={`${item.deck.id}-${item.subject.id}`}
-                          subject={item.subject}
-                          deck={item.deck}
-                          width={CARD_WIDTH}
-                          height={CARD_HEIGHT}
-                          onPress={() => handleSubjectPress(item)}
-                          onLongPress={() => handleSubjectLongPress(item)}
-                          isSelected={selectedIds.has(`${item.deck.id}:${item.subject.id}`)}
-                          selectMode={multiSelectMode}
+                  {!multiSelectMode && allSubjects.length >= 2 && (
+                    <View style={s.deckMetaRow}>
+                      <View style={[s.deckMetaLine, { flex: 1 }]} />
+                      <TouchableOpacity
+                        ref={subjectSortBtnRef}
+                        style={[s.deckMetaBtn, subjectSortOrder && s.deckMetaBtnActive, { marginHorizontal: 6 }]}
+                        hitSlop={HIT_SLOP}
+                        onPress={() => {
+                          subjectSortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
+                            const sbH = StatusBar.currentHeight || 0;
+                            setSubjectSortMenuPos({ x, y: y + bh + sbH, w: bw });
+                            setSubjectSortMenuOpen(true);
+                          });
+                        }}
+                      >
+                        <Ionicons
+                          name="swap-vertical-outline"
+                          size={13}
+                          color={subjectSortOrder ? theme.primary : theme.textMuted}
                         />
-                      ),
-                      'materias-comprados',
-                    )}
-                  </View>
+                        <Text style={[s.deckMetaBtnTxt, subjectSortOrder && s.deckMetaBtnTxtActive]}>
+                          {subjectSortOrder ? SUBJECT_SORT_LABELS[subjectSortOrder] : 'Ordenar'}
+                        </Text>
+                      </TouchableOpacity>
+                      <View style={[s.deckMetaLine, { width: GRID_PADDING + 24 }]} />
+                    </View>
+                  )}
+                  {renderGridWithOverflow(
+                    sortSubjects(allSubjects),
+                    (item, index) => (
+                      <MateriaCard
+                        key={`${item.deck.id}-${item.subject.id}`}
+                        subject={item.subject}
+                        deck={item.deck}
+                        width={CARD_WIDTH}
+                        height={CARD_HEIGHT}
+                        onPress={() => handleSubjectPress(item)}
+                        onLongPress={() => handleSubjectLongPress(item)}
+                        onMenuPress={(e) => handleSubjectMenuPress(item, e)}
+                        isSelected={selectedIds.has(`${item.deck.id}:${item.subject.id}`)}
+                        selectMode={multiSelectMode}
+                      />
+                    ),
+                    'materias',
+                  )}
                 </>
               )
             )}
@@ -1349,8 +1467,9 @@ export const DeckListScreen = ({ navigation }) => {
                   <TouchableOpacity
                     style={ctxStyles.item}
                     onPress={() => {
+                      const deck = contextMenu.deck;
                       closeContextMenu();
-                      if (contextMenu.deck) navigation.navigate('EditDeck', { deckId: contextMenu.deck.id, deckName: contextMenu.deck.name });
+                      if (deck) setRenameModal({ visible: true, deck, text: deck.name || '' });
                     }}
                   >
                     <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
@@ -1366,7 +1485,7 @@ export const DeckListScreen = ({ navigation }) => {
                       setAlertConfig({
                         visible: true,
                         title: 'Apagar Deck',
-                        message: `Apagar "${deck.name}" e todos os seus dados?`,
+                        message: `Apagar "${deck.name}"? Isso também apagará todas as matérias e flashcards dentro dele.`,
                         buttons: [
                           { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
                           { text: 'Apagar', style: 'destructive', onPress: async () => {
@@ -1389,10 +1508,246 @@ export const DeckListScreen = ({ navigation }) => {
         </TouchableWithoutFeedback>
       </Modal>
 
+      {/* ── Modal de Renomear Deck ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={renameModal.visible}
+        onRequestClose={() => setRenameModal(p => ({ ...p, visible: false }))}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setRenameModal(p => ({ ...p, visible: false }))}>
+          <View style={renameStyles.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={renameStyles.card}>
+                <View style={renameStyles.titleRow}>
+                  <Text style={renameStyles.title}>Renomear deck</Text>
+                  {renameModal.text.length > 0 && (
+                    <Text style={[renameStyles.charCount, renameModal.text.length >= 25 && renameStyles.charCountWarn]}>
+                      {renameModal.text.length}/30
+                    </Text>
+                  )}
+                </View>
+                <TextInput
+                  style={renameStyles.input}
+                  value={renameModal.text}
+                  onChangeText={t => setRenameModal(p => ({ ...p, text: t.slice(0, 30) }))}
+                  autoFocus
+                  selectTextOnFocus
+                  placeholderTextColor={theme.textMuted}
+                  placeholder="Nome do deck"
+                  maxLength={30}
+                />
+                <View style={renameStyles.actions}>
+                  <TouchableOpacity
+                    style={renameStyles.btnCancel}
+                    onPress={() => setRenameModal(p => ({ ...p, visible: false }))}
+                  >
+                    <Text style={renameStyles.btnCancelTxt}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[renameStyles.btnSave, !renameModal.text.trim() && renameStyles.btnSaveDisabled]}
+                    disabled={!renameModal.text.trim()}
+                    onPress={async () => {
+                      const newName = renameModal.text.trim();
+                      if (!newName || !renameModal.deck) return;
+                      const allData = await getAppData();
+                      const updated = allData.map(d =>
+                        d.id === renameModal.deck.id ? { ...d, name: newName } : d
+                      );
+                      await saveAppData(updated);
+                      setRenameModal({ visible: false, deck: null, text: '' });
+                      loadData();
+                    }}
+                  >
+                    <Text style={renameStyles.btnSaveTxt}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Sort de Matérias ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={subjectSortMenuOpen}
+        onRequestClose={() => setSubjectSortMenuOpen(false)}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setSubjectSortMenuOpen(false)}>
+          <View style={{ flex: 1 }}>
+            <View style={[sortStyles.dropdown, {
+              position: 'absolute',
+              right: GRID_PADDING,
+              top: subjectSortMenuPos.y + 10,
+              width: 230,
+            }]}>
+              <View style={sortStyles.header}>
+                <Ionicons name="swap-vertical-outline" size={13} color={theme.primary} />
+                <Text style={sortStyles.headerTxt}>Ordenar por</Text>
+              </View>
+              <View style={sortStyles.sep} />
+              {SUBJECT_SORT_OPTIONS.map((opt) => {
+                const isActive = subjectSortOrder === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[sortStyles.item, isActive && sortStyles.itemActive]}
+                    onPress={() => { setSubjectSortOrder(isActive ? null : opt.key); setSubjectSortMenuOpen(false); }}
+                  >
+                    <View style={[sortStyles.itemIconWrap, isActive && sortStyles.itemIconWrapActive]}>
+                      <Ionicons name={opt.icon} size={14} color={isActive ? theme.primary : theme.textMuted} />
+                    </View>
+                    <Text style={[sortStyles.itemTxt, isActive && sortStyles.itemTxtActive]} numberOfLines={1}>
+                      {opt.label}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={14} color={theme.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Menu de contexto de Matéria (3 pontos) ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={subjectContextMenu.visible}
+        onRequestClose={closeSubjectContextMenu}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={closeSubjectContextMenu}>
+          <View style={ctxStyles.overlay}>
+            {(() => {
+              const menuW = 180;
+              const menuH = 104;
+              let menuLeft = subjectContextMenu.x - menuW + 16;
+              let menuTop = subjectContextMenu.y - menuH - 10;
+              if (menuLeft < 8) menuLeft = 8;
+              if (menuLeft + menuW > width - 8) menuLeft = width - menuW - 8;
+              if (menuTop < 60) menuTop = subjectContextMenu.y + 10;
+              return (
+                <View style={[ctxStyles.menu, { left: menuLeft, top: menuTop }]}>
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      const item = subjectContextMenu.item;
+                      closeSubjectContextMenu();
+                      if (item) setRenameSubjectModal({ visible: true, item, text: item.subject.name || '' });
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Renomear</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      const item = subjectContextMenu.item;
+                      closeSubjectContextMenu();
+                      if (!item) return;
+                      setAlertConfig({
+                        visible: true,
+                        title: 'Apagar Matéria',
+                        message: `Apagar "${item.subject.name}" e todos os seus flashcards?`,
+                        buttons: [
+                          { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+                          { text: 'Apagar', style: 'destructive', onPress: async () => {
+                            const allData = await getAppData();
+                            const updated = allData.map(d => {
+                              if (d.id !== item.deck.id) return d;
+                              return { ...d, subjects: (d.subjects || []).filter(s => s.id !== item.subject.id) };
+                            });
+                            await saveAppData(updated);
+                            loadData();
+                            setAlertConfig(p => ({ ...p, visible: false }));
+                          }},
+                        ],
+                      });
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={theme.danger} />
+                    <Text style={[ctxStyles.itemText, { color: theme.danger }]}>Excluir</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Modal Renomear Matéria ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={renameSubjectModal.visible}
+        onRequestClose={() => setRenameSubjectModal(p => ({ ...p, visible: false }))}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setRenameSubjectModal(p => ({ ...p, visible: false }))}>
+          <View style={renameStyles.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={renameStyles.card}>
+                <View style={renameStyles.titleRow}>
+                  <Text style={renameStyles.title}>Renomear matéria</Text>
+                  {renameSubjectModal.text.length > 0 && (
+                    <Text style={[renameStyles.charCount, renameSubjectModal.text.length >= 20 && renameStyles.charCountWarn]}>
+                      {renameSubjectModal.text.length}/25
+                    </Text>
+                  )}
+                </View>
+                <TextInput
+                  style={renameStyles.input}
+                  value={renameSubjectModal.text}
+                  onChangeText={t => setRenameSubjectModal(p => ({ ...p, text: t.slice(0, 25) }))}
+                  autoFocus
+                  selectTextOnFocus
+                  placeholderTextColor={theme.textMuted}
+                  placeholder="Nome da matéria"
+                  maxLength={25}
+                />
+                <View style={renameStyles.actions}>
+                  <TouchableOpacity
+                    style={renameStyles.btnCancel}
+                    onPress={() => setRenameSubjectModal(p => ({ ...p, visible: false }))}
+                  >
+                    <Text style={renameStyles.btnCancelTxt}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[renameStyles.btnSave, !renameSubjectModal.text.trim() && renameStyles.btnSaveDisabled]}
+                    disabled={!renameSubjectModal.text.trim()}
+                    onPress={async () => {
+                      const newName = renameSubjectModal.text.trim();
+                      if (!newName || !renameSubjectModal.item) return;
+                      const { deck, subject } = renameSubjectModal.item;
+                      const allData = await getAppData();
+                      const updated = allData.map(d => {
+                        if (d.id !== deck.id) return d;
+                        return { ...d, subjects: (d.subjects || []).map(s => s.id === subject.id ? { ...s, name: newName } : s) };
+                      });
+                      await saveAppData(updated);
+                      setRenameSubjectModal({ visible: false, item: null, text: '' });
+                      loadData();
+                    }}
+                  >
+                    <Text style={renameStyles.btnSaveTxt}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <CustomBottomModal visible={isModalVisible} onClose={() => setModalVisible(false)} title="Opções do Deck">
         <TouchableOpacity style={modalOpt.row} onPress={() => {
           setModalVisible(false);
-          if (selectedDeck) navigation.navigate('EditDeck', { deckId: selectedDeck.id, deckName: selectedDeck.name });
+          if (selectedDeck) setRenameModal({ visible: true, deck: selectedDeck, text: selectedDeck.name || '' });
         }}>
           <Ionicons name="create-outline" size={22} color={theme.textPrimary} />
           <Text style={modalOpt.text}>Editar Nome</Text>
@@ -2272,6 +2627,92 @@ const ctxStyles = StyleSheet.create({
   sep: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+});
+
+const renameStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  card: {
+    width: '100%',
+    backgroundColor: '#1e1e1e',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  title: {
+    fontFamily: theme.fontFamily.headingSemiBold,
+    fontSize: 17,
+    color: theme.textPrimary,
+  },
+  input: {
+    backgroundColor: theme.backgroundTertiary,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 15,
+    color: theme.textPrimary,
+    marginBottom: 20,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  btnCancel: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+  },
+  btnCancelTxt: {
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 14,
+    color: theme.textSecondary,
+  },
+  btnSave: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+  },
+  btnSaveDisabled: {
+    opacity: 0.4,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  charCount: {
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.primaryDark,
+  },
+  charCountWarn: {
+    color: theme.primary,
+  },
+  btnSaveTxt: {
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 14,
+    color: '#0F0F0F',
   },
 });
 

@@ -71,10 +71,16 @@ const CategoryTile = ({ item, selected, onPress, onBlurInput }) => {
 
 // ── Main screen ───────────────────────────────────────────────────
 
-export const AddDeckScreen = ({ navigation }) => {
+export const AddDeckScreen = ({ route, navigation }) => {
+  const editDeckId = route?.params?.editDeckId || null;
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const initialName = useRef('');
+  const initialCategory = useRef(null);
+  const confirmLeave = useRef(false);
+  const nameRef = useRef('');
+  const categoryRef = useRef(null);
   const [customCatExpanded, setCustomCatExpanded] = useState(false);
   const [customCatName, setCustomCatName] = useState('');
   const [customCatIcon, setCustomCatIcon] = useState(null);
@@ -89,6 +95,44 @@ export const AddDeckScreen = ({ navigation }) => {
   const catInputRef = useRef(null);
   const catSectionY = useRef(0);
   const catInputFocusedRef = useRef(false);
+
+  // Pré-carrega dados ao editar
+  useEffect(() => {
+    if (!editDeckId) return;
+    getAppData().then(allData => {
+      const deck = allData.find(d => d.id === editDeckId);
+      if (!deck) return;
+      const cat = deck.category && deck.category !== 'personalizados' ? deck.category : null;
+      setName(deck.name || '');
+      setSelectedCategory(cat);
+      initialName.current = deck.name || '';
+      initialCategory.current = cat;
+    });
+  }, [editDeckId]);
+
+  // Mantém refs sincronizados com state para o listener beforeRemove
+  useEffect(() => { nameRef.current = name; }, [name]);
+  useEffect(() => { categoryRef.current = selectedCategory; }, [selectedCategory]);
+
+  const hasChanges = () =>
+    nameRef.current.trim() !== initialName.current ||
+    categoryRef.current !== initialCategory.current;
+
+  const handleBack = () => {
+    if (editDeckId && hasChanges()) {
+      setAlertConfig({
+        visible: true,
+        title: 'Sair sem salvar?',
+        message: 'Você fez alterações que não foram salvas.',
+        buttons: [
+          { text: 'Continuar editando', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+          { text: 'Sair sem salvar', style: 'destructive', onPress: () => { confirmLeave.current = true; setAlertConfig(p => ({ ...p, visible: false })); navigation.goBack(); } },
+        ],
+      });
+    } else {
+      navigation.goBack();
+    }
+  };
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', e => {
@@ -106,14 +150,37 @@ export const AddDeckScreen = ({ navigation }) => {
 
   useEffect(() => {
     const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (selectedCategory) {
-        setSelectedCategory(null);
-        return true;
-      }
-      return false;
+      handleBack();
+      return true;
     });
     return () => backSub.remove();
-  }, [selectedCategory]);
+  }, [name, selectedCategory]);
+
+  // Intercepta gesto de swipe do React Navigation — usa refs para evitar re-registro
+  useEffect(() => {
+    if (!editDeckId) return;
+    const unsub = navigation.addListener('beforeRemove', (e) => {
+      if (confirmLeave.current) return;
+      const changed = nameRef.current.trim() !== initialName.current ||
+                      categoryRef.current !== initialCategory.current;
+      if (!changed) return;
+      e.preventDefault();
+      setAlertConfig({
+        visible: true,
+        title: 'Sair sem salvar?',
+        message: 'Você fez alterações que não foram salvas.',
+        buttons: [
+          { text: 'Continuar editando', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+          { text: 'Sair sem salvar', style: 'destructive', onPress: () => {
+            confirmLeave.current = true;
+            setAlertConfig(p => ({ ...p, visible: false }));
+            navigation.dispatch(e.data.action);
+          }},
+        ],
+      });
+    });
+    return unsub;
+  }, [editDeckId]);
 
   const handleSave = async () => {
     if (name.trim().length === 0) {
@@ -126,15 +193,25 @@ export const AddDeckScreen = ({ navigation }) => {
       return;
     }
     const allData = await getAppData();
-    const newDeck = {
-      id: `deck_${Date.now()}`,
-      name: name.trim(),
-      category: selectedCategory || 'personalizados',
-      subjects: [],
-      isUserCreated: true,
-    };
-    await saveAppData([...allData, newDeck]);
-    navigation.replace('SubjectList', { deckId: newDeck.id, deckName: newDeck.name });
+    if (editDeckId) {
+      // Modo edição — atualiza nome e categoria
+      const updated = allData.map(d => d.id === editDeckId
+        ? { ...d, name: name.trim(), category: selectedCategory || 'personalizados' }
+        : d
+      );
+      await saveAppData(updated);
+      navigation.goBack();
+    } else {
+      const newDeck = {
+        id: `deck_${Date.now()}`,
+        name: name.trim(),
+        category: selectedCategory || 'personalizados',
+        subjects: [],
+        isUserCreated: true,
+      };
+      await saveAppData([...allData, newDeck]);
+      navigation.replace('SubjectList', { deckId: newDeck.id, deckName: newDeck.name });
+    }
   };
 
   const toggleCustomCat = () => {
@@ -144,6 +221,8 @@ export const AddDeckScreen = ({ navigation }) => {
         setTimeout(() => {
           scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
         }, 150);
+      } else {
+        catInputFocusedRef.current = false;
       }
       return !prev;
     });
@@ -183,10 +262,10 @@ export const AddDeckScreen = ({ navigation }) => {
       {/* ── Header ──────────────────────────────────────────────── */}
       <View style={[s.headerWrapper, { paddingTop: insets.top }]}>
         <View style={s.headerInner}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={s.headerBtn} hitSlop={HIT_SLOP}>
+          <TouchableOpacity onPress={handleBack} style={s.headerBtn} hitSlop={HIT_SLOP}>
             <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Novo Deck</Text>
+          <Text style={s.headerTitle}>{editDeckId ? 'Editar Deck' : 'Novo Deck'}</Text>
           <View style={s.headerBtn} />
         </View>
         <View style={s.headerDivider} />
@@ -216,18 +295,18 @@ export const AddDeckScreen = ({ navigation }) => {
               placeholder="Ex: Concurso XYZ"
               placeholderTextColor={theme.textMuted}
               value={name}
-              onChangeText={t => setName(t.slice(0, 50))}
+              onChangeText={t => setName(t.slice(0, 30))}
               onFocus={() => {
                 setInputFocused(true);
                 setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 150);
               }}
               onBlur={() => setInputFocused(false)}
               returnKeyType="done"
-              maxLength={50}
+              maxLength={30}
             />
             {name.length > 0 && (
-              <Text style={[s.charCount, name.length >= 45 && s.charCountWarn]}>
-                {name.length}/50
+              <Text style={[s.charCount, name.length >= 25 && s.charCountWarn]}>
+                {name.length}/30
               </Text>
             )}
           </TouchableOpacity>
@@ -281,9 +360,16 @@ export const AddDeckScreen = ({ navigation }) => {
               {/* Header do painel */}
               <View style={s.panelHeader}>
                 <Text style={s.panelTitle}>NOVA CATEGORIA</Text>
-                <TouchableOpacity onPress={toggleCustomCat} hitSlop={HIT_SLOP}>
-                  <Ionicons name="close" size={18} color={theme.textMuted} />
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  {customCatName.length > 0 && (
+                    <Text style={[s.charCount, customCatName.length >= 20 && s.charCountWarn]}>
+                      {customCatName.length}/25
+                    </Text>
+                  )}
+                  <TouchableOpacity onPress={toggleCustomCat} hitSlop={HIT_SLOP}>
+                    <Ionicons name="close" size={18} color={theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* Nome + ícone selecionado lado a lado */}
@@ -306,7 +392,7 @@ export const AddDeckScreen = ({ navigation }) => {
                     placeholder="Nome da categoria"
                     placeholderTextColor={theme.textMuted}
                     value={customCatName}
-                    onChangeText={setCustomCatName}
+                    onChangeText={t => setCustomCatName(t.slice(0, 25))}
                     onFocus={() => {
                       catInputFocusedRef.current = true;
                       // se teclado já está aberto, rola imediatamente
@@ -318,7 +404,7 @@ export const AddDeckScreen = ({ navigation }) => {
                     }}
                     onBlur={() => { catInputFocusedRef.current = false; }}
                     returnKeyType="done"
-                    maxLength={30}
+                    maxLength={25}
                   />
                 </View>
               </View>

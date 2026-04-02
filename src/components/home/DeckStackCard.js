@@ -4,7 +4,7 @@
  * 3 cartas decorativas atrás + 1 carta principal na frente.
  * Highlight verde gradual conforme o nível de domínio (0/25/50/75/100%).
  */
-import React from 'react';
+import React, { useRef } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
@@ -69,9 +69,26 @@ const DeckStackCard = ({ deck, onPress, onLongPress, onMenuPress, isSelected, mu
   const stackBg = `rgba(32,32,32,${stackOpacity})`;
   const stackBorder = `rgba(93,214,44,${stackOpacity * 0.5})`;
 
+  const touchStart = useRef(null);
+
+  const handlePressIn = (e) => {
+    touchStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+  };
+
+  const handlePress = (e) => {
+    const start = touchStart.current;
+    if (start) {
+      const dx = Math.abs(e.nativeEvent.pageX - start.x);
+      const dy = Math.abs(e.nativeEvent.pageY - start.y);
+      if (dx > 8 || dy > 8) return;
+    }
+    onPress?.();
+  };
+
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPress={handlePress}
       onLongPress={onLongPress}
       delayLongPress={280}
       activeOpacity={0.78}
