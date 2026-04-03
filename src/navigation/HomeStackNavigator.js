@@ -13,6 +13,7 @@ import { EditFlashcardScreen } from '../screens/EditFlashcardScreen';
 import { EditSubjectScreen } from '../screens/EditSubjectScreen';
 import { FlashcardHistoryScreen } from '../screens/FlashcardHistoryScreen';
 import { AllItemsScreen } from '../screens/AllItemsScreen';
+import { CategoryDetailScreen } from '../screens/CategoryDetailScreen';
 
 const HomeStack = createStackNavigator();
 
@@ -102,6 +103,11 @@ export function HomeStackNavigator({navigation}) {
       <HomeStack.Screen
         name="AllItems"
         component={AllItemsScreen}
+        options={{ headerShown: false }}
+      />
+      <HomeStack.Screen
+        name="CategoryDetail"
+        component={CategoryDetailScreen}
         options={{ headerShown: false }}
       />
     </HomeStack.Navigator>
