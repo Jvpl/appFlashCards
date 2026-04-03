@@ -227,9 +227,10 @@ export const SubjectListScreen = ({ route, navigation }) => {
 
   const handleDeleteDeck = useCallback(() => {
     setHeaderMenuOpen(false);
-    setAlertConfig({
-      visible: true, title: 'Excluir Deck',
-      message: `Excluir "${deckName}" e todos os seus flashcards permanentemente?`,
+    setTimeout(() => {
+      setAlertConfig({
+        visible: true, title: 'Excluir Deck',
+        message: `Excluir "${deckName}" e todos os seus flashcards permanentemente?`,
       buttons: [
         { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
         {
@@ -242,6 +243,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
         },
       ],
     });
+    }, 50);
   }, [deckId, deckName, navigation]);
 
   // ── Add subject ───────────────────────────────────────────────────
@@ -610,7 +612,12 @@ export const SubjectListScreen = ({ route, navigation }) => {
                     <Ionicons name="create-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Renomear</Text>
                   </TouchableOpacity>
                   <View style={ctx.sep} />
-                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) handleDeleteSubject(sub); }}>
+                  <TouchableOpacity style={ctx.item} onPress={() => {
+                    closeContextMenu();
+                    if (sub) {
+                      setTimeout(() => handleDeleteSubject(sub), 50);
+                    }
+                  }}>
                     <Ionicons name="trash-outline" size={16} color={theme.danger} /><Text style={[ctx.itemText, { color: theme.danger }]}>Excluir</Text>
                   </TouchableOpacity>
                 </View>

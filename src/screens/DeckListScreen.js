@@ -12,9 +12,12 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   getAppData, saveAppData, getPurchasedDecks, getDeckCache,
   removePurchasedDeck, saveRecentDeck, getRecentDeckIds, getContinueStudy,
+  getUsedCategoryIds, saveUsedCategoryIds,
+  getCustomCategories, saveCustomCategories,
 } from '../services/storage';
 import { getProducts } from '../services/firebase';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
+import { CONCURSO_CATEGORIES, getCatLabel } from '../config/categories';
 import { CustomBottomModal } from '../components/ui/CustomBottomModal';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import theme from '../styles/theme';
@@ -36,61 +39,7 @@ const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.25);
 const SORT_LINE_W = Math.round(CARD_WIDTH + GRID_GAP + CARD_WIDTH / 2 - 47);
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
-// ─────────────────────────────────────────────
-// Categorias
-// ─────────────────────────────────────────────
 
-const CONCURSO_CATEGORIES = [
-  {
-    id: 'justica', name: 'Justiça & Direito', icon: 'scale-outline', color: '#818CF8',
-    keywords: ['tribunal', 'tj-', 'tjmg', 'tjsp', 'trf', 'trt', 'tre-', 'tse', 'tst',
-      'stj', 'stf', 'judiciário', 'judiciario', 'oficial de justiça', 'oficial de justica',
-      'juiz', 'promotor', 'defensor', 'procurador', 'ministério público', 'oab',
-      'advogado público', 'delegado federal', 'direito'],
-  },
-  {
-    id: 'seguranca', name: 'Segurança Pública', icon: 'shield-half-outline', color: '#A78BFA',
-    keywords: ['policia', 'polícia', 'pm ', 'pmmg', 'pc-', 'pcesp', 'pcsp', 'prf', 'pf ',
-      'investigador', 'soldado', 'delegado', 'agente policial', 'polícia penal', 'policia penal',
-      'segurança pública', 'seguranca publica'],
-  },
-  {
-    id: 'administrativo', name: 'Administrativo', icon: 'briefcase-outline', color: '#FBBF24',
-    keywords: ['inss', 'ibge', 'prefeitura', 'ministério', 'ministerio',
-      'agente administrativo', 'assistente administrativo', 'anp', 'anatel', 'anvisa',
-      'banco', 'bancario', 'bancário', 'banco central', 'bacen', 'bb ', 'caixa econômica',
-      'escriturário', 'escriturario'],
-  },
-  {
-    id: 'operacional', name: 'Operacional & Log.', icon: 'git-network-outline', color: '#34D399',
-    keywords: ['operacional', 'logística', 'logistica', 'agente de trânsito', 'agente de transito',
-      'técnico', 'tecnico', 'suporte', 'manutenção', 'manutencao', 'agente federal'],
-  },
-  {
-    id: 'fiscal', name: 'Fiscal & Controle', icon: 'reader-outline', color: '#FB923C',
-    keywords: ['receita federal', 'sefaz', 'iss ', 'fiscal', 'auditor', 'tributário',
-      'tributario', 'fisco', 'tcu', 'cgu', 'controladoria', 'controle interno', 'auditoria', 'tcm', 'tce'],
-  },
-  {
-    id: 'saude', name: 'Saúde', icon: 'fitness-outline', color: '#F472B6',
-    keywords: ['saúde', 'saude', 'sus', 'enfermeiro', 'médico', 'medico', 'hospital',
-      'técnico em saúde', 'tecnico em saude', 'farmacêutico', 'farmaceutico', 'nutricionista'],
-  },
-  {
-    id: 'educacao', name: 'Educação', icon: 'book-outline', color: '#86EFAC',
-    keywords: ['professor', 'educação', 'educacao', 'universidade', 'instituto federal',
-      'if ', 'ufmg', 'usp', 'unicamp', 'docente', 'pedagogia', 'escola'],
-  },
-  {
-    id: 'militar', name: 'Militar', icon: 'medal-outline', color: '#F87171',
-    keywords: ['bombeiro', 'militar', 'exército', 'exercito', 'marinha',
-      'aeronáutica', 'aeronautica', 'cfsd', 'esa', 'efomm', 'afa', 'força'],
-  },
-  {
-    id: 'personalizados', name: 'Meus estudos', icon: 'albums-outline', color: '#60A5FA',
-    keywords: [],
-  },
-];
 
 const leftCats  = CONCURSO_CATEGORIES.filter((_, i) => i % 2 === 0);
 const rightCats = CONCURSO_CATEGORIES.filter((_, i) => i % 2 !== 0);
@@ -115,12 +64,8 @@ const SUBJECT_SORT_OPTIONS = [
 ];
 const SUBJECT_SORT_LABELS = Object.fromEntries(SUBJECT_SORT_OPTIONS.map(o => [o.key, o.label]));
 
-const getCatLabel = (deck) => {
-  const catId = deck.category;
-  if (!catId || catId === 'personalizados') return null;
-  const cat = CONCURSO_CATEGORIES.find(c => c.id === catId);
-  return cat ? cat.name : null;
-};
+// getCatLabel importado de config/categories.js
+
 
 const matchConcursoCategory = (deck) => {
   if (deck.isUserCreated || deck.isExample) return 'personalizados';
@@ -456,6 +401,8 @@ export const DeckListScreen = ({ navigation }) => {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [contextMenu, setContextMenu] = useState({ visible: false, deck: null, x: 0, y: 0 });
+  const [categoryContextMenu, setCategoryContextMenu] = useState({ visible: false, item: null, x: 0, y: 0 });
+  const [categoryRenameModal, setCategoryRenameModal] = useState({ visible: false, item: null, text: '' });
   const [renameModal, setRenameModal] = useState({ visible: false, deck: null, text: '' });
   const [subjectContextMenu, setSubjectContextMenu] = useState({ visible: false, item: null, x: 0, y: 0 });
   const [renameSubjectModal, setRenameSubjectModal] = useState({ visible: false, item: null, text: '' });
@@ -464,6 +411,7 @@ export const DeckListScreen = ({ navigation }) => {
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
   const [activeCategoryId, setActiveCategoryId] = useState(null);
   const [exampleDismissed, setExampleDismissed] = useState(false);
+  const [usedCategoryIds, setUsedCategoryIds] = useState(new Set());
   // Novos estados para o redesign
   const [activeTab, setActiveTab] = useState('decks');          // 'categorias' | 'decks' | 'materias'
   const [expandedSections, setExpandedSections] = useState({}); // { 'decks-meus': true, ... }
@@ -508,6 +456,22 @@ export const DeckListScreen = ({ navigation }) => {
       setDecks(_cachedDecks);
       const allowEditing = await canEditDefaultDecks();
       setAllowDefaultDeckEditing(allowEditing);
+      // Rastrear categorias que já tiveram decks (para manter estado vazio)
+      try {
+        const activeCatIds = new Set(
+          _cachedDecks
+            .filter(d => !d.isExample)
+            .map(d => {
+              const catId = d.category;
+              return (catId && catId !== 'personalizados' && CONCURSO_CATEGORIES.find(c => c.id === catId))
+                ? catId : 'personalizados';
+            })
+        );
+        const stored = await getUsedCategoryIds();
+        activeCatIds.forEach(id => stored.add(id));
+        await saveUsedCategoryIds(stored);
+        setUsedCategoryIds(new Set(stored));
+      } catch (_) {}
     } catch (error) {
       console.error('Error loading decks:', error);
     } finally {
@@ -627,6 +591,7 @@ export const DeckListScreen = ({ navigation }) => {
   [userDecks, purchasedDecks, exampleDismissed]);
 
   // Categorias que têm pelo menos 1 deck (agrupa TODOS os decks pelo campo category)
+  // Categorias com 0 decks mas que já foram usadas aparecem como "vazio"
   const activeCategories = useMemo(() => {
     const nonExample = decks.filter(d => !d.isExample);
     const catMap = {};
@@ -638,15 +603,22 @@ export const DeckListScreen = ({ navigation }) => {
     const result = [];
     // Categorias de concurso na ordem definida
     CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados').forEach(cat => {
-      if (catMap[cat.id]?.length > 0) result.push({ category: cat, decks: catMap[cat.id] });
+      if (catMap[cat.id]?.length > 0) {
+        result.push({ category: cat, decks: catMap[cat.id] });
+      } else if (usedCategoryIds.has(cat.id)) {
+        result.push({ category: cat, decks: [] }); // estado vazio
+      }
     });
     // "Meus estudos" por último
     if (catMap['personalizados']?.length > 0) {
       const meusEstudos = CONCURSO_CATEGORIES.find(c => c.id === 'personalizados');
       result.push({ category: meusEstudos, decks: catMap['personalizados'] });
+    } else if (usedCategoryIds.has('personalizados')) {
+      const meusEstudos = CONCURSO_CATEGORIES.find(c => c.id === 'personalizados');
+      result.push({ category: meusEstudos, decks: [] });
     }
     return result;
-  }, [decks, getDeckCatId]);
+  }, [decks, getDeckCatId, usedCategoryIds]);
 
   // Flat list de matérias de todos os decks (exceto deck de exemplo)
   const allSubjects = useMemo(() => {
@@ -811,12 +783,57 @@ export const DeckListScreen = ({ navigation }) => {
     navigation.navigate('SubjectList', { deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects });
   };
 
+  const handleCategoryMenuPress = useCallback((item, event) => {
+    const { pageX, pageY } = event.nativeEvent;
+    setCategoryContextMenu({ visible: true, item, x: pageX, y: pageY });
+  }, []);
+
+  const handleDeleteCategory = useCallback(async (item) => {
+    if (!item) return;
+    const catId = item.category.id;
+    setAlertConfig({
+      visible: true,
+      title: `Excluir "${item.category.name}"?`,
+      message: `Isso apagará a categoria${item.decks.length > 0 ? ` e todos os seus ${item.decks.length} deck(s) e flashcards` : ''}. Essa ação não pode ser desfeita.`,
+      buttons: [
+        { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+        { text: 'Excluir', style: 'destructive', onPress: async () => {
+          setAlertConfig(p => ({ ...p, visible: false }));
+          const deckIds = new Set(item.decks.map(d => d.id));
+          const allData = await getAppData();
+          await saveAppData(allData.filter(d => !deckIds.has(d.id)));
+          await Promise.all(Array.from(deckIds).map(id => removePurchasedDeck(id)));
+
+          const usedIds = await getUsedCategoryIds();
+          const newUsedIds = new Set(usedIds);
+          newUsedIds.delete(catId);
+          await saveUsedCategoryIds(Array.from(newUsedIds));
+
+          if (item.category.isCustom) {
+            const customCats = await getCustomCategories();
+            await saveCustomCategories(customCats.filter(c => c.id !== catId));
+          }
+
+          exitSelectMode();
+          loadData();
+        }},
+      ],
+    });
+  }, [exitSelectMode, loadData]);
+
   const handleCategoryPress = (category) => {
-    if (activeCategoryId === category.id) { setActiveCategoryId(null); return; }
+    if (multiSelectMode) return;
+    // Navega para a tela de detalhe da categoria
     const count = categoryCounts[category.id] || 0;
-    if (count === 0 && category.id !== 'personalizados') { navigation.navigate('Loja'); return; }
-    setActiveCategoryId(category.id);
-    exitSelectMode();
+    if (count === 0 && category.id !== 'personalizados') {
+      navigation.navigate('Loja');
+      return;
+    }
+    navigation.navigate('CategoryDetail', {
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryIcon: category.icon,
+    });
   };
 
   const deleteSelectedDecks = useCallback(async () => {
@@ -1110,11 +1127,7 @@ export const DeckListScreen = ({ navigation }) => {
           {recentDecksLimited.length > 0 && (
             <View style={s.recentSection}>
               <Text style={s.sectionLabel}>RECENTES</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.recentScroll}
-              >
+              <View style={s.recentRow}>
                 {recentDecksLimited.map(deck => (
                   <RecentCard
                     key={deck.id}
@@ -1122,7 +1135,7 @@ export const DeckListScreen = ({ navigation }) => {
                     onPress={() => handleDeckPress(deck)}
                   />
                 ))}
-              </ScrollView>
+              </View>
             </View>
           )}
 
@@ -1222,6 +1235,7 @@ export const DeckListScreen = ({ navigation }) => {
                         onLongPress={() => handleCategoryCardLongPress(item)}
                         isSelected={selectedIds.has(item.category.id)}
                         selectMode={multiSelectMode}
+                        onMenuPress={(e) => handleCategoryMenuPress(item, e)}
                       />
                     ),
                     'categorias',
@@ -1482,20 +1496,22 @@ export const DeckListScreen = ({ navigation }) => {
                       const deck = contextMenu.deck;
                       closeContextMenu();
                       if (!deck) return;
-                      setAlertConfig({
-                        visible: true,
-                        title: 'Apagar Deck',
-                        message: `Apagar "${deck.name}"? Isso também apagará todas as matérias e flashcards dentro dele.`,
-                        buttons: [
-                          { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
-                          { text: 'Apagar', style: 'destructive', onPress: async () => {
-                            const allData = await getAppData();
-                            await saveAppData(allData.filter(d => d.id !== deck.id));
-                            loadData();
-                            setAlertConfig(p => ({ ...p, visible: false }));
-                          }},
-                        ],
-                      });
+                      setTimeout(() => {
+                        setAlertConfig({
+                          visible: true,
+                          title: 'Apagar Deck',
+                          message: `Apagar "${deck.name}"? Isso também apagará todas as matérias e flashcards dentro dele.`,
+                          buttons: [
+                            { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+                            { text: 'Apagar', style: 'destructive', onPress: async () => {
+                              const allData = await getAppData();
+                              await saveAppData(allData.filter(d => d.id !== deck.id));
+                              loadData();
+                              setAlertConfig(p => ({ ...p, visible: false }));
+                            }},
+                          ],
+                        });
+                      }, 50);
                     }}
                   >
                     <Ionicons name="trash-outline" size={16} color={theme.danger} />
@@ -1557,6 +1573,68 @@ export const DeckListScreen = ({ navigation }) => {
                       );
                       await saveAppData(updated);
                       setRenameModal({ visible: false, deck: null, text: '' });
+                      loadData();
+                    }}
+                  >
+                    <Text style={renameStyles.btnSaveTxt}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Rename de Categoria ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={categoryRenameModal.visible}
+        onRequestClose={() => setCategoryRenameModal(p => ({ ...p, visible: false }))}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setCategoryRenameModal(p => ({ ...p, visible: false }))}>
+          <View style={renameStyles.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={renameStyles.card}>
+                <View style={renameStyles.titleRow}>
+                  <Text style={renameStyles.title}>Renomear categoria</Text>
+                  {categoryRenameModal.text.length > 0 && (
+                    <Text style={[renameStyles.charCount, categoryRenameModal.text.length >= 25 && renameStyles.charCountWarn]}>
+                      {categoryRenameModal.text.length}/30
+                    </Text>
+                  )}
+                </View>
+                <TextInput
+                  style={renameStyles.input}
+                  value={categoryRenameModal.text}
+                  onChangeText={t => setCategoryRenameModal(p => ({ ...p, text: t.slice(0, 30) }))}
+                  autoFocus
+                  selectTextOnFocus
+                  placeholderTextColor={theme.textMuted}
+                  placeholder="Nome da categoria"
+                  maxLength={30}
+                />
+                <View style={renameStyles.actions}>
+                  <TouchableOpacity
+                    style={renameStyles.btnCancel}
+                    onPress={() => setCategoryRenameModal(p => ({ ...p, visible: false }))}
+                  >
+                    <Text style={renameStyles.btnCancelTxt}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[renameStyles.btnSave, !categoryRenameModal.text.trim() && renameStyles.btnSaveDisabled]}
+                    disabled={!categoryRenameModal.text.trim()}
+                    onPress={async () => {
+                      const newName = categoryRenameModal.text.trim();
+                      if (!newName || !categoryRenameModal.item) return;
+                      const catId = categoryRenameModal.item.category.id;
+                      const allData = await getAppData();
+                      const updated = allData.map(d =>
+                        d.category === catId ? { ...d, categoryDisplayName: newName } : d
+                      );
+                      await saveAppData(updated);
+                      setCategoryRenameModal({ visible: false, item: null, text: '' });
                       loadData();
                     }}
                   >
@@ -1651,24 +1729,26 @@ export const DeckListScreen = ({ navigation }) => {
                       const item = subjectContextMenu.item;
                       closeSubjectContextMenu();
                       if (!item) return;
-                      setAlertConfig({
-                        visible: true,
-                        title: 'Apagar Matéria',
-                        message: `Apagar "${item.subject.name}" e todos os seus flashcards?`,
-                        buttons: [
-                          { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
-                          { text: 'Apagar', style: 'destructive', onPress: async () => {
-                            const allData = await getAppData();
-                            const updated = allData.map(d => {
-                              if (d.id !== item.deck.id) return d;
-                              return { ...d, subjects: (d.subjects || []).filter(s => s.id !== item.subject.id) };
-                            });
-                            await saveAppData(updated);
-                            loadData();
-                            setAlertConfig(p => ({ ...p, visible: false }));
-                          }},
-                        ],
-                      });
+                      setTimeout(() => {
+                        setAlertConfig({
+                          visible: true,
+                          title: 'Apagar Matéria',
+                          message: `Apagar "${item.subject.name}" e todos os seus flashcards?`,
+                          buttons: [
+                            { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+                            { text: 'Apagar', style: 'destructive', onPress: async () => {
+                              const allData = await getAppData();
+                              const updated = allData.map(d => {
+                                if (d.id !== item.deck.id) return d;
+                                return { ...d, subjects: (d.subjects || []).filter(s => s.id !== item.subject.id) };
+                              });
+                              await saveAppData(updated);
+                              loadData();
+                              setAlertConfig(p => ({ ...p, visible: false }));
+                            }},
+                          ],
+                        });
+                      }, 50);
                     }}
                   >
                     <Ionicons name="trash-outline" size={16} color={theme.danger} />
@@ -1765,6 +1845,56 @@ export const DeckListScreen = ({ navigation }) => {
         </TouchableOpacity>
       </CustomBottomModal>
 
+      {/* ── Menu de contexto das categorias ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={categoryContextMenu.visible}
+        onRequestClose={() => setCategoryContextMenu(p => ({ ...p, visible: false }))}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setCategoryContextMenu(p => ({ ...p, visible: false }))}>
+          <View style={ctxStyles.overlay}>
+            {(() => {
+              const menuW = 180;
+              const menuH = 104;
+              let menuLeft = categoryContextMenu.x - menuW + 16;
+              let menuTop = categoryContextMenu.y - menuH - 10;
+              if (menuLeft < 8) menuLeft = 8;
+              if (menuLeft + menuW > width - 8) menuLeft = width - menuW - 8;
+              if (menuTop < 60) menuTop = categoryContextMenu.y + 10;
+              return (
+                <View style={[ctxStyles.menu, { left: menuLeft, top: menuTop }]}>
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      const item = categoryContextMenu.item;
+                      setCategoryContextMenu(p => ({ ...p, visible: false }));
+                      if (item) setCategoryRenameModal({ visible: true, item, text: item.category.name || '' });
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Renomear</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      const item = categoryContextMenu.item;
+                      setCategoryContextMenu(p => ({ ...p, visible: false }));
+                      setTimeout(() => handleDeleteCategory(item), 50);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={theme.danger} />
+                    <Text style={[ctxStyles.itemText, { color: theme.danger }]}>Excluir</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -1834,7 +1964,19 @@ const s = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  // Primeiro acesso
+  // Seção Recentes
+  recentSection: {
+    paddingHorizontal: GRID_PADDING,
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  recentRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+
   firstAccessContent: {
     paddingHorizontal: GRID_PADDING,
     paddingTop: 20,
