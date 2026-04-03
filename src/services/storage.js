@@ -190,6 +190,31 @@ export const clearContinueStudy = async () => {
   }
 };
 
+// ============================================
+// Used Categories — categorias que já tiveram decks
+// (persiste o estado vazio ao mover todos os decks)
+// ============================================
+
+const USED_CATEGORIES_KEY = '@used_category_ids';
+
+export const getUsedCategoryIds = async () => {
+  try {
+    const json = await AsyncStorage.getItem(USED_CATEGORIES_KEY);
+    return json ? new Set(JSON.parse(json)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+export const saveUsedCategoryIds = async (ids) => {
+  try {
+    await AsyncStorage.setItem(USED_CATEGORIES_KEY, JSON.stringify([...ids]));
+  } catch (e) {
+    console.warn('Failed to save used category ids:', e);
+  }
+};
+
+
 export default {
   STORAGE_KEY,
   getAppData,
