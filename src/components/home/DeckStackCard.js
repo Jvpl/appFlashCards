@@ -4,8 +4,8 @@
  * 3 cartas decorativas atrás + 1 carta principal na frente.
  * Highlight verde gradual conforme o nível de domínio (0/25/50/75/100%).
  */
-import React, { useRef } from 'react';
-import { TouchableOpacity, View, Text, StyleSheet, Dimensions } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { TouchableOpacity, View, Text, StyleSheet, Dimensions, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 
@@ -69,7 +69,11 @@ const DeckStackCard = ({ deck, onPress, onLongPress, onMenuPress, isSelected, mu
   const stackBg = `rgba(32,32,32,${stackOpacity})`;
   const stackBorder = `rgba(93,214,44,${stackOpacity * 0.5})`;
 
+  const [tooltip, setTooltip] = useState(null); // { x, y, label }
+  const [isTruncated, setIsTruncated] = useState(false);
+  const labelRef = useRef(null);
   const touchStart = useRef(null);
+  const fullLabel = (categoryLabel || 'DECK').toUpperCase();
 
   const handlePressIn = (e) => {
     touchStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
@@ -118,9 +122,42 @@ const DeckStackCard = ({ deck, onPress, onLongPress, onMenuPress, isSelected, mu
         isSelected && styles.mainCardSelected,
       ]}>
         {/* Label categoria / DECK */}
-        <Text style={styles.deckLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-          {(categoryLabel || 'DECK').toUpperCase()}
-        </Text>
+        <TouchableOpacity
+          ref={labelRef}
+          activeOpacity={0.6}
+          disabled={!isTruncated}
+          hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+          onPress={() => {
+            labelRef.current?.measure((fx, fy, w, h, px, py) => {
+              setTooltip({ x: px, y: py - 32, label: fullLabel });
+            });
+          }}
+        >
+          <Text
+            style={styles.deckLabel}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            onTextLayout={(e) => {
+              const lines = e.nativeEvent.lines;
+              if (lines.length > 0) {
+                setIsTruncated(lines[0].text.trimEnd().length < fullLabel.length);
+              }
+            }}
+          >
+            {fullLabel}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Tooltip para label truncado */}
+        {tooltip && (
+          <Modal transparent animationType="none" onRequestClose={() => setTooltip(null)}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setTooltip(null)}>
+              <View style={[styles.tooltip, { top: tooltip.y, left: tooltip.x }]}>
+                <Text style={styles.tooltipText}>{tooltip.label}</Text>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
 
         {/* Nome */}
         <Text style={styles.deckName} numberOfLines={3}>{deck.name || 'Deck sem nome'}</Text>
@@ -219,13 +256,13 @@ const styles = StyleSheet.create({
     color: theme.primary,
     letterSpacing: 0.8,
     marginBottom: 6,
-    paddingRight: 28, // espaço para o botão ···
+    paddingRight: 26, // espaço para o botão ···
   },
   deckName: {
     fontFamily: theme.fontFamily.headingSemiBold,
-    fontSize: 17,
+    fontSize: 15,
     color: theme.textPrimary,
-    lineHeight: 22,
+    lineHeight: 21,
   },
 
   footer: {
@@ -280,6 +317,23 @@ const styles = StyleSheet.create({
     color: '#0F0F0F',
     fontSize: 11,
     fontWeight: '700',
+  },
+
+  // Tooltip
+  tooltip: {
+    position: 'absolute',
+    backgroundColor: 'rgba(30,30,30,0.96)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    maxWidth: 200,
+    borderWidth: 1,
+    borderColor: 'rgba(93,214,44,0.25)',
+  },
+  tooltipText: {
+    color: '#fff',
+    fontSize: 11,
+    fontFamily: theme.fontFamily.uiMedium,
   },
 
   // Botão ···

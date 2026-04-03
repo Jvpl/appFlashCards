@@ -143,9 +143,9 @@ const styles = StyleSheet.create({
   },
   name: {
     fontFamily: theme.fontFamily.headingSemiBold,
-    fontSize: 13,
+    fontSize: 15,
     color: theme.textPrimary,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   cardCountRow: {
     flexDirection: 'row',
