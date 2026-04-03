@@ -37,7 +37,7 @@ const CATEGORIES = [
   { id: 'justica',        name: 'Justiça & Direito',   icon: justicaIcon },
   { id: 'administrativo', name: 'Administrativo',      icon: administrativoIcon },
   { id: 'fiscal',         name: 'Fiscal & Controle',   icon: fiscalIcon },
-  { id: 'operacional',    name: 'Operacional & Log.',  icon: operacionalIcon },
+  { id: 'operacional',    name: 'Operacional & Logística',  icon: operacionalIcon },
   { id: 'saude',          name: 'Saúde',               icon: saudeIcon },
   { id: 'educacao',       name: 'Educação',            icon: educacaoIcon },
   { id: 'militar',        name: 'Militar',             icon: militarIcon },
