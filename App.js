@@ -2,6 +2,7 @@ import "./global.css";
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useFonts } from 'expo-font';
 import AppContent from './src/navigation/AppContent';
@@ -148,7 +149,9 @@ export default function App() {
     <GestureHandlerRootView style={styles.flexOne}>
       <SafeAreaProvider>
         <KeyboardProvider>
-          <AppContent />
+          <BottomSheetModalProvider>
+            <AppContent />
+          </BottomSheetModalProvider>
         </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
