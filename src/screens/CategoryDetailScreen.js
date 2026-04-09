@@ -11,9 +11,9 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions,
   Modal, TouchableWithoutFeedback, TextInput, FlatList, BackHandler,
-  StatusBar, KeyboardAvoidingView, Platform, Keyboard,
+  StatusBar, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { NativeBottomSheet } from '../native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { getAppData, saveAppData, removePurchasedDeck, getUsedCategoryIds } from '../services/storage';
+import { NativeKeyboardAvoidingContainer } from '../native/NativeKeyboardAvoidingContainer';
 import {
   CONCURSO_CATEGORIES,
   getDeckCatId,
@@ -62,16 +63,15 @@ const CARD_MARGIN = 6;
 const CARDS_PER_ROW = 2; // Forçando a grade (layout do Notion) com 2 colunas
 
 // Componente para resolver delay de digitação em modals grandes (desacopla re-render)
-const LocalTextInput = React.forwardRef(({ value, onChangeText, useBottomSheet, ...props }, ref) => {
+const LocalTextInput = React.forwardRef(({ value, onChangeText, ...props }, ref) => {
   const [text, setText] = React.useState(value);
   const internalRef = React.useRef(null);
   const resolvedRef = ref || internalRef;
   React.useEffect(() => {
     if (value === '') setText('');
   }, [value]);
-  const Input = useBottomSheet ? BottomSheetTextInput : TextInput;
   return (
-    <Input
+    <TextInput
       ref={resolvedRef}
       {...props}
       value={text}
@@ -286,8 +286,6 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
   const [subjectSortMenuPos, setSubjectSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
   const sortBtnRef = useRef(null);
   const subjectSortBtnRef = useRef(null);
-  // Teclado
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   // Menu de opções da categoria (header)
   const [catMenuVisible, setCatMenuVisible] = useState(false);
   // Modal editar categoria
@@ -298,14 +296,15 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
     customIcon: null,   // null = sem ícone, '__picker__' = picker aberto, string = ícone selecionado
     activeIconGroup: 0,
   });
-  const editBottomSheetRef = useRef(null);
+
   const editScrollRef = useRef(null);
   const editTextInputRef = useRef(null);
-  const saveBtnYRef = useRef(0);
   // Modal excluir categoria
   const [deleteCatModal, setDeleteCatModal] = useState({ visible: false });
   // Sub-modal para mover decks ao excluir categoria
   const [moveBeforeDeleteModal, setMoveBeforeDeleteModal] = useState({ visible: false });
+
+
 
   // Categoria atual
   const category = useMemo(() =>
@@ -314,17 +313,6 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
   );
 
 
-  useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
-      const kbHeight = e.endCoordinates.height;
-      setKeyboardHeight(kbHeight);
-      setTimeout(() => editScrollRef.current?.scrollTo({ y: saveBtnYRef.current, animated: true }), 100);
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
-    });
-    return () => { showSub.remove(); hideSub.remove(); };
-  }, []);
 
   const loadData = useCallback(async () => {
     const [allData, customCats, usedIds] = await Promise.all([
@@ -343,12 +331,7 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
     if (isFocused) loadData();
   }, [isFocused, loadData]);
 
-  // Listener de teclado
-  useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', e => setKeyboardHeight(e.endCoordinates.height));
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
-    return () => { show.remove(); hide.remove(); };
-  }, []);
+
 
   // Back handler para cancelar seleção
   useEffect(() => {
@@ -570,15 +553,8 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
 
   // ── Editar categoria ────────────────────────
   const closeEditCatModal = useCallback(() => {
-    editBottomSheetRef.current?.dismiss();
     setEditCatModal({ visible: false, selectedPresetId: null, customName: '', customIcon: null, activeIconGroup: 0 });
   }, []);
-
-  useEffect(() => {
-    if (editCatModal.visible) {
-      editBottomSheetRef.current?.present();
-    }
-  }, [editCatModal.visible]);
 
 
 
@@ -1338,26 +1314,25 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
         </TouchableWithoutFeedback>
       </Modal>
 
-      <BottomSheetModal
-        ref={editBottomSheetRef}
-        snapPoints={['90%']}
-        enableDynamicSizing={false}
-        enablePanDownToClose
+      <NativeBottomSheet
+        visible={editCatModal.visible}
+        sheetHeightPercent={0.9}
         onDismiss={closeEditCatModal}
-        enableOverDrag={false}
-        keyboardBehavior="none"
-        keyboardBlurBehavior="none"
-        backgroundStyle={{ backgroundColor: theme.backgroundSecondary }}
-        handleIndicatorStyle={{ backgroundColor: theme.textMuted }}
-        backdropComponent={(props) => (
-          <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.6} />
-        )}
+        style={{ width: 0, height: 0 }}
       >
-        <Text style={[mv.title, { marginBottom: 16, marginTop: 4, paddingHorizontal: 20 }]}>Editar Categoria</Text>
-        <BottomSheetScrollView
+          <NativeKeyboardAvoidingContainer
+            style={{ flex: 1 }}
+            onKeyboardSettle={(e) => {
+              if (e.nativeEvent.height > 0) {
+                editScrollRef.current?.scrollToEnd({ animated: false });
+              }
+            }}
+          >
+          <Text style={[mv.title, { marginBottom: 16, marginTop: 4, paddingHorizontal: 20 }]}>Editar Categoria</Text>
+          <ScrollView
           ref={editScrollRef}
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 + keyboardHeight }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           bounces={false}
@@ -1447,7 +1422,7 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
                 />
               </TouchableOpacity>
               <View style={edit.panelInputWrap}>
-                <BottomSheetTextInput
+                <TextInput
                   ref={editTextInputRef}
                   style={edit.panelInput}
                   value={editCatModal.customName}
@@ -1522,14 +1497,14 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
                 onPress={handleEditCategorySubmit}
                 activeOpacity={0.85}
                 delayPressIn={60}
-                onLayout={e => { saveBtnYRef.current = e.nativeEvent.layout.y; }}
               >
                 <Text style={[edit.saveBtnTxt, !canSave && edit.saveBtnTxtDisabled]}>Salvar</Text>
               </TouchableOpacity>
             );
           })()}
-        </BottomSheetScrollView>
-      </BottomSheetModal>
+          </ScrollView>
+          </NativeKeyboardAvoidingContainer>
+      </NativeBottomSheet>
 
       {/* ── Modal Sort Decks ── */}
       <Modal

@@ -2,6 +2,7 @@ package com.jvpl.flashcardsconcurso
 
 import android.os.Build
 import android.os.Bundle
+import androidx.core.view.WindowCompat
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -17,6 +18,12 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+
+    // Ativa edge-to-edge: necessário para que WindowInsetsAnimationCompat funcione
+    // corretamente com o módulo KeyboardInsetModule (Kotlin).
+    // Sem isso, o Android usa o modo legado de resize e os callbacks de animação
+    // de inset não são disparados frame a frame.
+    WindowCompat.setDecorFitsSystemWindows(window, false)
   }
 
   /**
