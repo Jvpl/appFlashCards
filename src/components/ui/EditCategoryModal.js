@@ -17,7 +17,6 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import theme from '../../styles/theme';
 import GlowIcon from './GlowIcon';
@@ -31,8 +30,7 @@ import {
 import { getAppData, saveAppData } from '../../services/storage';
 import { NativeKeyboardAvoidingContainer } from '../../native/NativeKeyboardAvoidingContainer';
 
-const { width: SW, height: SH } = Dimensions.get('window');
-const MODAL_HEIGHT = Math.round(SH * 0.50);
+const { width: SW } = Dimensions.get('window');
 
 const CATEGORY_SVG_ICONS = {
   administrativo: administrativoIcon,
@@ -68,17 +66,15 @@ export function EditCategoryModal({
   presetCategoriesAvailable = [],
   customCategoriesAvailable = [],
 }) {
-  const [page, setPage] = useState(0);            // 0 = categorias, 1 = nova personalizada
-  const [filter, setFilter] = useState('preset'); // 'preset' | 'custom'
+  const [page, setPage] = useState(0);
+  const [filter, setFilter] = useState('preset');
   const [selectedId, setSelectedId] = useState(null);
   const [customName, setCustomName] = useState('');
   const [customIcon, setCustomIcon] = useState(null);
   const [iconGroup, setIconGroup] = useState(0);
-  const pageScrollRef = useRef(null); // mantido para compatibilidade mas não usado
+  const pageScrollRef = useRef(null);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const sheetTranslateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
 
-  // Pré-preenche quando a categoria editada é customizada
   useEffect(() => {
     if (visible && categoryId?.startsWith('custom_')) {
       const cat = customCategoriesAvailable.find(c => c.id === categoryId);
@@ -91,23 +87,13 @@ export function EditCategoryModal({
     }
   }, [visible, categoryId, customCategoriesAvailable]);
 
+  const handleShow = useCallback(() => {
+    Animated.timing(overlayOpacity, { toValue: 1, duration: 280, useNativeDriver: true }).start();
+  }, []);
+
   useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 280,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sheetTranslateY, {
-          toValue: 0,
-          duration: 320,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
+    if (!visible) {
       overlayOpacity.setValue(0);
-      sheetTranslateY.setValue(MODAL_HEIGHT);
     }
   }, [visible]);
 
@@ -121,21 +107,8 @@ export function EditCategoryModal({
   }, []);
 
   const handleDismiss = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: 220,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sheetTranslateY, {
-        toValue: MODAL_HEIGHT,
-        duration: 260,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      reset();
-      onDismiss();
-    });
+    Animated.timing(overlayOpacity, { toValue: 0, duration: 220, useNativeDriver: true })
+      .start(() => { reset(); onDismiss(); });
   }, [reset, onDismiss]);
 
   const canSave = !!selectedId || (page === 1 && !!customName.trim());
@@ -171,21 +144,8 @@ export function EditCategoryModal({
         ));
       }
     }
-    Animated.parallel([
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: 220,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sheetTranslateY, {
-        toValue: MODAL_HEIGHT,
-        duration: 260,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      reset();
-      onSaved?.();
-    });
+    Animated.timing(overlayOpacity, { toValue: 0, duration: 220, useNativeDriver: true })
+      .start(() => { reset(); onSaved?.(); });
   }, [selectedId, customName, customIcon, categoryId, page, reset, onSaved]);
 
   const hasCustomCats = customCategoriesAvailable.length > 0;
@@ -196,37 +156,30 @@ export function EditCategoryModal({
       transparent
       animationType="none"
       visible={visible}
+      onShow={handleShow}
       onRequestClose={handleDismiss}
       statusBarTranslucent
     >
       <TouchableWithoutFeedback onPress={handleDismiss}>
         <Animated.View style={[s.overlay, { opacity: overlayOpacity }]}>
-          <TouchableWithoutFeedback>
-            <Animated.View style={{ transform: [{ translateY: sheetTranslateY }] }}>
-            <NativeKeyboardAvoidingContainer style={{ height: MODAL_HEIGHT }}>
+          <NativeKeyboardAvoidingContainer style={s.nativeContainer}>
+            <TouchableWithoutFeedback>
             <View style={s.sheet}>
               {/* Handle */}
               <View style={s.handle} />
 
-              {/* Cabeçalho — categoria atual */}
+              {/* Cabeçalho compacto */}
               <View style={s.currentRow}>
                 <View style={s.currentIconWrap}>
                   <CategoryIconGlow categoryId={categoryId} size={20} />
                 </View>
-                <View style={s.currentMeta}>
-                  <Text style={s.currentLabel}>Categoria atual</Text>
-                  <Text style={s.currentName} numberOfLines={1}>{categoryName}</Text>
-                </View>
-                <TouchableOpacity onPress={handleDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Ionicons name="close" size={20} color={theme.textMuted} />
-                </TouchableOpacity>
+                <Text style={s.currentName} numberOfLines={1}>{categoryName}</Text>
               </View>
 
               <View style={s.divider} />
 
-              {/* ── Tabs: Categorias / Personalizada + filtro à direita ── */}
+              {/* Tabs + filtro na mesma linha */}
               <View style={s.tabRow}>
-                {/* Tabs à esquerda */}
                 <View style={s.tabGroup}>
                   <TouchableOpacity
                     style={[s.tab, page === 0 && s.tabActive]}
@@ -243,15 +196,13 @@ export function EditCategoryModal({
                     <Text style={[s.tabText, page === 1 && s.tabTextActive]}>Personalizada</Text>
                   </TouchableOpacity>
                 </View>
-                {/* Filtro Padrão/Customizadas à direita — só na aba Categorias e se houver custom */}
                 {page === 0 && hasCustomCats && (
                   <View style={s.tabFilterGroup}>
                     {[{ key: 'preset', label: 'Padrão' }, { key: 'custom', label: 'Custom' }].map(f => (
                       <TouchableOpacity
                         key={f.key}
-                        style={[s.tabFilterChip, filter === f.key && s.tabFilterChipActive]}
                         onPress={() => { setFilter(f.key); setSelectedId(null); }}
-                        activeOpacity={0.75}
+                        activeOpacity={0.6}
                       >
                         <Text style={[s.tabFilterText, filter === f.key && s.tabFilterTextActive]}>
                           {f.label}
@@ -262,7 +213,7 @@ export function EditCategoryModal({
                 )}
               </View>
 
-              {/* ── Pager ── */}
+              {/* Pager */}
               <ScrollView
                 ref={pageScrollRef}
                 horizontal
@@ -391,7 +342,7 @@ export function EditCategoryModal({
                 </View>
               </ScrollView>
 
-              {/* Botão Salvar — sempre visível */}
+              {/* Botão Salvar */}
               <View style={s.footer}>
                 <TouchableOpacity
                   style={[s.saveBtn, !canSave && s.saveBtnDisabled]}
@@ -405,9 +356,8 @@ export function EditCategoryModal({
                 </TouchableOpacity>
               </View>
             </View>
-            </NativeKeyboardAvoidingContainer>
-            </Animated.View>
-          </TouchableWithoutFeedback>
+            </TouchableWithoutFeedback>
+          </NativeKeyboardAvoidingContainer>
         </Animated.View>
       </TouchableWithoutFeedback>
     </Modal>
@@ -417,11 +367,17 @@ export function EditCategoryModal({
 const s = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
+  nativeContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
   sheet: {
-    flex: 1,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
     backgroundColor: '#141414',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -434,57 +390,39 @@ const s = StyleSheet.create({
   handle: {
     width: 36, height: 4, borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.15)',
-    alignSelf: 'center', marginTop: 10, marginBottom: 14,
+    alignSelf: 'center', marginTop: 8, marginBottom: 8,
   },
 
-  // Categoria atual
   currentRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 18, paddingBottom: 14, gap: 12,
+    paddingHorizontal: 18, paddingBottom: 8, gap: 8,
   },
   currentIconWrap: {
-    width: 38, height: 38, borderRadius: 11,
+    width: 36, height: 36, borderRadius: 10,
     backgroundColor: 'rgba(93,214,44,0.08)',
     borderWidth: 1, borderColor: 'rgba(93,214,44,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
-  currentMeta: { flex: 1 },
-  currentLabel: {
-    color: theme.textMuted,
-    fontSize: 10, fontFamily: theme.fontFamily.uiMedium,
-    letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2,
-  },
   currentName: {
     color: theme.textPrimary,
-    fontSize: 15, fontFamily: theme.fontFamily.headingSemiBold,
+    fontSize: 13, fontFamily: theme.fontFamily.headingSemiBold,
+    flex: 1,
   },
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginBottom: 0 },
 
-  // Tab row
   tabRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 18, paddingTop: 12, paddingBottom: 8,
+    paddingHorizontal: 18, paddingTop: 8, paddingBottom: 6,
   },
-  tabGroup: {
-    flexDirection: 'row', gap: 8, flex: 1,
-  },
-  tabFilterGroup: {
-    flexDirection: 'row', gap: 4,
-  },
-  tabFilterChip: {
-    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-  },
-  tabFilterChipActive: {
-    backgroundColor: 'rgba(93,214,44,0.08)',
-    borderColor: 'rgba(93,214,44,0.3)',
-  },
+  tabGroup: { flexDirection: 'row', gap: 8, flex: 1 },
+  tabFilterGroup: { flexDirection: 'row', gap: 12 },
   tabFilterText: {
-    color: theme.textSecondary, fontSize: 10, fontFamily: theme.fontFamily.uiMedium,
+    color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium,
   },
-  tabFilterTextActive: { color: theme.primary },
+  tabFilterTextActive: {
+    color: theme.primary, textDecorationLine: 'underline',
+  },
   tab: {
     paddingHorizontal: 14, paddingVertical: 6,
     borderRadius: 20,
@@ -495,35 +433,12 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(93,214,44,0.1)',
     borderColor: 'rgba(93,214,44,0.35)',
   },
-  tabText: {
-    color: theme.textMuted,
-    fontSize: 12, fontFamily: theme.fontFamily.uiSemiBold,
-  },
+  tabText: { color: theme.textMuted, fontSize: 12, fontFamily: theme.fontFamily.uiSemiBold },
   tabTextActive: { color: theme.primary },
 
-  // Pager
   pager: { flex: 1 },
   page: { flex: 1, paddingHorizontal: 18 },
 
-  // Filtro padrão/custom
-  filterRow: {
-    flexDirection: 'row', gap: 6, marginBottom: 10,
-  },
-  filterChip: {
-    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-  },
-  filterChipActive: {
-    backgroundColor: 'rgba(93,214,44,0.08)',
-    borderColor: 'rgba(93,214,44,0.3)',
-  },
-  filterChipText: {
-    color: theme.textSecondary, fontSize: 11, fontFamily: theme.fontFamily.uiMedium,
-  },
-  filterChipTextActive: { color: theme.primary },
-
-  // Lista de categorias
   listScroll: { flex: 1 },
   listContent: {
     backgroundColor: 'rgba(255,255,255,0.02)',
@@ -544,29 +459,19 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'transparent',
   },
   listIconWrapActive: { borderColor: 'rgba(93,214,44,0.25)' },
-  listName: {
-    flex: 1, color: theme.textPrimary,
-    fontSize: 14, fontFamily: theme.fontFamily.uiMedium,
-  },
+  listName: { flex: 1, color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium },
   listNameActive: { color: theme.primary, fontFamily: theme.fontFamily.uiBold },
 
-  // Empty state
   empty: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 20, paddingHorizontal: 14,
     backgroundColor: 'rgba(255,255,255,0.02)',
     borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',
   },
-  emptyText: {
-    flex: 1, color: theme.textSecondary,
-    fontSize: 13, fontFamily: theme.fontFamily.uiMedium,
-  },
+  emptyText: { flex: 1, color: theme.textSecondary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium },
 
-  // Personalizada
   customWrap: { flex: 1 },
-  inputRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12,
-  },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   iconPreview: {
     width: 42, height: 42, borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.04)',
@@ -584,12 +489,9 @@ const s = StyleSheet.create({
     flex: 1, color: theme.textPrimary,
     fontSize: 14, fontFamily: theme.fontFamily.uiMedium, paddingVertical: 0,
   },
-  charCount: {
-    fontSize: 10, fontFamily: theme.fontFamily.uiBold, color: theme.textMuted,
-  },
+  charCount: { fontSize: 10, fontFamily: theme.fontFamily.uiBold, color: theme.textMuted },
   charCountWarn: { color: theme.primary },
 
-  // Icon picker
   pickerWrap: { gap: 8 },
   groupTabsScroll: { flexGrow: 0 },
   groupTabsContent: { gap: 5, paddingBottom: 2 },
@@ -601,21 +503,15 @@ const s = StyleSheet.create({
   groupTabActive: { borderColor: 'rgba(93,214,44,0.4)' },
   groupTabText: { color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiSemiBold },
   groupTabTextActive: { color: theme.primary },
-  iconGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 7,
-  },
+  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   iconOpt: {
     width: 38, height: 38, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: 'transparent',
   },
-  iconOptActive: {
-    borderColor: theme.primary,
-    backgroundColor: 'rgba(93,214,44,0.08)',
-  },
+  iconOptActive: { borderColor: theme.primary, backgroundColor: 'rgba(93,214,44,0.08)' },
 
-  // Footer / Salvar
   footer: {
     paddingHorizontal: 18, paddingTop: 14, paddingBottom: 28,
     borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
@@ -626,12 +522,7 @@ const s = StyleSheet.create({
     shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
   },
-  saveBtnDisabled: {
-    backgroundColor: 'rgba(93,214,44,0.25)',
-    shadowOpacity: 0, elevation: 0,
-  },
-  saveBtnText: {
-    color: '#0F0F0F', fontSize: 15, fontFamily: theme.fontFamily.uiBold,
-  },
+  saveBtnDisabled: { backgroundColor: 'rgba(93,214,44,0.25)', shadowOpacity: 0, elevation: 0 },
+  saveBtnText: { color: '#0F0F0F', fontSize: 15, fontFamily: theme.fontFamily.uiBold },
   saveBtnTextDisabled: { color: 'rgba(15,15,15,0.45)' },
 });
