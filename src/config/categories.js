@@ -58,24 +58,27 @@ export const CONCURSO_CATEGORIES = [
 
 /**
  * Retorna o catId efetivo de um deck.
- * Usa deck.category se for uma categoria válida; caso contrário 'personalizados'.
+ * Aceita categorias padrão e customizadas (prefixo custom_).
  */
 export const getDeckCatId = (deck) => {
   const catId = deck.category;
-  if (catId && catId !== 'personalizados' && CONCURSO_CATEGORIES.find(c => c.id === catId)) {
-    return catId;
-  }
+  if (!catId || catId === 'personalizados') return 'personalizados';
+  if (CONCURSO_CATEGORIES.find(c => c.id === catId)) return catId;
+  if (catId.startsWith('custom_')) return catId; // categoria customizada válida
   return 'personalizados';
 };
 
 /**
  * Retorna o label de categoria para exibir no card do deck.
+ * Versão síncrona — usa lista de customizadas já carregada.
  */
-export const getCatLabel = (deck) => {
+export const getCatLabel = (deck, customCats = []) => {
   const catId = deck.category;
   if (!catId || catId === 'personalizados') return null;
-  const cat = CONCURSO_CATEGORIES.find(c => c.id === catId);
-  return cat ? cat.name : null;
+  const preset = CONCURSO_CATEGORIES.find(c => c.id === catId);
+  if (preset) return preset.name;
+  const custom = customCats.find(c => c.id === catId);
+  return custom ? custom.name : null;
 };
 
 /**

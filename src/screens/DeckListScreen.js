@@ -13,13 +13,13 @@ import {
   getAppData, saveAppData, getPurchasedDecks, getDeckCache,
   removePurchasedDeck, saveRecentDeck, getRecentDeckIds, getContinueStudy,
   getUsedCategoryIds, saveUsedCategoryIds,
-  getCustomCategories, saveCustomCategories,
 } from '../services/storage';
 import { getProducts } from '../services/firebase';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
-import { CONCURSO_CATEGORIES, getCatLabel } from '../config/categories';
+import { CONCURSO_CATEGORIES, getCatLabel, getCustomCategories, saveCustomCategories } from '../config/categories';
 import { CustomBottomModal } from '../components/ui/CustomBottomModal';
 import { CustomAlert } from '../components/ui/CustomAlert';
+import { EditCategoryModal } from '../components/ui/EditCategoryModal';
 import theme from '../styles/theme';
 import CategorySvgCard from '../components/home/CategorySvgCard';
 import DeckStackCard from '../components/home/DeckStackCard';
@@ -402,7 +402,7 @@ export const DeckListScreen = ({ navigation }) => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [contextMenu, setContextMenu] = useState({ visible: false, deck: null, x: 0, y: 0 });
   const [categoryContextMenu, setCategoryContextMenu] = useState({ visible: false, item: null, x: 0, y: 0 });
-  const [categoryRenameModal, setCategoryRenameModal] = useState({ visible: false, item: null, text: '' });
+  const [editCatModal, setEditCatModal] = useState({ visible: false, item: null });
   const [renameModal, setRenameModal] = useState({ visible: false, deck: null, text: '' });
   const [subjectContextMenu, setSubjectContextMenu] = useState({ visible: false, item: null, x: 0, y: 0 });
   const [renameSubjectModal, setRenameSubjectModal] = useState({ visible: false, item: null, text: '' });
@@ -412,6 +412,7 @@ export const DeckListScreen = ({ navigation }) => {
   const [activeCategoryId, setActiveCategoryId] = useState(null);
   const [exampleDismissed, setExampleDismissed] = useState(false);
   const [usedCategoryIds, setUsedCategoryIds] = useState(new Set());
+  const [customCats, setCustomCats] = useState([]);
   // Novos estados para o redesign
   const [activeTab, setActiveTab] = useState('decks');          // 'categorias' | 'decks' | 'materias'
   const [expandedSections, setExpandedSections] = useState({}); // { 'decks-meus': true, ... }
@@ -424,6 +425,10 @@ export const DeckListScreen = ({ navigation }) => {
   const [subjectSortMenuOpen, setSubjectSortMenuOpen] = useState(false);
   const [subjectSortMenuPos, setSubjectSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
   const subjectSortBtnRef = useRef(null);
+  const [catSortOrder, setCatSortOrder] = useState(null);
+  const [catSortMenuOpen, setCatSortMenuOpen] = useState(false);
+  const [catSortMenuPos, setCatSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
+  const catSortBtnRef = useRef(null);
   const isFocused = useIsFocused();
   const searchRef = useRef(null);
 
@@ -456,6 +461,11 @@ export const DeckListScreen = ({ navigation }) => {
       setDecks(_cachedDecks);
       const allowEditing = await canEditDefaultDecks();
       setAllowDefaultDeckEditing(allowEditing);
+      // Carrega categorias customizadas
+      try {
+        const customs = await getCustomCategories();
+        setCustomCats(customs);
+      } catch (_) {}
       // Rastrear categorias que já tiveram decks (para manter estado vazio)
       try {
         const activeCatIds = new Set(
@@ -463,8 +473,10 @@ export const DeckListScreen = ({ navigation }) => {
             .filter(d => !d.isExample)
             .map(d => {
               const catId = d.category;
-              return (catId && catId !== 'personalizados' && CONCURSO_CATEGORIES.find(c => c.id === catId))
-                ? catId : 'personalizados';
+              if (!catId || catId === 'personalizados') return 'personalizados';
+              if (CONCURSO_CATEGORIES.find(c => c.id === catId)) return catId;
+              if (catId.startsWith('custom_')) return catId;
+              return 'personalizados';
             })
         );
         const stored = await getUsedCategoryIds();
@@ -543,12 +555,12 @@ export const DeckListScreen = ({ navigation }) => {
     decks.filter(d => d.isPurchased === true),
   [decks]);
 
-  // Retorna o catId efetivo de um deck (usa deck.category se for categoria válida)
+  // Retorna o catId efetivo de um deck (aceita categorias padrão e customizadas)
   const getDeckCatId = useCallback((deck) => {
     const catId = deck.category;
-    if (catId && catId !== 'personalizados' && CONCURSO_CATEGORIES.find(c => c.id === catId)) {
-      return catId;
-    }
+    if (!catId || catId === 'personalizados') return 'personalizados';
+    if (CONCURSO_CATEGORIES.find(c => c.id === catId)) return catId;
+    if (catId.startsWith('custom_')) return catId;
     return 'personalizados';
   }, []);
 
@@ -609,6 +621,14 @@ export const DeckListScreen = ({ navigation }) => {
         result.push({ category: cat, decks: [] }); // estado vazio
       }
     });
+    // Categorias customizadas
+    customCats.forEach(cat => {
+      if (catMap[cat.id]?.length > 0) {
+        result.push({ category: cat, decks: catMap[cat.id] });
+      } else if (usedCategoryIds.has(cat.id)) {
+        result.push({ category: cat, decks: [] });
+      }
+    });
     // "Meus estudos" por último
     if (catMap['personalizados']?.length > 0) {
       const meusEstudos = CONCURSO_CATEGORIES.find(c => c.id === 'personalizados');
@@ -618,7 +638,7 @@ export const DeckListScreen = ({ navigation }) => {
       result.push({ category: meusEstudos, decks: [] });
     }
     return result;
-  }, [decks, getDeckCatId, usedCategoryIds]);
+  }, [decks, getDeckCatId, usedCategoryIds, customCats]);
 
   // Flat list de matérias de todos os decks (exceto deck de exemplo)
   const allSubjects = useMemo(() => {
@@ -674,6 +694,28 @@ export const DeckListScreen = ({ navigation }) => {
       default:         return list;
     }
   }, [sortOrder]);
+
+  const sortCategories = useCallback((list) => {
+    if (!catSortOrder) return list;
+    const copy = [...list];
+    switch (catSortOrder) {
+      case 'az':   return copy.sort((a, b) => (a.category.name || '').localeCompare(b.category.name || '', 'pt'));
+      case 'za':   return copy.sort((a, b) => (b.category.name || '').localeCompare(a.category.name || '', 'pt'));
+      case 'more':   return copy.sort((a, b) => b.decks.length - a.decks.length);
+      case 'less':   return copy.sort((a, b) => a.decks.length - b.decks.length);
+      case 'preset': return copy.sort((a, b) => {
+        const aCustom = a.category.isCustom ? 1 : 0;
+        const bCustom = b.category.isCustom ? 1 : 0;
+        return aCustom - bCustom;
+      });
+      case 'custom': return copy.sort((a, b) => {
+        const aCustom = a.category.isCustom ? 1 : 0;
+        const bCustom = b.category.isCustom ? 1 : 0;
+        return bCustom - aCustom;
+      });
+      default:       return list;
+    }
+  }, [catSortOrder]);
 
   // ── Search ────────────────────────────────
 
@@ -1223,8 +1265,35 @@ export const DeckListScreen = ({ navigation }) => {
                 </View>
               ) : (
                 <>
+                  {!multiSelectMode && activeCategories.length >= 2 && (
+                    <View style={s.deckMetaRow}>
+                      <View style={[s.deckMetaLine, { flex: 1 }]} />
+                      <TouchableOpacity
+                        ref={catSortBtnRef}
+                        style={[s.deckMetaBtn, catSortOrder && s.deckMetaBtnActive, { marginHorizontal: 6 }]}
+                        hitSlop={HIT_SLOP}
+                        onPress={() => {
+                          catSortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
+                            const sbH = StatusBar.currentHeight || 0;
+                            setCatSortMenuPos({ x, y: y + bh + sbH, w: bw });
+                            setCatSortMenuOpen(true);
+                          });
+                        }}
+                      >
+                        <Ionicons
+                          name="swap-vertical-outline"
+                          size={13}
+                          color={catSortOrder ? theme.primary : theme.textMuted}
+                        />
+                        <Text style={[s.deckMetaBtnTxt, catSortOrder && s.deckMetaBtnTxtActive]}>
+                          {catSortOrder ? SORT_LABELS[catSortOrder] : 'Ordenar'}
+                        </Text>
+                      </TouchableOpacity>
+                      <View style={[s.deckMetaLine, { width: GRID_PADDING + 24 }]} />
+                    </View>
+                  )}
                   {renderGridWithOverflow(
-                    activeCategories,
+                    sortCategories(activeCategories),
                     (item) => (
                       <CategorySvgCard
                         key={item.category.id}
@@ -1277,7 +1346,7 @@ export const DeckListScreen = ({ navigation }) => {
                   deck={deck}
                   width={CARD_WIDTH}
                   height={CARD_HEIGHT}
-                  categoryLabel={getCatLabel(deck)}
+                  categoryLabel={getCatLabel(deck, customCats)}
                   onPress={() => handleDeckPress(deck)}
                   onLongPress={() => handleDeckLongPress(deck)}
                   onMenuPress={(e) => handleMenuPress(deck, e)}
@@ -1458,6 +1527,57 @@ export const DeckListScreen = ({ navigation }) => {
         </TouchableWithoutFeedback>
       </Modal>
 
+      {/* ── Dropdown de ordenação — categorias ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={catSortMenuOpen}
+        onRequestClose={() => setCatSortMenuOpen(false)}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setCatSortMenuOpen(false)}>
+          <View style={{ flex: 1 }}>
+            <View style={[sortStyles.dropdown, {
+              position: 'absolute',
+              right: GRID_PADDING,
+              top: catSortMenuPos.y + 10,
+              width: 230,
+            }]}>
+              <View style={sortStyles.header}>
+                <Ionicons name="swap-vertical-outline" size={13} color={theme.primary} />
+                <Text style={sortStyles.headerTxt}>Ordenar por</Text>
+              </View>
+              <View style={sortStyles.sep} />
+              {[
+                { key: 'az',      label: 'A–Z',                  icon: 'arrow-up-outline' },
+                { key: 'za',      label: 'Z–A',                  icon: 'arrow-down-outline' },
+                { key: 'more',    label: 'Mais decks',            icon: 'layers-outline' },
+                { key: 'less',    label: 'Menos decks',           icon: 'layers-outline' },
+                { key: 'preset',  label: 'Padrão',        icon: 'albums-outline' },
+                { key: 'custom',  label: 'Personalizada',  icon: 'folder-outline' },
+              ].map((opt) => {
+                const isActive = catSortOrder === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[sortStyles.item, isActive && sortStyles.itemActive]}
+                    onPress={() => { setCatSortOrder(isActive ? null : opt.key); setCatSortMenuOpen(false); }}
+                  >
+                    <View style={[sortStyles.itemIconWrap, isActive && sortStyles.itemIconWrapActive]}>
+                      <Ionicons name={opt.icon} size={14} color={isActive ? theme.primary : theme.textMuted} />
+                    </View>
+                    <Text style={[sortStyles.itemTxt, isActive && sortStyles.itemTxtActive]} numberOfLines={1}>
+                      {opt.label}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={14} color={theme.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {/* ── Menu de contexto (3 pontos) ── */}
       <Modal
         transparent
@@ -1585,67 +1705,19 @@ export const DeckListScreen = ({ navigation }) => {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* ── Rename de Categoria ── */}
-      <Modal
-        transparent
-        animationType="fade"
-        visible={categoryRenameModal.visible}
-        onRequestClose={() => setCategoryRenameModal(p => ({ ...p, visible: false }))}
-        statusBarTranslucent
-      >
-        <TouchableWithoutFeedback onPress={() => setCategoryRenameModal(p => ({ ...p, visible: false }))}>
-          <View style={renameStyles.overlay}>
-            <TouchableWithoutFeedback>
-              <View style={renameStyles.card}>
-                <View style={renameStyles.titleRow}>
-                  <Text style={renameStyles.title}>Renomear categoria</Text>
-                  {categoryRenameModal.text.length > 0 && (
-                    <Text style={[renameStyles.charCount, categoryRenameModal.text.length >= 25 && renameStyles.charCountWarn]}>
-                      {categoryRenameModal.text.length}/30
-                    </Text>
-                  )}
-                </View>
-                <TextInput
-                  style={renameStyles.input}
-                  value={categoryRenameModal.text}
-                  onChangeText={t => setCategoryRenameModal(p => ({ ...p, text: t.slice(0, 30) }))}
-                  autoFocus
-                  selectTextOnFocus
-                  placeholderTextColor={theme.textMuted}
-                  placeholder="Nome da categoria"
-                  maxLength={30}
-                />
-                <View style={renameStyles.actions}>
-                  <TouchableOpacity
-                    style={renameStyles.btnCancel}
-                    onPress={() => setCategoryRenameModal(p => ({ ...p, visible: false }))}
-                  >
-                    <Text style={renameStyles.btnCancelTxt}>Cancelar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[renameStyles.btnSave, !categoryRenameModal.text.trim() && renameStyles.btnSaveDisabled]}
-                    disabled={!categoryRenameModal.text.trim()}
-                    onPress={async () => {
-                      const newName = categoryRenameModal.text.trim();
-                      if (!newName || !categoryRenameModal.item) return;
-                      const catId = categoryRenameModal.item.category.id;
-                      const allData = await getAppData();
-                      const updated = allData.map(d =>
-                        d.category === catId ? { ...d, categoryDisplayName: newName } : d
-                      );
-                      await saveAppData(updated);
-                      setCategoryRenameModal({ visible: false, item: null, text: '' });
-                      loadData();
-                    }}
-                  >
-                    <Text style={renameStyles.btnSaveTxt}>Salvar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {/* ── Modal de edição de categoria ── */}
+      <EditCategoryModal
+        visible={editCatModal.visible}
+        categoryId={editCatModal.item?.category?.id}
+        categoryName={editCatModal.item?.category?.name}
+        presetCategoriesAvailable={CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados')}
+        customCategoriesAvailable={customCats}
+        onDismiss={() => setEditCatModal({ visible: false, item: null })}
+        onSaved={() => {
+          setEditCatModal({ visible: false, item: null });
+          loadData();
+        }}
+      />
 
       {/* ── Sort de Matérias ── */}
       <Modal
@@ -1870,11 +1942,11 @@ export const DeckListScreen = ({ navigation }) => {
                     onPress={() => {
                       const item = categoryContextMenu.item;
                       setCategoryContextMenu(p => ({ ...p, visible: false }));
-                      if (item) setCategoryRenameModal({ visible: true, item, text: item.category.name || '' });
+                      if (item) setTimeout(() => setEditCatModal({ visible: true, item }), 50);
                     }}
                   >
                     <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
-                    <Text style={ctxStyles.itemText}>Renomear</Text>
+                    <Text style={ctxStyles.itemText}>Editar</Text>
                   </TouchableOpacity>
                   <View style={ctxStyles.sep} />
                   <TouchableOpacity
