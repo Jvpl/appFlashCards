@@ -6,9 +6,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { SvgXml } from 'react-native-svg';
 import { getAppData, saveAppData } from '../services/storage';
+import { getCustomCategories, saveCustomCategories } from '../config/categories';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import GlowIcon from '../components/ui/GlowIcon';
+import { CATEGORY_TILE_SVG, CATEGORY_TILE_SELECTED_SVG } from '../assets/svg-cards/categoryCardSvgs';
 import theme from '../styles/theme';
 
 // Dados dos ícones para Skia GlowIcon
@@ -32,6 +35,7 @@ const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 const COL_GAP = 10;
 
 
+
 const CATEGORIES = [
   { id: 'seguranca',      name: 'Segurança Pública',  icon: segurancaIcon },
   { id: 'justica',        name: 'Justiça & Direito',   icon: justicaIcon },
@@ -45,29 +49,66 @@ const CATEGORIES = [
 
 // ── Category tile ─────────────────────────────────────────────────
 
-const CategoryTile = ({ item, selected, onPress, onBlurInput }) => {
-  return (
-    <TouchableOpacity
-      onPress={() => { Keyboard.dismiss(); onBlurInput?.(); onPress(); }}
-      activeOpacity={0.75}
-      style={[s.catTile, selected && s.catTileSelected]}
-    >
-      {selected && (
-        <View style={s.catTileCheck}>
-          <Ionicons name="checkmark" size={10} color="#0F0F0F" />
-        </View>
-      )}
+const CategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0 }) => (
+  <TouchableOpacity
+    onPress={() => { Keyboard.dismiss(); onBlurInput?.(); onPress(); }}
+    activeOpacity={0.75}
+    style={s.catTile}
+  >
+    {/* Fundo SVG */}
+    <SvgXml xml={CATEGORY_TILE_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />
+    {/* Overlay de seleção — stroke verde no mesmo shape */}
+    {selected && <SvgXml xml={CATEGORY_TILE_SELECTED_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
 
-      <View style={s.catIconArea}>
-        <GlowIcon iconData={item.icon} size={52} color={theme.primary} glowBlur={7} />
+    {/* Checkmark de seleção */}
+    {selected && (
+      <View style={s.catTileCheck}>
+        <Ionicons name="checkmark" size={10} color="#0F0F0F" />
       </View>
+    )}
 
+    {/* Ícone + label centralizados */}
+    <View style={s.catTileContent}>
+      <GlowIcon iconData={item.icon} size={44} color={theme.primary} glowBlur={7} />
       <Text style={[s.catTileLabel, selected && s.catTileLabelSelected]} numberOfLines={2}>
         {item.name}
       </Text>
-    </TouchableOpacity>
-  );
-};
+    </View>
+
+    {/* Contador de decks no recorte inferior esquerdo — sempre visível */}
+    <View style={s.catTileBadge}>
+      <Text style={s.catTileBadgeText}>{String(deckCount).padStart(2, '0')}</Text>
+    </View>
+  </TouchableOpacity>
+);
+
+const CustomCategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0 }) => (
+  <TouchableOpacity
+    onPress={() => { Keyboard.dismiss(); onBlurInput?.(); onPress(); }}
+    activeOpacity={0.75}
+    style={s.catTile}
+  >
+    <SvgXml xml={CATEGORY_TILE_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />
+    {selected && <SvgXml xml={CATEGORY_TILE_SELECTED_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
+
+    {selected && (
+      <View style={s.catTileCheck}>
+        <Ionicons name="checkmark" size={10} color="#0F0F0F" />
+      </View>
+    )}
+
+    <View style={s.catTileContent}>
+      <Ionicons name={item.icon || 'folder-outline'} size={44} color={theme.primary} />
+      <Text style={[s.catTileLabel, selected && s.catTileLabelSelected]} numberOfLines={2}>
+        {item.name}
+      </Text>
+    </View>
+
+    <View style={s.catTileBadge}>
+      <Text style={s.catTileBadgeText}>{String(deckCount).padStart(2, '0')}</Text>
+    </View>
+  </TouchableOpacity>
+);
 
 // ── Main screen ───────────────────────────────────────────────────
 
@@ -90,11 +131,29 @@ export const AddDeckScreen = ({ route, navigation }) => {
   const [inputFocused, setInputFocused] = useState(false);
   const [catInputFocused, setCatInputFocused] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [customCategories, setCustomCategories] = useState([]);
+  const [deckCountMap, setDeckCountMap] = useState({}); // { categoryId: count }
+  const [catFilter, setCatFilter] = useState('preset'); // 'preset' | 'custom'
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const catInputRef = useRef(null);
   const catSectionY = useRef(0);
   const catInputFocusedRef = useRef(false);
+
+  // Carrega categorias customizadas e contagem de decks por categoria
+  useEffect(() => {
+    const load = async () => {
+      const [customs, allData] = await Promise.all([getCustomCategories(), getAppData()]);
+      setCustomCategories(customs);
+      const counts = {};
+      allData.forEach(d => {
+        const cat = d.category || 'personalizados';
+        counts[cat] = (counts[cat] || 0) + 1;
+      });
+      setDeckCountMap(counts);
+    };
+    load();
+  }, []);
 
   // Pré-carrega dados ao editar
   useEffect(() => {
@@ -253,8 +312,6 @@ export const AddDeckScreen = ({ route, navigation }) => {
   ];
   const [activeIconGroup, setActiveIconGroup] = useState(0);
 
-  const leftCol = CATEGORIES.filter((_, i) => i % 2 === 0);
-  const rightCol = CATEGORIES.filter((_, i) => i % 2 !== 0);
 
   return (
     <View style={s.root}>
@@ -317,31 +374,91 @@ export const AddDeckScreen = ({ route, navigation }) => {
         <View style={s.section}>
           <Text style={[s.sectionTitle, { marginBottom: 10 }]}>CATEGORIA</Text>
 
-          {/* 2-column tile grid */}
-          <View style={s.colsWrap}>
-            <View style={s.col}>
-              {leftCol.map(item => (
-                <CategoryTile
-                  key={item.id}
-                  item={item}
-                  selected={selectedCategory === item.id}
-                  onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
-                  onBlurInput={() => inputRef.current?.blur()}
-                />
+          {/* Filtro padrão / customizadas — só aparece se tiver customizadas */}
+          {customCategories.length > 0 && (
+            <View style={s.catFilterRow}>
+              {['preset', 'custom'].map(f => (
+                <TouchableOpacity
+                  key={f}
+                  style={[s.catFilterChip, catFilter === f && s.catFilterChipActive]}
+                  onPress={() => setCatFilter(f)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[s.catFilterText, catFilter === f && s.catFilterTextActive]}>
+                    {f === 'preset' ? 'Padrão' : 'Personalizadas'}
+                  </Text>
+                </TouchableOpacity>
               ))}
             </View>
-            <View style={s.col}>
-              {rightCol.map(item => (
-                <CategoryTile
-                  key={item.id}
-                  item={item}
-                  selected={selectedCategory === item.id}
-                  onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
-                  onBlurInput={() => inputRef.current?.blur()}
-                />
-              ))}
-            </View>
-          </View>
+          )}
+
+          {/* 2-column tile grid — padrão */}
+          {catFilter === 'preset' && (() => {
+            const left = CATEGORIES.filter((_, i) => i % 2 === 0);
+            const right = CATEGORIES.filter((_, i) => i % 2 !== 0);
+            return (
+              <View style={s.colsWrap}>
+                <View style={s.col}>
+                  {left.map(item => (
+                    <CategoryTile
+                      key={item.id}
+                      item={item}
+                      selected={selectedCategory === item.id}
+                      onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                      onBlurInput={() => inputRef.current?.blur()}
+                      deckCount={deckCountMap[item.id] || 0}
+                    />
+                  ))}
+                </View>
+                <View style={s.col}>
+                  {right.map(item => (
+                    <CategoryTile
+                      key={item.id}
+                      item={item}
+                      selected={selectedCategory === item.id}
+                      onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                      onBlurInput={() => inputRef.current?.blur()}
+                      deckCount={deckCountMap[item.id] || 0}
+                    />
+                  ))}
+                </View>
+              </View>
+            );
+          })()}
+
+          {/* 2-column tile grid — customizadas */}
+          {catFilter === 'custom' && (() => {
+            const left = customCategories.filter((_, i) => i % 2 === 0);
+            const right = customCategories.filter((_, i) => i % 2 !== 0);
+            return (
+              <View style={s.colsWrap}>
+                <View style={s.col}>
+                  {left.map(item => (
+                    <CustomCategoryTile
+                      key={item.id}
+                      item={item}
+                      selected={selectedCategory === item.id}
+                      onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                      onBlurInput={() => inputRef.current?.blur()}
+                      deckCount={deckCountMap[item.id] || 0}
+                    />
+                  ))}
+                </View>
+                <View style={s.col}>
+                  {right.map(item => (
+                    <CustomCategoryTile
+                      key={item.id}
+                      item={item}
+                      selected={selectedCategory === item.id}
+                      onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                      onBlurInput={() => inputRef.current?.blur()}
+                      deckCount={deckCountMap[item.id] || 0}
+                    />
+                  ))}
+                </View>
+              </View>
+            );
+          })()}
         </View>
 
         {/* ── Criar nova categoria ─────────────────────────────── */}
@@ -453,13 +570,27 @@ export const AddDeckScreen = ({ route, navigation }) => {
 
               <TouchableOpacity
                 style={[s.saveCatBtn, !customCatName.trim() && s.saveCatBtnOff]}
-                onPress={() => {
+                onPress={async () => {
                   if (!customCatName.trim()) return;
+                  const icon = customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : 'folder-outline';
+                  const newId = `custom_${Date.now()}`;
+                  const newCat = {
+                    id: newId,
+                    name: customCatName.trim(),
+                    icon,
+                    color: theme.primary,
+                    keywords: [],
+                    isCustom: true,
+                  };
+                  const existing = await getCustomCategories();
+                  await saveCustomCategories([...existing, newCat]);
                   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setSelectedCategory(`custom_${customCatName.trim().toLowerCase().replace(/\s+/g, '_')}`);
+                  setCustomCategories(prev => [...prev, newCat]);
+                  setSelectedCategory(newId);
                   setCustomCatExpanded(false);
                   setCustomCatName('');
                   setCustomCatIcon(null);
+                  setCatFilter('custom');
                 }}
                 activeOpacity={0.8}
               >
@@ -581,24 +712,26 @@ const s = StyleSheet.create({
     gap: 10,
   },
 
-  // ── Category tile — fundo transparente, borda fina cinza
+  // ── Category tile — fundo via SVG, sem borda CSS
   catTile: {
+    alignSelf: 'stretch',
     aspectRatio: 1,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    gap: 10,
-  },
-  catTileSelected: {
-    borderColor: theme.primary,
-    borderWidth: 1.5,
+    overflow: 'hidden',
   },
 
+  // Ícone + label centralizados na área principal (0 a 81.7% da altura)
+  catTileContent: {
+    position: 'absolute',
+    top: '8%',
+    left: 0,
+    right: 0,
+    bottom: '18.3%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
   catIconArea: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -606,7 +739,7 @@ const s = StyleSheet.create({
   // label
   catTileLabel: {
     color: theme.textPrimary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.1,
     textAlign: 'center',
@@ -614,6 +747,49 @@ const s = StyleSheet.create({
   catTileLabelSelected: {
     color: theme.primary,
   },
+
+  // Número de decks — centralizado na pill inferior esquerda
+  // Pill: x=0..22.4%, y=87.1..100% → centro x=11.2%, y=93.6%
+  catTileBadge: {
+    position: 'absolute',
+    top: '87.1%',
+    left: 0,
+    width: '22.4%',
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catTileBadgeText: {
+    color: theme.primary,
+    fontSize: 13,
+    fontFamily: theme.fontFamily.heading,
+    letterSpacing: 0.3,
+  },
+
+  // filter chips
+  catFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  catFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  catFilterChipActive: {
+    backgroundColor: 'rgba(93,214,44,0.1)',
+    borderColor: 'rgba(93,214,44,0.4)',
+  },
+  catFilterText: {
+    color: theme.textSecondary,
+    fontSize: 12,
+    fontFamily: theme.fontFamily.uiSemiBold,
+  },
+  catFilterTextActive: { color: theme.primary },
 
   // checkmark badge
   catTileCheck: {
