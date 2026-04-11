@@ -133,6 +133,21 @@ android {
         jniLibs {
             def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
             useLegacyPackaging enableLegacyPackaging.toBoolean()
+            // Exclui arquiteturas desnecessárias — mantém só arm64-v8a (Xiaomi Note 10s)
+            excludes += [
+                '**/x86/*.so',
+                '**/x86_64/*.so',
+                '**/armeabi-v7a/*.so',
+                '**/armeabi/*.so'
+            ]
+        }
+    }
+    splits {
+        abi {
+            enable true
+            reset()
+            include "arm64-v8a"
+            universalApk true
         }
     }
     androidResources {
