@@ -11,9 +11,37 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions,
   Modal, TouchableWithoutFeedback, TextInput, FlatList, BackHandler,
-  StatusBar, KeyboardAvoidingView, Platform,
+  StatusBar, KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
-import { NativeBottomSheet } from '../native';
+
+// Hook para animar overlay (fade) independente do sheet (slide) em modais bottom-sheet
+function useSlideModal(visible, sheetHeight = SH * 0.5) {
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(new Animated.Value(sheetHeight)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(overlayOpacity, { toValue: 1, duration: 280, useNativeDriver: true }),
+        Animated.timing(sheetTranslateY, { toValue: 0, duration: 320, useNativeDriver: true }),
+      ]).start();
+    } else {
+      overlayOpacity.setValue(0);
+      sheetTranslateY.setValue(sheetHeight);
+    }
+  }, [visible]);
+
+  const animateOut = useCallback((cb) => {
+    Animated.parallel([
+      Animated.timing(overlayOpacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, { toValue: sheetHeight, duration: 260, useNativeDriver: true }),
+    ]).start(cb);
+  }, []);
+
+  return { overlayOpacity, sheetTranslateY, animateOut };
+}
+import { BottomSheet } from '../components/ui/BottomSheet';
+import { EditCategoryModal } from '../components/ui/EditCategoryModal';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
@@ -40,7 +68,7 @@ import {
   militarIcon, operacionalIcon, saudeIcon, segurancaIcon,
 } from '../assets/svgIconPaths';
 
-const { width } = Dimensions.get('window');
+const { width, height: SH } = Dimensions.get('window');
 
 const SORT_OPTIONS = [
   { key: 'az', label: 'A–Z', icon: 'arrow-up-outline' },
@@ -288,6 +316,13 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
   const subjectSortBtnRef = useRef(null);
   // Menu de opções da categoria (header)
   const [catMenuVisible, setCatMenuVisible] = useState(false);
+  const [editCatModalVisible, setEditCatModalVisible] = useState(false);
+
+  // Animações de slide+fade para modais bottom-sheet
+  const moveModalAnim = useSlideModal(moveModal?.visible, SH * 0.6);
+  const deleteCatModalAnim = useSlideModal(deleteCatModal?.visible, SH * 0.4);
+  const moveBeforeDeleteModalAnim = useSlideModal(moveBeforeDeleteModal?.visible, SH * 0.6);
+  const createCatModalAnim = useSlideModal(createCatModal?.visible, SH * 0.4);
   // Modal editar categoria
   const [editCatModal, setEditCatModal] = useState({
     visible: false,
@@ -889,14 +924,14 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
       {/* ── Modal Mover para Categoria ── */}
       <Modal
         transparent
-        animationType="slide"
+        animationType="none"
         visible={moveModal.visible}
-        onRequestClose={() => setMoveModal({ visible: false, deckIds: [] })}
+        onRequestClose={() => moveModalAnim.animateOut(() => setMoveModal({ visible: false, deckIds: [] }))}
       >
-        <TouchableWithoutFeedback onPress={() => setMoveModal({ visible: false, deckIds: [] })}>
-          <View style={mv.overlay}>
+        <TouchableWithoutFeedback onPress={() => moveModalAnim.animateOut(() => setMoveModal({ visible: false, deckIds: [] }))}>
+          <Animated.View style={[mv.overlay, { opacity: moveModalAnim.overlayOpacity }]}>
             <TouchableWithoutFeedback>
-              <View style={mv.sheet}>
+              <Animated.View style={[mv.sheet, { transform: [{ translateY: moveModalAnim.sheetTranslateY }] }]}>
                 <View style={mv.handle} />
                 <Text style={mv.title}>Mover para categoria</Text>
                 <Text style={mv.sub}>
@@ -936,24 +971,24 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                   )}
                 </ScrollView>
-              </View>
+              </Animated.View>
             </TouchableWithoutFeedback>
-          </View>
+          </Animated.View>
         </TouchableWithoutFeedback>
       </Modal>
 
       {/* ── Modal Nova Categoria ── */}
       <Modal
         transparent
-        animationType="slide"
+        animationType="none"
         visible={createCatModal.visible}
-        onRequestClose={() => setCreateCatModal(p => ({ ...p, visible: false }))}
+        onRequestClose={() => createCatModalAnim.animateOut(() => setCreateCatModal(p => ({ ...p, visible: false })))}
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <TouchableWithoutFeedback onPress={() => setCreateCatModal(p => ({ ...p, visible: false }))}>
-            <View style={mv.overlay}>
+          <TouchableWithoutFeedback onPress={() => createCatModalAnim.animateOut(() => setCreateCatModal(p => ({ ...p, visible: false })))}>
+            <Animated.View style={[mv.overlay, { opacity: createCatModalAnim.overlayOpacity }]}>
               <TouchableWithoutFeedback>
-                <View style={mv.sheet}>
+                <Animated.View style={[mv.sheet, { transform: [{ translateY: createCatModalAnim.sheetTranslateY }] }]}>
                   <View style={mv.handle} />
 
                   {/* Tabs preset / custom */}
@@ -1078,7 +1113,7 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
                             setCustomCatExpanded(false);
                             setCustomCatName('');
                             setCustomCatIcon(null);
-                            setCreateCatModal(p => ({ ...p, visible: false }));
+                            createCatModalAnim.animateOut(() => setCreateCatModal(p => ({ ...p, visible: false })));
                           }}
                         >
                           <Text style={cc.btnCancelTxt}>Cancelar</Text>
@@ -1093,9 +1128,9 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
                       </View>
                     </View>
                   )}
-                </View>
+                </Animated.View>
               </TouchableWithoutFeedback>
-            </View>
+            </Animated.View>
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Modal>
@@ -1154,7 +1189,7 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
                     style={catm.item}
                     onPress={() => {
                       setCatMenuVisible(false);
-                      setEditCatModal({ visible: true, selectedPresetId: null, customName: '', customIcon: null, activeIconGroup: 0 });
+                      setTimeout(() => setEditCatModalVisible(true), 50);
                     }}
                   >
                     <Ionicons name="create-outline" size={17} color={theme.textPrimary} />
@@ -1181,14 +1216,14 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
       {/* ── Modal Excluir Categoria ── */}
       <Modal
         transparent
-        animationType="slide"
+        animationType="none"
         visible={deleteCatModal.visible}
-        onRequestClose={() => setDeleteCatModal({ visible: false })}
+        onRequestClose={() => deleteCatModalAnim.animateOut(() => setDeleteCatModal({ visible: false }))}
       >
-        <TouchableWithoutFeedback onPress={() => setDeleteCatModal({ visible: false })}>
-          <View style={mv.overlay}>
+        <TouchableWithoutFeedback onPress={() => deleteCatModalAnim.animateOut(() => setDeleteCatModal({ visible: false }))}>
+          <Animated.View style={[mv.overlay, { opacity: deleteCatModalAnim.overlayOpacity }]}>
             <TouchableWithoutFeedback>
-              <View style={mv.sheet}>
+              <Animated.View style={[mv.sheet, { transform: [{ translateY: deleteCatModalAnim.sheetTranslateY }] }]}>
                 <View style={mv.handle} />
                 <Text style={mv.title}>Excluir "{category?.name}"?</Text>
                 <Text style={mv.sub}>Esta categoria tem {decks.length} deck{decks.length !== 1 ? 's' : ''}. O que deseja fazer?</Text>
@@ -1226,27 +1261,27 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
 
                 <TouchableOpacity
                   style={[mv.option, { justifyContent: 'center', marginTop: 8 }]}
-                  onPress={() => setDeleteCatModal({ visible: false })}
+                  onPress={() => deleteCatModalAnim.animateOut(() => setDeleteCatModal({ visible: false }))}
                 >
                   <Text style={{ color: theme.textMuted, fontFamily: theme.fontFamily.uiMedium, fontSize: 14 }}>Cancelar</Text>
                 </TouchableOpacity>
-              </View>
+              </Animated.View>
             </TouchableWithoutFeedback>
-          </View>
+          </Animated.View>
         </TouchableWithoutFeedback>
       </Modal>
 
       {/* ── Modal Mover antes de Excluir ── */}
       <Modal
         transparent
-        animationType="slide"
+        animationType="none"
         visible={moveBeforeDeleteModal.visible}
-        onRequestClose={() => setMoveBeforeDeleteModal({ visible: false })}
+        onRequestClose={() => moveBeforeDeleteModalAnim.animateOut(() => setMoveBeforeDeleteModal({ visible: false }))}
       >
-        <TouchableWithoutFeedback onPress={() => setMoveBeforeDeleteModal({ visible: false })}>
-          <View style={mv.overlay}>
+        <TouchableWithoutFeedback onPress={() => moveBeforeDeleteModalAnim.animateOut(() => setMoveBeforeDeleteModal({ visible: false }))}>
+          <Animated.View style={[mv.overlay, { opacity: moveBeforeDeleteModalAnim.overlayOpacity }]}>
             <TouchableWithoutFeedback>
-              <View style={mv.sheet}>
+              <Animated.View style={[mv.sheet, { transform: [{ translateY: moveBeforeDeleteModalAnim.sheetTranslateY }] }]}>
                 <View style={mv.handle} />
                 <Text style={mv.title}>Mover decks para...</Text>
                 <Text style={mv.sub}>Os {decks.length} deck{decks.length !== 1 ? 's' : ''} serão movidos e a categoria será excluída.</Text>
@@ -1308,36 +1343,21 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                   )}
                 </ScrollView>
-              </View>
+              </Animated.View>
             </TouchableWithoutFeedback>
-          </View>
+          </Animated.View>
         </TouchableWithoutFeedback>
       </Modal>
 
-      <NativeBottomSheet
-        visible={editCatModal.visible}
-        sheetHeightPercent={0.9}
+      {/* BottomSheet de edição migrado para EditCategoryScreen */}
+      <BottomSheet
+        visible={false}
+        snapPoint="90%"
         onDismiss={closeEditCatModal}
-        style={{ width: 0, height: 0 }}
+        scrollRef={editScrollRef}
       >
-          <NativeKeyboardAvoidingContainer
-            style={{ flex: 1 }}
-            onKeyboardSettle={(e) => {
-              if (e.nativeEvent.height > 0) {
-                editScrollRef.current?.scrollToEnd({ animated: false });
-              }
-            }}
-          >
           <Text style={[mv.title, { marginBottom: 16, marginTop: 4, paddingHorizontal: 20 }]}>Editar Categoria</Text>
-          <ScrollView
-          ref={editScrollRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          bounces={false}
-          overScrollMode="never"
-        >
+          <View style={{ paddingHorizontal: 20, paddingBottom: 24 }}>
           {/* SEÇÃO 1 — Info atual (não editável) */}
           <View style={edit.currentInfo}>
             <View style={edit.currentIconWrap}>
@@ -1502,9 +1522,19 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             );
           })()}
-          </ScrollView>
-          </NativeKeyboardAvoidingContainer>
-      </NativeBottomSheet>
+          </View>
+      </BottomSheet>
+
+      {/* ── Modal Editar Categoria ── */}
+      <EditCategoryModal
+        visible={editCatModalVisible}
+        onDismiss={() => setEditCatModalVisible(false)}
+        onSaved={() => { setEditCatModalVisible(false); loadData(); }}
+        categoryId={categoryId}
+        categoryName={category?.name}
+        presetCategoriesAvailable={presetCategoriesAvailable}
+        customCategoriesAvailable={[]}
+      />
 
       {/* ── Modal Sort Decks ── */}
       <Modal
