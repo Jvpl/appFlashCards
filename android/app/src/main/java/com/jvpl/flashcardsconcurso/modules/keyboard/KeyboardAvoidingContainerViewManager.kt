@@ -5,178 +5,172 @@ package com.jvpl.flashcardsconcurso.modules.keyboard
 // =============================================================================
 //
 // POR QUE KOTLIN E NÃO JS:
-//   O React Native notifica o JS sobre o teclado via bridge, o que introduz um
-//   delay de ~300ms. O resultado visível: o conteúdo (input + botão) sobe DEPOIS
-//   do teclado, não junto com ele — causando um "salto" perceptível na UI.
+//   O React Native detecta o teclado via bridge com ~300ms de delay.
+//   WindowInsetsAnimationCompat é chamado frame-a-frame pela própria Window
+//   do Android, antes de qualquer comunicação com JS.
 //
-//   Este módulo usa WindowInsetsAnimationCompat do Android, que é chamado no
-//   frame ZERO da animação do teclado — antes de qualquer comunicação com o JS.
-//   O container ajusta seu padding em sincronia exata com a animação do sistema.
-//
-// ONDE É USADO NO JS:
-//   import { NativeKeyboardAvoidingContainer } from '../native';
-//   Substitui qualquer KeyboardAvoidingView ou padding manual em telas com input.
-//
-// CASOS DE USO ATUAIS:
-//   - CategoryDetailScreen.js (modal de editar categoria, dentro de BottomSheetModal)
-//
-// CUIDADO IMPORTANTE:
-//   NÃO forçar windowSoftInputMode dentro deste módulo.
-//   O Gorhom Bottom Sheet já gerencia o posicionamento do sheet.
-//   Este container apenas RESPONDE ao inset — não o força.
-//
+// RESPONSABILIDADE DESTE MÓDULO:
+//   Apenas detectar a altura do teclado e emitir onKeyboardSettle(height).
+//   Todo o comportamento visual (scroll, padding, translationY) é responsabilidade
+//   do JS no BottomSheet.
 // =============================================================================
 
 import android.content.Context
 import android.util.AttributeSet
+import android.util.Log
+import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsAnimationCompat
 import androidx.core.view.WindowInsetsCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.uimanager.ThemedReactContext
+import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.uimanager.ViewGroupManager
+import com.facebook.react.uimanager.events.Event
+import com.facebook.react.uimanager.events.EventDispatcherListener
 import com.facebook.react.uimanager.events.RCTEventEmitter
+import com.facebook.react.views.modal.ReactModalHostView
 
 class KeyboardAvoidingContainerViewManager : ViewGroupManager<KeyboardAvoidingContainerView>() {
-
     override fun getName(): String = "KeyboardAvoidingContainer"
-
-    override fun createViewInstance(context: ThemedReactContext): KeyboardAvoidingContainerView {
-        return KeyboardAvoidingContainerView(context)
-    }
-
-    // Declara o evento onKeyboardSettle para o JS poder ouvir via prop
-    override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any> {
-        return mapOf(
-            "onKeyboardSettle" to mapOf("registrationName" to "onKeyboardSettle")
-        )
-    }
+    override fun createViewInstance(context: ThemedReactContext) = KeyboardAvoidingContainerView(context)
+    override fun getExportedCustomDirectEventTypeConstants() = mapOf(
+        "onKeyboardSettle" to mapOf("registrationName" to "onKeyboardSettle")
+    )
 }
 
-// -----------------------------------------------------------------------------
-// View que escuta a animação do teclado e aplica translationY negativo em si
-// mesma — sobe junto com o teclado frame a frame, sem passar pelo bridge JS.
-//
-// POR QUE translationY E NÃO paddingBottom:
-//   paddingBottom dentro do Gorhom BottomSheet não empurra o conteúdo visível
-//   porque o scroll interno do Gorhom já ocupa o espaço disponível.
-//   translationY move a view inteira no layer de composição do Android — é
-//   exatamente o que o sistema faz internamente para animar qualquer View.
-//   Não aciona relayout, não conflita com o Gorhom.
-//
-// POR QUE DISPATCH_MODE_STOP:
-//   Impede que os insets se propaguem para as views filhas — este container
-//   já consome o inset e ajusta a própria posição.
-// -----------------------------------------------------------------------------
 class KeyboardAvoidingContainerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : FrameLayout(context, attrs) {
 
-    init {
-        // Container transparente para toques — não intercepta nem consome eventos.
-        // Sem isso, o FrameLayout rouba foco e cliques não chegam nos filhos JS.
-        isClickable = false
-        isFocusable = false
-        isLongClickable = false
-    }
+    private var lastKbHeight = 0
+    private var isAnimating = false
+    private var dialogRootViewRef: ViewGroup? = null
 
-    private var lastEmittedHeight = -1
-
-    // GlobalLayoutListener captura mudanças de altura do teclado que não geram
-    // WindowInsetsAnimation — como o menu do teclado expandindo/recolhendo.
-    private val globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
-        val rootInsets = ViewCompat.getRootWindowInsets(this) ?: return@OnGlobalLayoutListener
-        val imeBottom = rootInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-        val navBottom = rootInsets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-        val kbHeight = (imeBottom - navBottom).coerceAtLeast(0)
-        if (kbHeight != lastEmittedHeight) {
-            lastEmittedHeight = kbHeight
-            applyKeyboardTranslation(rootInsets)
-            emitKeyboardSettle(kbHeight)
-        }
-    }
-
+    // Callback registrado na decorView do Dialog.
+    // Emite onKeyboardSettle no onEnd com a altura final do teclado.
     private val insetsCallback = object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP) {
+
+        override fun onPrepare(animation: WindowInsetsAnimationCompat) {
+            if (animation.typeMask and WindowInsetsCompat.Type.ime() == 0) return
+            isAnimating = true
+        }
+
+        override fun onStart(
+            animation: WindowInsetsAnimationCompat,
+            bounds: WindowInsetsAnimationCompat.BoundsCompat
+        ) = bounds
+
         override fun onProgress(
             insets: WindowInsetsCompat,
             runningAnimations: List<WindowInsetsAnimationCompat>
         ): WindowInsetsCompat {
-            applyKeyboardTranslation(insets)
+            if (runningAnimations.none { it.typeMask and WindowInsetsCompat.Type.ime() != 0 }) return insets
+            val kbHeight = getKeyboardHeight(insets)
+            // Empurra o conteúdo interno para cima frame a frame junto com o teclado
+            translationY = -kbHeight.toFloat()
             return insets
         }
 
         override fun onEnd(animation: WindowInsetsAnimationCompat) {
-            val rootInsets = ViewCompat.getRootWindowInsets(this@KeyboardAvoidingContainerView)
-                ?: return
-            applyKeyboardTranslation(rootInsets)
-            val imeBottom = rootInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            val navBottom = rootInsets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-            val kbHeight = (imeBottom - navBottom).coerceAtLeast(0)
-            // Emite sempre que a altura final muda (inclui menu do teclado expandindo/recolhendo)
-            if (kbHeight != lastEmittedHeight) {
-                lastEmittedHeight = kbHeight
-                emitKeyboardSettle(kbHeight)
+            if (animation.typeMask and WindowInsetsCompat.Type.ime() == 0) return
+            isAnimating = false
+            val insets = ViewCompat.getRootWindowInsets(this@KeyboardAvoidingContainerView) ?: return
+            val kbHeight = getKeyboardHeight(insets)
+            translationY = -kbHeight.toFloat()
+            if (kbHeight != lastKbHeight) {
+                lastKbHeight = kbHeight
+                emitSettle(kbHeight)
+            }
+            Log.d("KbContainer", "onEnd kbHeight=$kbHeight")
+        }
+    }
+
+    // Escuta topShow do Modal para registrar o callback na decorView do Dialog.
+    private val modalListener = object : EventDispatcherListener {
+        override fun onEventDispatch(event: Event<*>) {
+            if (event.eventName != "topShow") return
+            val reactContext = context as? ThemedReactContext ?: return
+            val uiManager =
+                UIManagerHelper.getUIManager(reactContext, com.facebook.react.uimanager.common.UIManagerType.FABRIC)
+                    ?: UIManagerHelper.getUIManager(reactContext, com.facebook.react.uimanager.common.UIManagerType.DEFAULT)
+                    ?: return
+            val modal = try { uiManager.resolveView(event.viewTag) as? ReactModalHostView } catch (e: Exception) { null } ?: return
+            val window = modal.dialog?.window ?: return
+            val rootView = window.decorView.rootView as? ViewGroup ?: return
+
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                ViewCompat.setWindowInsetsAnimationCallback(rootView, insetsCallback)
+                dialogRootViewRef = rootView
+                Log.d("KbContainer", "topShow — callback registrado na decorView do Dialog")
+            }
+
+            modal.dialog?.setOnDismissListener {
+                dialogRootViewRef?.let { ViewCompat.setWindowInsetsAnimationCallback(it, null) }
+                dialogRootViewRef = null
+                translationY = 0f
+                if (lastKbHeight != 0) {
+                    lastKbHeight = 0
+                    emitSettle(0)
+                }
             }
         }
     }
 
-    private fun emitKeyboardSettle(heightPx: Int) {
-        val reactContext = context as? ThemedReactContext ?: return
-        val density = resources.displayMetrics.density
-        val event = Arguments.createMap().apply {
-            putDouble("height", heightPx / density.toDouble())
-        }
-        reactContext.getJSModule(RCTEventEmitter::class.java)
-            .receiveEvent(id, "onKeyboardSettle", event)
+    // Fallback para Android < 12: globalLayoutListener detecta mudança de altura.
+    private val globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+        if (isAnimating) return@OnGlobalLayoutListener
+        val insets = ViewCompat.getRootWindowInsets(this) ?: return@OnGlobalLayoutListener
+        val kbHeight = getKeyboardHeight(insets)
+        if (kbHeight == lastKbHeight) return@OnGlobalLayoutListener
+        lastKbHeight = kbHeight
+        translationY = -kbHeight.toFloat()
+        emitSettle(kbHeight)
+        Log.d("KbContainer", "globalLayout fallback kbHeight=$kbHeight")
     }
 
-    private fun applyKeyboardTranslation(insets: WindowInsetsCompat) {
-        val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-        val navBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-        val kbHeight = (imeBottom - navBottom).coerceAtLeast(0)
-        // translationY: animação fluida frame a frame sem passar pelo bridge JS.
-        translationY = -kbHeight.toFloat()
-        // topPadding compensa o espaço perdido pelo translationY negativo:
-        // a view subiu kbHeight pixels, então adicionamos kbHeight de paddingTop
-        // para que o scrollable interno enxergue mais conteúdo no topo.
-        setPadding(paddingLeft, kbHeight, paddingRight, paddingBottom)
+    private fun getKeyboardHeight(insets: WindowInsetsCompat): Int {
+        val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+        val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+        return (ime - nav).coerceAtLeast(0)
+    }
+
+    private fun emitSettle(heightPx: Int) {
+        val reactContext = context as? ThemedReactContext ?: return
+        val density = resources.displayMetrics.density
+        val event = Arguments.createMap().apply { putDouble("height", heightPx / density.toDouble()) }
+        reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(id, "onKeyboardSettle", event)
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-
-        // OnApplyWindowInsetsListener: disparado a cada pixel de mudança de inset,
-        // incluindo menu do teclado expandindo/recolhendo — não só abertura/fechamento.
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            val navBottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-            val kbHeight = (imeBottom - navBottom).coerceAtLeast(0)
-            translationY = -kbHeight.toFloat()
-            setPadding(paddingLeft, kbHeight, paddingRight, paddingBottom)
-            if (kbHeight != lastEmittedHeight) {
-                lastEmittedHeight = kbHeight
-                emitKeyboardSettle(kbHeight)
-            }
-            insets
-        }
-
-        // WindowInsetsAnimationCallback: suaviza a animação frame a frame
-        ViewCompat.setWindowInsetsAnimationCallback(this, insetsCallback)
+        val reactContext = context as? ThemedReactContext ?: return
+        val eventDispatcher =
+            UIManagerHelper.getEventDispatcher(reactContext, com.facebook.react.uimanager.common.UIManagerType.FABRIC)
+                ?: UIManagerHelper.getEventDispatcher(reactContext, com.facebook.react.uimanager.common.UIManagerType.DEFAULT)
+        eventDispatcher?.addListener(modalListener)
         viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
-
-        // Aplica imediatamente caso o teclado já esteja visível quando o modal abre
-        ViewCompat.getRootWindowInsets(this)?.let { applyKeyboardTranslation(it) }
+        Log.d("KbContainer", "onAttachedToWindow")
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        ViewCompat.setWindowInsetsAnimationCallback(this, null)
+        val reactContext = context as? ThemedReactContext ?: return
+        val eventDispatcher =
+            UIManagerHelper.getEventDispatcher(reactContext, com.facebook.react.uimanager.common.UIManagerType.FABRIC)
+                ?: UIManagerHelper.getEventDispatcher(reactContext, com.facebook.react.uimanager.common.UIManagerType.DEFAULT)
+        eventDispatcher?.removeListener(modalListener)
+        dialogRootViewRef?.let { ViewCompat.setWindowInsetsAnimationCallback(it, null) }
+        dialogRootViewRef = null
         viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
-        translationY = 0f
-        setPadding(paddingLeft, 0, paddingRight, 0)
-        lastEmittedHeight = -1
+        lastKbHeight = 0
+        Log.d("KbContainer", "onDetachedFromWindow")
     }
 }
