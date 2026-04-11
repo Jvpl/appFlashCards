@@ -98,6 +98,8 @@ const CategorySvgCard = ({
   const hasDeck      = deckCount > 0;
   const svgXml       = hasDeck ? CARD_FULL_SVG : CARD_EMPTY_SVG;
   const iconSvg      = useMemo(() => buildIconSvg(CATEGORY_ICONS[category.id]), [category.id]);
+  // Para categorias customizadas: icon é uma string Ionicons (ex: 'folder-outline')
+  const customIconName = !iconSvg && category.icon && typeof category.icon === 'string' ? category.icon : null;
 
   return (
     <TouchableOpacity
@@ -169,14 +171,21 @@ const CategorySvgCard = ({
         </View>
 
         {/* Ícone da categoria — canto inferior direito */}
-        {iconSvg && (
+        {iconSvg ? (
           <SvgXml
             xml={iconSvg}
             width={ICON_SIZE}
             height={ICON_SIZE}
             style={styles.categoryIcon}
           />
-        )}
+        ) : customIconName ? (
+          <Ionicons
+            name={customIconName}
+            size={ICON_SIZE}
+            color={theme.primary}
+            style={[styles.categoryIcon, { opacity: 0.9 }]}
+          />
+        ) : null}
       </View>
 
       {/* ── Checkbox de seleção ── */}
