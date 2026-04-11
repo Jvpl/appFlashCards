@@ -6,13 +6,18 @@ package com.jvpl.flashcardsconcurso.modules.keyboard
 //
 // POR QUE KOTLIN E NÃO JS:
 //   O React Native detecta o teclado via bridge com ~300ms de delay.
-//   WindowInsetsAnimationCompat é chamado frame-a-frame pela própria Window
-//   do Android, antes de qualquer comunicação com JS.
+//   Este módulo usa globalLayoutListener + ValueAnimator para animar o
+//   translationY em sincronia com o teclado, sem passar pela bridge JS.
 //
-// RESPONSABILIDADE DESTE MÓDULO:
-//   Apenas detectar a altura do teclado e emitir onKeyboardSettle(height).
-//   Todo o comportamento visual (scroll, padding, translationY) é responsabilidade
-//   do JS no BottomSheet.
+// FABRIC (New Architecture):
+//   O modal não usa ReactModalHostView — usa DialogRootViewGroup.
+//   O insetsCallback é registrado na rootView do DialogRootViewGroup.
+//   O globalLayoutListener serve como fallback principal quando o
+//   WindowInsetsAnimationCompat não está disponível.
+//
+// RESPONSABILIDADE:
+//   Animar translationY junto com o teclado e emitir onKeyboardSettle(height)
+//   quando o teclado termina de animar.
 // =============================================================================
 
 import android.content.Context
@@ -32,7 +37,6 @@ import com.facebook.react.uimanager.ViewGroupManager
 import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.EventDispatcherListener
 import com.facebook.react.uimanager.events.RCTEventEmitter
-import com.facebook.react.views.modal.ReactModalHostView
 
 class KeyboardAvoidingContainerViewManager : ViewGroupManager<KeyboardAvoidingContainerView>() {
     override fun getName(): String = "KeyboardAvoidingContainer"
@@ -51,15 +55,15 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
     private var isAnimating = false
     private var dialogRootViewRef: ViewGroup? = null
     private var entryAnimator: android.animation.ValueAnimator? = null
+    private var kbAnimator: android.animation.ValueAnimator? = null
 
-    // Callback registrado na decorView do Dialog.
-    // Emite onKeyboardSettle no onEnd com a altura final do teclado.
+    // Callback registrado na rootView do dialog (quando disponível).
+    // Sincroniza translationY frame-a-frame com a animação do teclado.
     private val insetsCallback = object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP) {
 
         override fun onPrepare(animation: WindowInsetsAnimationCompat) {
             if (animation.typeMask and WindowInsetsCompat.Type.ime() == 0) return
             isAnimating = true
-            // Cancela animação de entrada se o teclado abrir antes dela terminar
             entryAnimator?.cancel()
             entryAnimator = null
         }
@@ -74,9 +78,7 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
             runningAnimations: List<WindowInsetsAnimationCompat>
         ): WindowInsetsCompat {
             if (runningAnimations.none { it.typeMask and WindowInsetsCompat.Type.ime() != 0 }) return insets
-            val kbHeight = getKeyboardHeight(insets)
-            // Empurra o conteúdo interno para cima frame a frame junto com o teclado
-            translationY = -kbHeight.toFloat()
+            translationY = -getKeyboardHeight(insets).toFloat()
             return insets
         }
 
@@ -90,66 +92,21 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
                 lastKbHeight = kbHeight
                 emitSettle(kbHeight)
             }
-            Log.d("KbContainer", "onEnd kbHeight=$kbHeight")
         }
     }
 
-    // Escuta topShow do Modal para registrar o insetsCallback na decorView do Dialog.
-    // Filtra pelo modal que realmente contém este container como filho — evita reagir
-    // a topShow de outros modais abertos no app.
+    // Escuta topShow para registrar insetsCallback (Paper/Old Architecture).
+    // No Fabric o topShow chega mas o modal não é ReactModalHostView —
+    // tryRegisterFromCurrentWindow cobre esse caso.
     private val modalListener = object : EventDispatcherListener {
         override fun onEventDispatch(event: Event<*>) {
             if (event.eventName != "topShow") return
-            Log.d("KbContainer", "topShow recebido — verificando se é nosso modal")
-            val reactContext = context as? ThemedReactContext ?: return
-            val uiManager =
-                UIManagerHelper.getUIManager(reactContext, com.facebook.react.uimanager.common.UIManagerType.FABRIC)
-                    ?: UIManagerHelper.getUIManager(reactContext, com.facebook.react.uimanager.common.UIManagerType.DEFAULT)
-                    ?: return
-            val modal = try { uiManager.resolveView(event.viewTag) as? ReactModalHostView } catch (e: Exception) { null } ?: return
-
-            // Garante que este container pertence ao modal que disparou o topShow.
-            // Sobe na hierarquia de parents e verifica se algum é o modal resolvido.
-            var parent = this@KeyboardAvoidingContainerView.parent
-            var isOurModal = false
-            while (parent != null) {
-                if (parent === modal) { isOurModal = true; break }
-                parent = (parent as? android.view.View)?.parent
-            }
-            if (!isOurModal) {
-                Log.d("KbContainer", "topShow ignorado — modal não é pai deste container")
-                return
-            }
-
-            val window = modal.dialog?.window ?: return
-            val rootView = window.decorView.rootView as? ViewGroup ?: return
-
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-            window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                ViewCompat.setWindowInsetsAnimationCallback(rootView, insetsCallback)
-                dialogRootViewRef = rootView
-                Log.d("KbContainer", "topShow — insetsCallback registrado no modal correto")
-            }
-
-            modal.dialog?.setOnDismissListener {
-                dialogRootViewRef?.let { ViewCompat.setWindowInsetsAnimationCallback(it, null) }
-                dialogRootViewRef = null
-                translationY = 0f
-                if (lastKbHeight != 0) {
-                    lastKbHeight = 0
-                    emitSettle(0)
-                }
-            }
+            tryRegisterFromCurrentWindow()
         }
     }
 
-    // Fallback principal: globalLayoutListener detecta mudança de altura do teclado.
-    // Usado quando o WindowInsetsAnimationCompat não está disponível ou não foi registrado
-    // (ex: Fabric com hierarquia diferente de ReactModalHostView).
-    // Anima suavemente em vez de teleportar.
-    private var kbAnimator: android.animation.ValueAnimator? = null
+    // Fallback principal: detecta mudança de altura do teclado via layout.
+    // Anima suavemente com ValueAnimator em vez de teleportar.
     private val globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
         if (isAnimating) return@OnGlobalLayoutListener
         val insets = ViewCompat.getRootWindowInsets(this) ?: return@OnGlobalLayoutListener
@@ -165,7 +122,6 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
             anim.start()
         }
         emitSettle(kbHeight)
-        Log.d("KbContainer", "globalLayout fallback kbHeight=$kbHeight animando para targetY=$targetY")
     }
 
     private fun getKeyboardHeight(insets: WindowInsetsCompat): Int {
@@ -183,7 +139,6 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        Log.d("KbContainer", "onAttachedToWindow context=${context::class.simpleName}")
         val reactContext = context as? ThemedReactContext ?: return
         val eventDispatcher =
             UIManagerHelper.getEventDispatcher(reactContext, com.facebook.react.uimanager.common.UIManagerType.FABRIC)
@@ -191,18 +146,14 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
         eventDispatcher?.addListener(modalListener)
         viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
 
-        // Tenta registrar no frame atual e nos próximos frames.
-        // O topShow nem sempre dispara (React Native reutiliza o dialog em re-renders).
-        // Tentamos múltiplos frames porque onAttachedToWindow pode disparar antes de
-        // o container estar completamente inserido na hierarquia do modal.
+        // Tenta registrar imediatamente e nos próximos frames.
+        // onAttachedToWindow pode disparar antes do container estar na hierarquia completa.
         tryRegisterFromCurrentWindow()
         post { tryRegisterFromCurrentWindow() }
         postDelayed({ tryRegisterFromCurrentWindow() }, 50)
         postDelayed({ tryRegisterFromCurrentWindow() }, 150)
 
-        // Animação de entrada — onAttachedToWindow é determinístico: o container acabou
-        // de ser criado com translationY=0 e ainda não foi desenhado nenhum frame.
-        // resources.displayMetrics.heightPixels está sempre disponível, sem depender de layout.
+        // Animação de entrada nativa — sem JS, sem race condition.
         val screenHeight = resources.displayMetrics.heightPixels
         val startY = (screenHeight / 2).toFloat()
         translationY = startY
@@ -212,47 +163,53 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
             anim.addUpdateListener { translationY = it.animatedValue as Float }
             anim.start()
         }
-        Log.d("KbContainer", "onAttachedToWindow — entrada nativa startY=$startY")
     }
 
+    // No Fabric (New Architecture) o modal usa DialogRootViewGroup em vez de ReactModalHostView.
+    // Sobe na hierarquia procurando DialogRootViewGroup e registra o insetsCallback na rootView.
+    // Tenta também obter a Window via reflection para configurar softInputMode corretamente.
     private fun tryRegisterFromCurrentWindow() {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) return
         if (dialogRootViewRef?.isAttachedToWindow == true) return
         dialogRootViewRef = null
 
-        // Loga toda a hierarquia de parents para diagnóstico
-        val hierarchy = StringBuilder()
-        var p = this.parent
-        while (p != null) {
-            hierarchy.append(p::class.simpleName).append(" → ")
-            p = (p as? android.view.View)?.parent
-        }
-        Log.d("KbContainer", "tryRegister hierarquia: $hierarchy")
-
-        // No Fabric (New Architecture) o modal usa DialogRootViewGroup em vez de ReactModalHostView.
-        // A DecorView já está no rootView da hierarquia — registramos o insetsCallback nela.
         var parent = this.parent
         while (parent != null) {
             val parentView = parent as? android.view.View ?: break
             if (parentView::class.simpleName == "DialogRootViewGroup") {
-                val rootView = parentView.rootView as? ViewGroup ?: run {
-                    Log.d("KbContainer", "tryRegister — DialogRootViewGroup encontrado mas rootView inválido")
-                    return
-                }
-                ViewCompat.setWindowInsetsAnimationCallback(rootView, insetsCallback)
-                dialogRootViewRef = rootView
+                val rootView = parentView.rootView as? ViewGroup ?: return
 
-                // Configura softInputMode via WindowInsetsControllerCompat
-                ViewCompat.getWindowInsetsController(parentView)?.let {
-                    it.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                val window: android.view.Window? = try {
+                    val f = parentView::class.java.getDeclaredField("mDialog")
+                    f.isAccessible = true
+                    (f.get(parentView) as? android.app.Dialog)?.window
+                } catch (e1: Exception) {
+                    try {
+                        val f = parentView::class.java.getDeclaredField("mContext")
+                        f.isAccessible = true
+                        (f.get(parentView) as? android.app.Dialog)?.window
+                    } catch (e2: Exception) { null }
                 }
 
-                Log.d("KbContainer", "tryRegister — insetsCallback registrado via DialogRootViewGroup")
+                if (window != null) {
+                    WindowCompat.setDecorFitsSystemWindows(window, false)
+                    window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+                    window.decorView.rootView.let { dv ->
+                        (dv as? ViewGroup)?.let { decorGroup ->
+                            ViewCompat.setWindowInsetsAnimationCallback(decorGroup, insetsCallback)
+                            dialogRootViewRef = decorGroup
+                        }
+                    }
+                    Log.d("KbContainer", "tryRegister — Window+insetsCallback via DialogRootViewGroup")
+                } else {
+                    ViewCompat.setWindowInsetsAnimationCallback(rootView, insetsCallback)
+                    dialogRootViewRef = rootView
+                    Log.d("KbContainer", "tryRegister — insetsCallback via DialogRootViewGroup (sem Window)")
+                }
                 return
             }
             parent = parentView.parent
         }
-        Log.d("KbContainer", "tryRegister — DialogRootViewGroup não encontrado")
     }
 
     override fun onDetachedFromWindow() {
@@ -268,6 +225,5 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
         entryAnimator?.cancel()
         kbAnimator?.cancel()
         lastKbHeight = 0
-        Log.d("KbContainer", "onDetachedFromWindow")
     }
 }
