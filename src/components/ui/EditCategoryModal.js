@@ -68,15 +68,28 @@ export function EditCategoryModal({
   presetCategoriesAvailable = [],
   customCategoriesAvailable = [],
 }) {
-  const [page, setPage] = useState(0);            // 0 = padrão/custom, 1 = criar nova
+  const [page, setPage] = useState(0);            // 0 = categorias, 1 = nova personalizada
   const [filter, setFilter] = useState('preset'); // 'preset' | 'custom'
   const [selectedId, setSelectedId] = useState(null);
   const [customName, setCustomName] = useState('');
   const [customIcon, setCustomIcon] = useState(null);
   const [iconGroup, setIconGroup] = useState(0);
-  const pageScrollRef = useRef(null);
+  const pageScrollRef = useRef(null); // mantido para compatibilidade mas não usado
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(MODAL_HEIGHT)).current;
+
+  // Pré-preenche quando a categoria editada é customizada
+  useEffect(() => {
+    if (visible && categoryId?.startsWith('custom_')) {
+      const cat = customCategoriesAvailable.find(c => c.id === categoryId);
+      if (cat) {
+        setCustomName(cat.name || '');
+        setCustomIcon(cat.icon || null);
+        setPage(1);
+        setTimeout(() => pageScrollRef.current?.scrollTo({ x: SW, animated: false }), 0);
+      }
+    }
+  }, [visible, categoryId, customCategoriesAvailable]);
 
   useEffect(() => {
     if (visible) {
@@ -125,16 +138,11 @@ export function EditCategoryModal({
     });
   }, [reset, onDismiss]);
 
-  const goToPage = useCallback((p) => {
-    setPage(p);
-    pageScrollRef.current?.scrollTo({ x: p * SW, animated: true });
-  }, []);
-
-  const canSave = !!selectedId || !!customName.trim();
+  const canSave = !!selectedId || (page === 1 && !!customName.trim());
 
   const handleSave = useCallback(async () => {
     const DEFAULT_ICON = 'folder-outline';
-    if (selectedId) {
+    if (selectedId && page !== 1) {
       const allData = await getAppData();
       await saveAppData(allData.map(d =>
         getDeckCatId(d) === categoryId ? { ...d, category: selectedId } : d
@@ -178,11 +186,10 @@ export function EditCategoryModal({
       reset();
       onSaved?.();
     });
-  }, [selectedId, customName, customIcon, categoryId, reset, onSaved]);
+  }, [selectedId, customName, customIcon, categoryId, page, reset, onSaved]);
 
-  // Quais itens mostrar no tab de seleção
+  const hasCustomCats = customCategoriesAvailable.length > 0;
   const listItems = filter === 'preset' ? presetCategoriesAvailable : customCategoriesAvailable;
-  const hasCustomFilter = customCategoriesAvailable.length > 0;
 
   return (
     <Modal
@@ -217,25 +224,45 @@ export function EditCategoryModal({
 
               <View style={s.divider} />
 
-              {/* Tab indicators */}
+              {/* ── Tabs: Categorias / Personalizada + filtro à direita ── */}
               <View style={s.tabRow}>
-                <TouchableOpacity
-                  style={[s.tab, page === 0 && s.tabActive]}
-                  onPress={() => goToPage(0)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.tabText, page === 0 && s.tabTextActive]}>Categorias</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.tab, page === 1 && s.tabActive]}
-                  onPress={() => goToPage(1)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.tabText, page === 1 && s.tabTextActive]}>Personalizada</Text>
-                </TouchableOpacity>
+                {/* Tabs à esquerda */}
+                <View style={s.tabGroup}>
+                  <TouchableOpacity
+                    style={[s.tab, page === 0 && s.tabActive]}
+                    onPress={() => { setPage(0); pageScrollRef.current?.scrollTo({ x: 0, animated: true }); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.tabText, page === 0 && s.tabTextActive]}>Categorias</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.tab, page === 1 && s.tabActive]}
+                    onPress={() => { setPage(1); setSelectedId(null); pageScrollRef.current?.scrollTo({ x: SW, animated: true }); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.tabText, page === 1 && s.tabTextActive]}>Personalizada</Text>
+                  </TouchableOpacity>
+                </View>
+                {/* Filtro Padrão/Customizadas à direita — só na aba Categorias e se houver custom */}
+                {page === 0 && hasCustomCats && (
+                  <View style={s.tabFilterGroup}>
+                    {[{ key: 'preset', label: 'Padrão' }, { key: 'custom', label: 'Custom' }].map(f => (
+                      <TouchableOpacity
+                        key={f.key}
+                        style={[s.tabFilterChip, filter === f.key && s.tabFilterChipActive]}
+                        onPress={() => { setFilter(f.key); setSelectedId(null); }}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[s.tabFilterText, filter === f.key && s.tabFilterTextActive]}>
+                          {f.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
 
-              {/* Páginas — ScrollView horizontal paginado */}
+              {/* ── Pager ── */}
               <ScrollView
                 ref={pageScrollRef}
                 horizontal
@@ -245,33 +272,13 @@ export function EditCategoryModal({
                 style={s.pager}
                 keyboardShouldPersistTaps="handled"
               >
-                {/* ── Página 0: Seleção de categoria ── */}
+                {/* Página 0: lista de categorias */}
                 <View style={[s.page, { width: SW }]}>
-                  {/* Filtro preset / customizadas */}
-                  {hasCustomFilter && (
-                    <View style={s.filterRow}>
-                      {['preset', 'custom'].map(f => (
-                        <TouchableOpacity
-                          key={f}
-                          style={[s.filterChip, filter === f && s.filterChipActive]}
-                          onPress={() => { setFilter(f); setSelectedId(null); }}
-                          activeOpacity={0.75}
-                        >
-                          <Text style={[s.filterChipText, filter === f && s.filterChipTextActive]}>
-                            {f === 'preset' ? 'Padrão' : 'Customizadas'}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-
                   {listItems.length === 0 ? (
                     <View style={s.empty}>
                       <Ionicons name="checkmark-circle-outline" size={18} color={theme.textMuted} />
                       <Text style={s.emptyText}>
-                        {filter === 'preset'
-                          ? 'Todas as categorias padrão já estão em uso.'
-                          : 'Nenhuma categoria customizada disponível.'}
+                        {filter === 'preset' ? 'Nenhuma categoria padrão.' : 'Nenhuma categoria customizada.'}
                       </Text>
                     </View>
                   ) : (
@@ -309,10 +316,9 @@ export function EditCategoryModal({
                   )}
                 </View>
 
-                {/* ── Página 1: Criar categoria personalizada ── */}
+                {/* Página 1: criar/editar personalizada */}
                 <View style={[s.page, { width: SW }]}>
                   <View style={s.customWrap}>
-                    {/* Nome + ícone */}
                     <View style={s.inputRow}>
                       <TouchableOpacity
                         style={[s.iconPreview, customIcon && customIcon !== '__picker__' && s.iconPreviewActive]}
@@ -342,11 +348,8 @@ export function EditCategoryModal({
                         )}
                       </View>
                     </View>
-
-                    {/* Icon picker */}
                     {customIcon === '__picker__' && (
                       <View style={s.pickerWrap}>
-                        {/* Tabs de grupo */}
                         <ScrollView
                           horizontal
                           showsHorizontalScrollIndicator={false}
@@ -366,7 +369,6 @@ export function EditCategoryModal({
                             </TouchableOpacity>
                           ))}
                         </ScrollView>
-                        {/* Grid de ícones */}
                         <View style={s.iconGrid}>
                           {ICON_GROUPS[iconGroup].icons.map(ic => (
                             <TouchableOpacity
@@ -461,8 +463,28 @@ const s = StyleSheet.create({
   // Tab row
   tabRow: {
     flexDirection: 'row',
-    paddingHorizontal: 18, paddingTop: 12, paddingBottom: 8, gap: 8,
+    alignItems: 'center',
+    paddingHorizontal: 18, paddingTop: 12, paddingBottom: 8,
   },
+  tabGroup: {
+    flexDirection: 'row', gap: 8, flex: 1,
+  },
+  tabFilterGroup: {
+    flexDirection: 'row', gap: 4,
+  },
+  tabFilterChip: {
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  tabFilterChipActive: {
+    backgroundColor: 'rgba(93,214,44,0.08)',
+    borderColor: 'rgba(93,214,44,0.3)',
+  },
+  tabFilterText: {
+    color: theme.textSecondary, fontSize: 10, fontFamily: theme.fontFamily.uiMedium,
+  },
+  tabFilterTextActive: { color: theme.primary },
   tab: {
     paddingHorizontal: 14, paddingVertical: 6,
     borderRadius: 20,
