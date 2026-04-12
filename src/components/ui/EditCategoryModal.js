@@ -51,7 +51,8 @@ const ICON_GROUPS = [
   { label: 'Outros', icons: ['medkit-outline', 'cash-outline', 'hammer-outline', 'heart-outline', 'bus-outline', 'car-outline', 'home-outline', 'leaf-outline', 'nutrition-outline', 'fitness-outline', 'bicycle-outline', 'game-controller-outline'] },
 ];
 
-const CategoryIconGlow = ({ categoryId, size = 20 }) => {
+const CategoryIconGlow = ({ categoryId, ionIcon, size = 20 }) => {
+  if (ionIcon) return <Ionicons name={ionIcon} size={size} color={theme.primary} />;
   const iconData = CATEGORY_SVG_ICONS[categoryId];
   if (!iconData) return <Ionicons name="folder-outline" size={size} color={theme.primary} />;
   return <GlowIcon iconData={iconData} size={size} color={theme.primary} glowBlur={4} />;
@@ -74,6 +75,8 @@ export function EditCategoryModal({
   const [iconGroup, setIconGroup] = useState(0);
   const pageScrollRef = useRef(null);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const exitAnim = useRef(null);
 
   useEffect(() => {
     if (visible && categoryId?.startsWith('custom_')) {
@@ -88,6 +91,8 @@ export function EditCategoryModal({
   }, [visible, categoryId, customCategoriesAvailable]);
 
   const handleShow = useCallback(() => {
+    exitAnim.current?.stop();
+    sheetTranslateY.setValue(0);
     Animated.timing(overlayOpacity, { toValue: 1, duration: 280, useNativeDriver: true }).start();
   }, []);
 
@@ -107,8 +112,17 @@ export function EditCategoryModal({
   }, []);
 
   const handleDismiss = useCallback(() => {
-    Animated.timing(overlayOpacity, { toValue: 0, duration: 220, useNativeDriver: true })
-      .start(() => { reset(); onDismiss(); });
+    exitAnim.current = Animated.parallel([
+      Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, { toValue: 500, duration: 260, useNativeDriver: true }),
+    ]);
+    exitAnim.current.start(({ finished }) => {
+      if (finished) {
+        sheetTranslateY.setValue(0);
+        reset();
+        onDismiss();
+      }
+    });
   }, [reset, onDismiss]);
 
   const canSave = !!selectedId || (page === 1 && !!customName.trim());
@@ -144,12 +158,24 @@ export function EditCategoryModal({
         ));
       }
     }
-    Animated.timing(overlayOpacity, { toValue: 0, duration: 220, useNativeDriver: true })
-      .start(() => { reset(); onSaved?.(); });
+    exitAnim.current = Animated.parallel([
+      Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }),
+      Animated.timing(sheetTranslateY, { toValue: 500, duration: 260, useNativeDriver: true }),
+    ]);
+    exitAnim.current.start(({ finished }) => {
+      if (finished) {
+        sheetTranslateY.setValue(0);
+        reset();
+        onSaved?.();
+      }
+    });
   }, [selectedId, customName, customIcon, categoryId, page, reset, onSaved]);
 
   const hasCustomCats = customCategoriesAvailable.length > 0;
   const listItems = filter === 'preset' ? presetCategoriesAvailable : customCategoriesAvailable;
+  const currentCatIonIcon = categoryId?.startsWith('custom_')
+    ? (customCategoriesAvailable.find(c => c.id === categoryId)?.icon || null)
+    : null;
 
   return (
     <Modal
@@ -163,6 +189,7 @@ export function EditCategoryModal({
       <TouchableWithoutFeedback onPress={handleDismiss}>
         <Animated.View style={[s.overlay, { opacity: overlayOpacity }]}>
           <NativeKeyboardAvoidingContainer style={s.nativeContainer}>
+            <Animated.View style={[s.sheetWrap, { transform: [{ translateY: sheetTranslateY }] }]} pointerEvents="box-none">
             <TouchableWithoutFeedback>
             <View style={s.sheet}>
               {/* Handle */}
@@ -171,7 +198,7 @@ export function EditCategoryModal({
               {/* Cabeçalho compacto */}
               <View style={s.currentRow}>
                 <View style={s.currentIconWrap}>
-                  <CategoryIconGlow categoryId={categoryId} size={20} />
+                  <CategoryIconGlow categoryId={categoryId} ionIcon={currentCatIonIcon} size={20} />
                 </View>
                 <Text style={s.currentName} numberOfLines={1}>{categoryName}</Text>
               </View>
@@ -251,7 +278,7 @@ export function EditCategoryModal({
                             delayPressIn={50}
                           >
                             <View style={[s.listIconWrap, isSel && s.listIconWrapActive]}>
-                              <CategoryIconGlow categoryId={cat.id} size={20} />
+                              <CategoryIconGlow categoryId={cat.id} ionIcon={cat.isCustom ? (cat.icon || null) : null} size={20} />
                             </View>
                             <Text style={[s.listName, isSel && s.listNameActive]} numberOfLines={1}>
                               {cat.name}
@@ -357,6 +384,7 @@ export function EditCategoryModal({
               </View>
             </View>
             </TouchableWithoutFeedback>
+            </Animated.View>
           </NativeKeyboardAvoidingContainer>
         </Animated.View>
       </TouchableWithoutFeedback>
@@ -372,19 +400,22 @@ const s = StyleSheet.create({
   nativeContainer: {
     ...StyleSheet.absoluteFillObject,
   },
-  sheet: {
+  sheetWrap: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     height: '50%',
-    backgroundColor: '#141414',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
+  },
+  sheet: {
+    flex: 1,
+    backgroundColor: '#141414',
     overflow: 'hidden',
   },
   handle: {
