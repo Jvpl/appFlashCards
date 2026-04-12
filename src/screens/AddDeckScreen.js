@@ -114,6 +114,7 @@ const CustomCategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 
 
 export const AddDeckScreen = ({ route, navigation }) => {
   const editDeckId = route?.params?.editDeckId || null;
+  const preselectedCategoryId = route?.params?.preselectedCategoryId || null;
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -151,6 +152,14 @@ export const AddDeckScreen = ({ route, navigation }) => {
         counts[cat] = (counts[cat] || 0) + 1;
       });
       setDeckCountMap(counts);
+      // Pré-seleciona categoria se passada como param
+      if (preselectedCategoryId && !editDeckId) {
+        setSelectedCategory(preselectedCategoryId);
+        initialCategory.current = preselectedCategoryId;
+        if (preselectedCategoryId.startsWith('custom_')) {
+          setCatFilter('custom');
+        }
+      }
     };
     load();
   }, []);
