@@ -82,6 +82,11 @@ export function EditCategoryModal({
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const exitAnim = useRef(null);
+  // Guarda a altura atual do teclado (em dp) para corrigir o hit-test do overlay.
+  // O NativeKeyboardAvoidingContainer usa translationY nativo (native driver),
+  // e o RN usa bounds de layout originais para hit-test — sem essa correção,
+  // toques na área visual do sheet (que subiu) chegam no overlay e fecham o modal.
+  const kbHeightRef = useRef(0);
 
   // Carrega IDs de todas as categorias que já têm decks ao abrir
   useEffect(() => {
@@ -169,8 +174,9 @@ export function EditCategoryModal({
       const icon = customIcon && customIcon !== '__picker__' ? customIcon : DEFAULT_ICON;
       const customs = await getCustomCategories();
       const nameLower = customName.trim().toLowerCase();
-      const duplicate = customs.find(c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId);
-      if (duplicate) {
+      const duplicateInCustom = customs.find(c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId);
+      const duplicateInPreset = presetCategoriesAvailable.find(c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId);
+      if (duplicateInCustom || duplicateInPreset) {
         setSaving(false);
         setAlertConfig({
           visible: true,
@@ -232,11 +238,26 @@ export function EditCategoryModal({
       onRequestClose={handleDismiss}
       statusBarTranslucent
     >
-      <TouchableWithoutFeedback onPress={handleDismiss}>
+      <TouchableWithoutFeedback
+        onPress={(e) => {
+          // O NativeKeyboardAvoidingContainer translada o sheet via translationY nativo.
+          // O sistema de toque do RN usa bounds de layout originais (sem a translação),
+          // então toques na área visual do sheet chegam aqui. Só dispara handleDismiss
+          // se o toque realmente for acima do sheet visual (i.e., na área de overlay).
+          const touchY = e.nativeEvent.pageY;
+          const screenH = Dimensions.get('window').height;
+          // Sheet visual começa em 50% da tela menos a altura do teclado.
+          const sheetVisualTop = screenH * 0.5 - kbHeightRef.current;
+          if (touchY < sheetVisualTop) handleDismiss();
+        }}
+      >
         <Animated.View style={[s.overlay, { opacity: overlayOpacity }]}>
             <Animated.View style={[s.sheetWrap, { transform: [{ translateY: sheetTranslateY }] }]} pointerEvents="box-none">
-            <TouchableWithoutFeedback>
-              <NativeKeyboardAvoidingContainer style={s.nativeContainer}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <NativeKeyboardAvoidingContainer
+                style={s.nativeContainer}
+                onKeyboardSettle={(e) => { kbHeightRef.current = e.nativeEvent.height; }}
+              >
             <View style={s.sheet}>
               {/* Handle */}
               <View style={s.handle} />
@@ -399,12 +420,10 @@ export function EditCategoryModal({
               </ScrollView>
 
               {/* Botão Salvar */}
-              <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+              <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
                 <Pressable
                   style={[s.saveBtn, !canSave && s.saveBtnDisabled]}
-                  disabled={!canSave}
-                  onPressIn={() => { Keyboard.dismiss(); }}
-                  onPress={handleSave}
+                  onPressIn={canSave ? handleSave : undefined}
                 >
                   <Text style={[s.saveBtnText, !canSave && s.saveBtnTextDisabled]}>
                     Salvar
