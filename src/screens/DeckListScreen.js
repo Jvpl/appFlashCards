@@ -465,6 +465,7 @@ export const DeckListScreen = ({ navigation }) => {
         })
       );
       await minDelay;
+      const prevUserDeckCount = _cachedDecks.filter(d => !d.isExample).length;
       _cachedDecks = [...userDecks, ...purchasedDecks.filter(Boolean)];
       const allowEditing = await canEditDefaultDecks();
 
@@ -496,9 +497,11 @@ export const DeckListScreen = ({ navigation }) => {
         setCustomCats(customs);
         setUsedCategoryIds(new Set(stored));
         setUsedCategoryOrder([...stored]);
-        // Se há decks agora, garante que a aba ativa seja decks
-        const hasDecks = _cachedDecks.filter(d => !d.isExample).length > 0;
-        if (hasDecks) setActiveTab(prev => prev === 'categorias' ? 'decks' : prev);
+        // Se acabou de criar o primeiro deck, muda de categorias para decks
+        const newUserDeckCount = _cachedDecks.filter(d => !d.isExample).length;
+        if (prevUserDeckCount === 0 && newUserDeckCount > 0) {
+          setActiveTab(prev => prev === 'categorias' ? 'decks' : prev);
+        }
       });
     } catch (error) {
       console.error('Error loading decks:', error);
@@ -889,12 +892,6 @@ export const DeckListScreen = ({ navigation }) => {
 
   const handleCategoryPress = (category) => {
     if (multiSelectMode) return;
-    // Navega para a tela de detalhe da categoria
-    const count = categoryCounts[category.id] || 0;
-    if (count === 0 && category.id !== 'personalizados') {
-      navigation.navigate('Loja');
-      return;
-    }
     navigation.navigate('CategoryDetail', {
       categoryId: category.id,
       categoryName: category.name,
