@@ -27,7 +27,7 @@ import {
 import {
   getCustomCategories, saveCustomCategories, getDeckCatId,
 } from '../../config/categories';
-import { getAppData, saveAppData } from '../../services/storage';
+import { getAppData, saveAppData, getUsedCategoryIds, saveUsedCategoryIds } from '../../services/storage';
 import { NativeKeyboardAvoidingContainer } from '../../native/NativeKeyboardAvoidingContainer';
 
 const { width: SW } = Dimensions.get('window');
@@ -68,7 +68,7 @@ export function EditCategoryModal({
   customCategoriesAvailable = [],
 }) {
   const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState('preset');
+
   const [selectedId, setSelectedId] = useState(null);
   const [customName, setCustomName] = useState('');
   const [customIcon, setCustomIcon] = useState(null);
@@ -104,7 +104,6 @@ export function EditCategoryModal({
 
   const reset = useCallback(() => {
     setPage(0);
-    setFilter('preset');
     setSelectedId(null);
     setCustomName('');
     setCustomIcon(null);
@@ -138,6 +137,11 @@ export function EditCategoryModal({
       if (customs.find(c => c.id === categoryId)) {
         await saveCustomCategories(customs.filter(c => c.id !== categoryId));
       }
+      // Transfere o registro de "usado" do id antigo para o novo
+      const usedIds = await getUsedCategoryIds();
+      usedIds.add(selectedId);
+      usedIds.delete(categoryId);
+      await saveUsedCategoryIds(usedIds);
     } else if (customName.trim()) {
       const icon = customIcon && customIcon !== '__picker__' ? customIcon : DEFAULT_ICON;
       const customs = await getCustomCategories();
@@ -156,6 +160,11 @@ export function EditCategoryModal({
         await saveAppData(allData.map(d =>
           getDeckCatId(d) === categoryId ? { ...d, category: newId } : d
         ));
+        // Registra o novo id como usado e remove o id padrão antigo (se não tiver mais decks)
+        const usedIds = await getUsedCategoryIds();
+        usedIds.add(newId);
+        usedIds.delete(categoryId);
+        await saveUsedCategoryIds(usedIds);
       }
     }
     exitAnim.current = Animated.parallel([
@@ -171,8 +180,8 @@ export function EditCategoryModal({
     });
   }, [selectedId, customName, customIcon, categoryId, page, reset, onSaved]);
 
-  const hasCustomCats = customCategoriesAvailable.length > 0;
-  const listItems = filter === 'preset' ? presetCategoriesAvailable : customCategoriesAvailable;
+  // Aba Padrão: exclui a categoria atual (já está sendo usada)
+  const listItems = presetCategoriesAvailable.filter(c => c.id !== categoryId);
   const currentCatIonIcon = categoryId?.startsWith('custom_')
     ? (customCategoriesAvailable.find(c => c.id === categoryId)?.icon || null)
     : null;
@@ -205,7 +214,7 @@ export function EditCategoryModal({
 
               <View style={s.divider} />
 
-              {/* Tabs + filtro na mesma linha */}
+              {/* Tabs */}
               <View style={s.tabRow}>
                 <View style={s.tabGroup}>
                   <TouchableOpacity
@@ -213,31 +222,16 @@ export function EditCategoryModal({
                     onPress={() => { setPage(0); pageScrollRef.current?.scrollTo({ x: 0, animated: true }); }}
                     activeOpacity={0.7}
                   >
-                    <Text style={[s.tabText, page === 0 && s.tabTextActive]}>Categorias</Text>
+                    <Text style={[s.tabText, page === 0 && s.tabTextActive]}>Padrão</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[s.tab, page === 1 && s.tabActive]}
                     onPress={() => { setPage(1); setSelectedId(null); pageScrollRef.current?.scrollTo({ x: SW, animated: true }); }}
                     activeOpacity={0.7}
                   >
-                    <Text style={[s.tabText, page === 1 && s.tabTextActive]}>Personalizada</Text>
+                    <Text style={[s.tabText, page === 1 && s.tabTextActive]}>Personalizar</Text>
                   </TouchableOpacity>
                 </View>
-                {page === 0 && hasCustomCats && (
-                  <View style={s.tabFilterGroup}>
-                    {[{ key: 'preset', label: 'Padrão' }, { key: 'custom', label: 'Custom' }].map(f => (
-                      <TouchableOpacity
-                        key={f.key}
-                        onPress={() => { setFilter(f.key); setSelectedId(null); }}
-                        activeOpacity={0.6}
-                      >
-                        <Text style={[s.tabFilterText, filter === f.key && s.tabFilterTextActive]}>
-                          {f.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
               </View>
 
               {/* Pager */}
@@ -255,9 +249,7 @@ export function EditCategoryModal({
                   {listItems.length === 0 ? (
                     <View style={s.empty}>
                       <Ionicons name="checkmark-circle-outline" size={18} color={theme.textMuted} />
-                      <Text style={s.emptyText}>
-                        {filter === 'preset' ? 'Nenhuma categoria padrão.' : 'Nenhuma categoria customizada.'}
-                      </Text>
+                      <Text style={s.emptyText}>Nenhuma outra categoria padrão disponível.</Text>
                     </View>
                   ) : (
                     <ScrollView
