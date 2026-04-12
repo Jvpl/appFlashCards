@@ -852,6 +852,17 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
         )}
       </ScrollView>
 
+      {/* ── FAB: adicionar deck nesta categoria ── */}
+      {!selectMode && activeTab === 'decks' && (
+        <TouchableOpacity
+          style={[s.fab, { bottom: 20 }]}
+          onPress={() => navigation.navigate('AddDeck', { preselectedCategoryId: categoryId })}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={26} color={theme.background} />
+        </TouchableOpacity>
+      )}
+
       {/* ── Context Menu ── */}
       {contextMenu.visible && (() => {
         const menuW = 190;
@@ -1667,7 +1678,17 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
-  scrollContent: { paddingHorizontal: GRID_PADDING, paddingTop: 12, paddingBottom: 32 },
+  scrollContent: { paddingHorizontal: GRID_PADDING, paddingTop: 12, paddingBottom: 100 },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: theme.primary,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 6,
+    shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 8,
+  },
   gridRow: { flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP },
   empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyText: { color: theme.textMuted, fontSize: 14, fontFamily: theme.fontFamily.ui },
