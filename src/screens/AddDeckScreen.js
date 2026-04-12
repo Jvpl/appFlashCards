@@ -261,6 +261,21 @@ export const AddDeckScreen = ({ route, navigation }) => {
       return;
     }
     const allData = await getAppData();
+    const trimmedName = name.trim().toLowerCase();
+    const duplicateDeck = allData.find(d =>
+      !d.isExample &&
+      d.name?.trim().toLowerCase() === trimmedName &&
+      d.id !== editDeckId
+    );
+    if (duplicateDeck) {
+      setAlertConfig({
+        visible: true,
+        title: 'Nome já existe',
+        message: `Já existe um deck chamado "${name.trim()}". Escolha um nome diferente.`,
+        buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+      });
+      return;
+    }
     if (editDeckId) {
       // Modo edição — atualiza nome e categoria
       const updated = allData.map(d => d.id === editDeckId
@@ -581,6 +596,18 @@ export const AddDeckScreen = ({ route, navigation }) => {
                 style={[s.saveCatBtn, !customCatName.trim() && s.saveCatBtnOff]}
                 onPress={async () => {
                   if (!customCatName.trim()) return;
+                  const existing = await getCustomCategories();
+                  const nameLower = customCatName.trim().toLowerCase();
+                  const duplicate = existing.find(c => c.name?.trim().toLowerCase() === nameLower);
+                  if (duplicate) {
+                    setAlertConfig({
+                      visible: true,
+                      title: 'Nome já existe',
+                      message: `Já existe uma categoria chamada "${customCatName.trim()}". Escolha um nome diferente.`,
+                      buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+                    });
+                    return;
+                  }
                   const icon = customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : 'folder-outline';
                   const newId = `custom_${Date.now()}`;
                   const newCat = {
@@ -591,7 +618,6 @@ export const AddDeckScreen = ({ route, navigation }) => {
                     keywords: [],
                     isCustom: true,
                   };
-                  const existing = await getCustomCategories();
                   await saveCustomCategories([...existing, newCat]);
                   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                   setCustomCategories(prev => [...prev, newCat]);

@@ -12,14 +12,16 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal,
+  View, Text, TouchableOpacity, StyleSheet, Modal, Keyboard, Pressable,
   ScrollView, TextInput, Dimensions, TouchableWithoutFeedback,
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import theme from '../../styles/theme';
 import GlowIcon from './GlowIcon';
+import { CustomAlert } from './CustomAlert';
 import {
   administrativoIcon, educacaoIcon, fiscalIcon, justicaIcon,
   militarIcon, operacionalIcon, saudeIcon, segurancaIcon,
@@ -67,16 +69,30 @@ export function EditCategoryModal({
   presetCategoriesAvailable = [],
   customCategoriesAvailable = [],
 }) {
+  const insets = useSafeAreaInsets();
   const [page, setPage] = useState(0);
 
   const [selectedId, setSelectedId] = useState(null);
   const [customName, setCustomName] = useState('');
   const [customIcon, setCustomIcon] = useState(null);
   const [iconGroup, setIconGroup] = useState(0);
+  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
+  const [activeCatIds, setActiveCatIds] = useState(new Set());
   const pageScrollRef = useRef(null);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const exitAnim = useRef(null);
+
+  // Carrega IDs de todas as categorias que já têm decks ao abrir
+  useEffect(() => {
+    if (!visible) return;
+    Promise.all([getAppData(), getCustomCategories()]).then(([allData, customs]) => {
+      const ids = new Set();
+      allData.filter(d => !d.isExample && d.category).forEach(d => ids.add(d.category));
+      customs.forEach(c => ids.add(c.id));
+      setActiveCatIds(ids);
+    });
+  }, [visible]);
 
   useEffect(() => {
     if (visible && categoryId?.startsWith('custom_')) {
@@ -99,6 +115,8 @@ export function EditCategoryModal({
   useEffect(() => {
     if (!visible) {
       overlayOpacity.setValue(0);
+    } else {
+      setAlertConfig({ visible: false, title: '', message: '', buttons: [] });
     }
   }, [visible]);
 
@@ -108,6 +126,8 @@ export function EditCategoryModal({
     setCustomName('');
     setCustomIcon(null);
     setIconGroup(0);
+    setAlertConfig({ visible: false, title: '', message: '', buttons: [] });
+    setSaving(false);
   }, []);
 
   const handleDismiss = useCallback(() => {
@@ -124,9 +144,12 @@ export function EditCategoryModal({
     });
   }, [reset, onDismiss]);
 
-  const canSave = !!selectedId || (page === 1 && !!customName.trim());
+  const [saving, setSaving] = useState(false);
+  const canSave = (!!selectedId || (page === 1 && !!customName.trim())) && !saving;
 
   const handleSave = useCallback(async () => {
+    if (saving) return;
+    setSaving(true);
     const DEFAULT_ICON = 'folder-outline';
     if (selectedId && page !== 1) {
       const allData = await getAppData();
@@ -145,6 +168,18 @@ export function EditCategoryModal({
     } else if (customName.trim()) {
       const icon = customIcon && customIcon !== '__picker__' ? customIcon : DEFAULT_ICON;
       const customs = await getCustomCategories();
+      const nameLower = customName.trim().toLowerCase();
+      const duplicate = customs.find(c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId);
+      if (duplicate) {
+        setSaving(false);
+        setAlertConfig({
+          visible: true,
+          title: 'Nome já existe',
+          message: `Já existe uma categoria chamada "${customName.trim()}". Escolha um nome diferente.`,
+          buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+        });
+        return;
+      }
       const existing = customs.find(c => c.id === categoryId);
       if (existing) {
         await saveCustomCategories(customs.map(c =>
@@ -180,8 +215,10 @@ export function EditCategoryModal({
     });
   }, [selectedId, customName, customIcon, categoryId, page, reset, onSaved]);
 
-  // Aba Padrão: exclui a categoria atual (já está sendo usada)
-  const listItems = presetCategoriesAvailable.filter(c => c.id !== categoryId);
+  // Aba Padrão: exclui a categoria atual e qualquer categoria que já tem decks
+  const listItems = presetCategoriesAvailable.filter(c =>
+    c.id !== categoryId && !activeCatIds.has(c.id)
+  );
   const currentCatIonIcon = categoryId?.startsWith('custom_')
     ? (customCategoriesAvailable.find(c => c.id === categoryId)?.icon || null)
     : null;
@@ -197,9 +234,9 @@ export function EditCategoryModal({
     >
       <TouchableWithoutFeedback onPress={handleDismiss}>
         <Animated.View style={[s.overlay, { opacity: overlayOpacity }]}>
-          <NativeKeyboardAvoidingContainer style={s.nativeContainer}>
             <Animated.View style={[s.sheetWrap, { transform: [{ translateY: sheetTranslateY }] }]} pointerEvents="box-none">
             <TouchableWithoutFeedback>
+              <NativeKeyboardAvoidingContainer style={s.nativeContainer}>
             <View style={s.sheet}>
               {/* Handle */}
               <View style={s.handle} />
@@ -362,24 +399,31 @@ export function EditCategoryModal({
               </ScrollView>
 
               {/* Botão Salvar */}
-              <View style={s.footer}>
-                <TouchableOpacity
+              <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+                <Pressable
                   style={[s.saveBtn, !canSave && s.saveBtnDisabled]}
                   disabled={!canSave}
+                  onPressIn={() => { Keyboard.dismiss(); }}
                   onPress={handleSave}
-                  activeOpacity={0.85}
                 >
                   <Text style={[s.saveBtnText, !canSave && s.saveBtnTextDisabled]}>
                     Salvar
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               </View>
             </View>
+              </NativeKeyboardAvoidingContainer>
             </TouchableWithoutFeedback>
             </Animated.View>
-          </NativeKeyboardAvoidingContainer>
         </Animated.View>
       </TouchableWithoutFeedback>
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={() => setAlertConfig(p => ({ ...p, visible: false }))}
+      />
     </Modal>
   );
 }
@@ -388,9 +432,6 @@ const s = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  nativeContainer: {
-    ...StyleSheet.absoluteFillObject,
   },
   sheetWrap: {
     position: 'absolute',
@@ -404,6 +445,12 @@ const s = StyleSheet.create({
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
+  },
+  nativeContainer: {
+    flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
   },
   sheet: {
     flex: 1,
@@ -536,7 +583,7 @@ const s = StyleSheet.create({
   iconOptActive: { borderColor: theme.primary, backgroundColor: 'rgba(93,214,44,0.08)' },
 
   footer: {
-    paddingHorizontal: 18, paddingTop: 14, paddingBottom: 28,
+    paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8,
     borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
   },
   saveBtn: {

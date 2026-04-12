@@ -249,11 +249,23 @@ export const SubjectListScreen = ({ route, navigation }) => {
   // ── Add subject ───────────────────────────────────────────────────
 
   const handleAddSave = useCallback(async (name) => {
-    const newSubject = { id: `subject_${Date.now()}`, name, flashcards: [], isUserCreated: true };
+    const nameLower = name.trim().toLowerCase();
+    const duplicate = subjects.find(s => s.name?.trim().toLowerCase() === nameLower);
+    if (duplicate) {
+      setAlertConfig({
+        visible: true,
+        title: 'Nome já existe',
+        message: `Já existe uma matéria chamada "${name.trim()}" neste deck. Escolha um nome diferente.`,
+        buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+      });
+      return false;
+    }
+    const newSubject = { id: `subject_${Date.now()}`, name: name.trim(), flashcards: [], isUserCreated: true };
     const allData = await getAppData();
     await saveAppData(allData.map(d => d.id === deckId ? { ...d, subjects: [...(d.subjects || []), newSubject] } : d));
     setSubjects(prev => [...prev, newSubject]);
-  }, [deckId]);
+    return true;
+  }, [deckId, subjects]);
 
   // ── Selection ─────────────────────────────────────────────────────
 
@@ -315,6 +327,17 @@ export const SubjectListScreen = ({ route, navigation }) => {
   const handleRenameConfirm = useCallback(async () => {
     const newName = renameModal.text.trim();
     if (!newName || !renameModal.subject) return;
+    const nameLower = newName.toLowerCase();
+    const duplicate = subjects.find(s => s.name?.trim().toLowerCase() === nameLower && s.id !== renameModal.subject.id);
+    if (duplicate) {
+      setAlertConfig({
+        visible: true,
+        title: 'Nome já existe',
+        message: `Já existe uma matéria chamada "${newName}" neste deck. Escolha um nome diferente.`,
+        buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+      });
+      return;
+    }
     const allData = await getAppData();
     await saveAppData(allData.map(d => {
       if (d.id !== deckId) return d;
@@ -568,10 +591,12 @@ export const SubjectListScreen = ({ route, navigation }) => {
               const name = createText.trim();
               if (!name) return;
               setCreateSaving(true);
-              await handleAddSave(name);
+              const ok = await handleAddSave(name);
               setCreateSaving(false);
-              setCreateText('');
-              setIsCreating(false);
+              if (ok) {
+                setCreateText('');
+                setIsCreating(false);
+              }
             }}
             onClose={() => { setIsCreating(false); setCreateText(''); }}
           />

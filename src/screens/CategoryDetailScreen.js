@@ -360,7 +360,13 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
     const categoryDecks = allData.filter(d => !d.isExample && getDeckCatId(d) === categoryId);
     setDecks(categoryDecks);
     setAllCategories([...CONCURSO_CATEGORIES, ...customCats]);
-    setUsedCategoryIds(usedIds);
+    // Combina IDs do storage com IDs derivados dos decks existentes
+    const derivedIds = new Set(usedIds);
+    allData.filter(d => !d.isExample).forEach(d => {
+      if (d.category) derivedIds.add(d.category);
+    });
+    customCats.forEach(c => derivedIds.add(c.id));
+    setUsedCategoryIds(derivedIds);
     setLoading(false);
   }, [categoryId]);
 
@@ -531,7 +537,8 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
   const presetCategoriesAvailable = useMemo(() =>
     PRESET_CATEGORIES.filter(c =>
       c.id !== categoryId &&
-      !usedCategoryIds.has(c.id)
+      !usedCategoryIds.has(c.id) &&
+      c.id !== 'personalizados'
     ),
     [categoryId, usedCategoryIds]
   );

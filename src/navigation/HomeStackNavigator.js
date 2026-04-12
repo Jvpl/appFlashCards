@@ -58,6 +58,7 @@ export function HomeStackNavigator({navigation}) {
         component={DeckListScreen}
         options={{
           headerShown: false, // Custom header inside DeckListScreen
+          keyboardHandlingEnabled: false,
       }} />
       <HomeStack.Screen
         name="SubjectList"

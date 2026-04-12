@@ -6,9 +6,14 @@ import {
   InteractionManager, Modal, TouchableWithoutFeedback, StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { SvgXml } from 'react-native-svg';
+import {
+  administrativoIcon, educacaoIcon, fiscalIcon, justicaIcon,
+  militarIcon, operacionalIcon, saudeIcon, segurancaIcon,
+} from '../assets/svgIconPaths';
 
 import {
   getAppData, saveAppData, getPurchasedDecks, getDeckCache,
@@ -39,6 +44,31 @@ const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.25);
 // Subtrai metade do botão (~41px) + gap (6px) = ~47px
 const SORT_LINE_W = Math.round(CARD_WIDTH + GRID_GAP + CARD_WIDTH / 2 - 47);
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
+
+const CATEGORY_SVG_ICONS = {
+  administrativo: administrativoIcon, educacao: educacaoIcon,
+  fiscal: fiscalIcon, justica: justicaIcon, militar: militarIcon,
+  operacional: operacionalIcon, saude: saudeIcon, seguranca: segurancaIcon,
+};
+
+const buildIconSvg = (iconData) => {
+  if (!iconData) return null;
+  const paths = iconData.paths.filter(s => typeof s === 'string' && s.startsWith('M'));
+  if (!paths.length) return null;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${iconData.w} ${iconData.h}">${
+    paths.map(d => `<path fill="${theme.primary}" d="${d}"/>`).join('')
+  }</svg>`;
+};
+
+const CategorySearchIcon = ({ category, size = 17 }) => {
+  const iconData = CATEGORY_SVG_ICONS[category.id];
+  if (iconData) {
+    const svg = buildIconSvg(iconData);
+    if (svg) return <SvgXml xml={svg} width={size} height={size} />;
+  }
+  const ionIcon = category.isCustom ? (category.icon || 'folder-outline') : (category.icon || 'folder-outline');
+  return <Ionicons name={ionIcon} size={size} color={theme.primary} />;
+};
 
 
 
@@ -543,7 +573,9 @@ export const DeckListScreen = ({ navigation }) => {
     const drawerNav = navigation.getParent();
     if (!drawerNav) return;
     const unsubFocus = navigation.addListener('focus', () => drawerNav.setOptions({ swipeEnabled: true }));
-    const unsubBlur = navigation.addListener('blur', () => drawerNav.setOptions({ swipeEnabled: false }));
+    const unsubBlur = navigation.addListener('blur', () => {
+      drawerNav.setOptions({ swipeEnabled: false });
+    });
     return () => { unsubFocus(); unsubBlur(); };
   }, [navigation]);
 
@@ -752,7 +784,8 @@ export const DeckListScreen = ({ navigation }) => {
     const results = [];
     const addedDecks = new Set();
     const addedSubjects = new Set();
-    decks.forEach(deck => {
+    const addedCategories = new Set();
+    decks.filter(d => !d.isExample).forEach(deck => {
       if (deck.name?.toLowerCase().includes(term) && !addedDecks.has(deck.id)) {
         results.push({ type: 'deck', label: deck.name, sublabel: deck.category || 'Deck', deck });
         addedDecks.add(deck.id);
@@ -765,12 +798,23 @@ export const DeckListScreen = ({ navigation }) => {
         }
       });
     });
+    // Categorias padrão
     CONCURSO_CATEGORIES.forEach(cat => {
-      if (cat.name.toLowerCase().includes(term))
-        results.push({ type: 'category', label: cat.name, sublabel: 'Categoria', category: cat });
+      if (cat.id === 'personalizados') return;
+      if (cat.name.toLowerCase().includes(term) && usedCategoryIds.has(cat.id) && !addedCategories.has(cat.id)) {
+        results.push({ type: 'category', label: cat.name, sublabel: 'Categoria padrão', category: cat });
+        addedCategories.add(cat.id);
+      }
+    });
+    // Categorias customizadas
+    customCats.forEach(cat => {
+      if (cat.name.toLowerCase().includes(term) && !addedCategories.has(cat.id)) {
+        results.push({ type: 'category', label: cat.name, sublabel: 'Categoria personalizada', category: cat });
+        addedCategories.add(cat.id);
+      }
     });
     return results.slice(0, 15);
-  }, [decks, searchTerm]);
+  }, [decks, searchTerm, customCats, usedCategoryIds]);
 
   // ── Handlers ─────────────────────────────
 
@@ -1084,15 +1128,31 @@ export const DeckListScreen = ({ navigation }) => {
             <TouchableOpacity
               key={`${item.type}-${index}`}
               style={s.searchResultItem}
-              onPress={() => { setSearchTerm(''); if (item.type === 'deck' || item.type === 'subject') handleDeckPress(item.deck); }}
+              onPress={() => {
+                if (item.type === 'deck' || item.type === 'subject') {
+                  handleDeckPress(item.deck);
+                } else if (item.type === 'category') {
+                  navigation.navigate('CategoryDetail', {
+                    categoryId: item.category.id,
+                    categoryName: item.category.name,
+                    categoryIcon: item.category.icon,
+                  });
+                  // Limpa após a transição de fade começar (2 frames)
+                  requestAnimationFrame(() => requestAnimationFrame(() => setSearchTerm('')));
+                }
+              }}
               activeOpacity={0.7}
             >
               <View style={s.searchResultIcon}>
-                <Ionicons
-                  name={item.type === 'subject' ? 'book-outline' : item.type === 'category' ? item.category.icon : 'layers-outline'}
-                  size={17}
-                  color={theme.primary}
-                />
+                {item.type === 'category' ? (
+                  <CategorySearchIcon category={item.category} size={22} />
+                ) : (
+                  <Ionicons
+                    name={item.type === 'subject' ? 'book-outline' : 'layers-outline'}
+                    size={17}
+                    color={theme.primary}
+                  />
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.searchResultLabel} numberOfLines={1}>{item.label}</Text>
