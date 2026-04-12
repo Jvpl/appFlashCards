@@ -55,6 +55,12 @@ const SORT_OPTIONS = [
 ];
 const SORT_LABELS = Object.fromEntries(SORT_OPTIONS.map(o => [o.key, o.label]));
 
+const CAT_SORT_LABELS = {
+  az: 'A–Z', za: 'Z–A',
+  more: 'Mais decks', less: 'Menos decks',
+  preset: 'Padrão', custom: 'Personalizada',
+};
+
 const SUBJECT_SORT_OPTIONS = [
   { key: 'az',     label: 'A–Z',           icon: 'arrow-up-outline' },
   { key: 'za',     label: 'Z–A',           icon: 'arrow-down-outline' },
@@ -490,6 +496,9 @@ export const DeckListScreen = ({ navigation }) => {
         setCustomCats(customs);
         setUsedCategoryIds(new Set(stored));
         setUsedCategoryOrder([...stored]);
+        // Se há decks agora, garante que a aba ativa seja decks
+        const hasDecks = _cachedDecks.filter(d => !d.isExample).length > 0;
+        if (hasDecks) setActiveTab(prev => prev === 'categorias' ? 'decks' : prev);
       });
     } catch (error) {
       console.error('Error loading decks:', error);
@@ -606,8 +615,9 @@ export const DeckListScreen = ({ navigation }) => {
   const isFirstAccess = useMemo(() =>
     userDecks.filter(d => !d.isExample).length === 0 &&
     purchasedDecks.length === 0 &&
+    usedCategoryIds.size === 0 &&
     !exampleDismissed,
-  [userDecks, purchasedDecks, exampleDismissed]);
+  [userDecks, purchasedDecks, usedCategoryIds, exampleDismissed]);
 
   // Categorias que têm pelo menos 1 deck (agrupa TODOS os decks pelo campo category)
   // Categorias com 0 decks mas que já foram usadas aparecem como "vazio"
@@ -1040,28 +1050,30 @@ export const DeckListScreen = ({ navigation }) => {
         insetTop={insets.top}
       />
 
-      <View style={s.searchBarWrapper}>
-        <View style={[s.searchBar, searchFocused && s.searchBarFocused]}>
-          <Ionicons name="search" size={17} color={isSearching ? theme.primary : theme.textMuted} style={{ marginRight: 8 }} />
-          <TextInput
-            ref={searchRef}
-            style={s.searchInput}
-            placeholder="Buscar decks, matérias ou categorias..."
-            placeholderTextColor={theme.textMuted}
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            returnKeyType="search"
-            autoCorrect={false}
-          />
-          {isSearching && (
-            <TouchableOpacity onPress={() => setSearchTerm('')} hitSlop={HIT_SLOP}>
-              <Ionicons name="close-circle" size={17} color={theme.textMuted} />
-            </TouchableOpacity>
-          )}
+      {(userDecks.filter(d => !d.isExample).length > 0 || purchasedDecks.length > 0) && (
+        <View style={s.searchBarWrapper}>
+          <View style={[s.searchBar, searchFocused && s.searchBarFocused]}>
+            <Ionicons name="search" size={17} color={isSearching ? theme.primary : theme.textMuted} style={{ marginRight: 8 }} />
+            <TextInput
+              ref={searchRef}
+              style={s.searchInput}
+              placeholder="Buscar decks, matérias ou categorias..."
+              placeholderTextColor={theme.textMuted}
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              returnKeyType="search"
+              autoCorrect={false}
+            />
+            {isSearching && (
+              <TouchableOpacity onPress={() => setSearchTerm('')} hitSlop={HIT_SLOP}>
+                <Ionicons name="close-circle" size={17} color={theme.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
       {isSearching ? (
         /* ── Busca ── */
@@ -1178,6 +1190,24 @@ export const DeckListScreen = ({ navigation }) => {
       ) : (
         /* ── Com conteúdo ── */
         <ScrollView style={{ flex: 1 }} contentContainerStyle={s.mainContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+          {/* Card de exemplo — aparece enquanto não houver nenhum deck criado */}
+          {userDecks.filter(d => !d.isExample).length === 0 && purchasedDecks.length === 0 && (
+            <TouchableOpacity
+              style={[s.exampleCard, { marginHorizontal: GRID_PADDING, marginTop: 12 }]}
+              onPress={() => exampleDeck && handleDeckPress(exampleDeck)}
+              activeOpacity={0.85}
+            >
+              <View style={s.exampleCardLabel}>
+                <Text style={s.exampleCardLabelText}>DECK DE EXEMPLO</Text>
+              </View>
+              <Text style={s.exampleCardTitle}>Como funciona o app?</Text>
+              <Text style={s.exampleCardSub}>Toque para ver seus primeiros flashcards e entender o sistema de revisão espaçada</Text>
+              <View style={s.exampleCardBtn}>
+                <Text style={s.exampleCardBtnText}>Explorar exemplo →</Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
           {/* 1. RECENTES */}
           {recentDecksLimited.length > 0 && (
@@ -1300,7 +1330,7 @@ export const DeckListScreen = ({ navigation }) => {
                           color={catSortOrder ? theme.primary : theme.textMuted}
                         />
                         <Text style={[s.deckMetaBtnTxt, catSortOrder && s.deckMetaBtnTxtActive]}>
-                          {catSortOrder ? SORT_LABELS[catSortOrder] : 'Ordenar'}
+                          {catSortOrder ? CAT_SORT_LABELS[catSortOrder] : 'Ordenar'}
                         </Text>
                       </TouchableOpacity>
                       <View style={[s.deckMetaLine, { width: GRID_PADDING + 24 }]} />
@@ -1341,9 +1371,7 @@ export const DeckListScreen = ({ navigation }) => {
                   <View style={s.emptyTab}>
                     <Ionicons name="layers-outline" size={36} color={theme.backgroundTertiary} />
                     <Text style={s.emptyTabText}>Nenhum deck ainda.</Text>
-                    <TouchableOpacity style={s.emptyTabAction} onPress={() => navigation.navigate('Loja')}>
-                      <Text style={s.emptyTabActionText}>Ver na loja</Text>
-                    </TouchableOpacity>
+                    <Text style={s.emptyTabSub}>Crie um deck e adicione matérias para começar.</Text>
                   </View>
                 );
               }
