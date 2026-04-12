@@ -97,7 +97,11 @@ const CategorySvgCard = ({
   const subjectCount = countSubjects(decks);
   const hasDeck      = deckCount > 0;
   const svgXml       = hasDeck ? CARD_FULL_SVG : CARD_EMPTY_SVG;
-  const iconSvg      = useMemo(() => buildIconSvg(CATEGORY_ICONS[category.id]), [category.id]);
+  // Categorias customizadas usam Ionicons — não tenta carregar SVG pra elas
+  const iconSvg      = useMemo(
+    () => category.isCustom ? null : buildIconSvg(CATEGORY_ICONS[category.id]),
+    [category.id, category.isCustom],
+  );
   // Para categorias customizadas: icon é uma string Ionicons (ex: 'folder-outline')
   const customIconName = !iconSvg && category.icon && typeof category.icon === 'string' ? category.icon : null;
 
