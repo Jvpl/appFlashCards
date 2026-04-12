@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { unstable_batchedUpdates } from 'react-native';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   TextInput, ScrollView, BackHandler, Dimensions,
@@ -412,6 +413,7 @@ export const DeckListScreen = ({ navigation }) => {
   const [activeCategoryId, setActiveCategoryId] = useState(null);
   const [exampleDismissed, setExampleDismissed] = useState(false);
   const [usedCategoryIds, setUsedCategoryIds] = useState(new Set());
+  const [usedCategoryOrder, setUsedCategoryOrder] = useState([]); // ordem de inserção
   const [customCats, setCustomCats] = useState([]);
   // Novos estados para o redesign
   const [activeTab, setActiveTab] = useState('decks');          // 'categorias' | 'decks' | 'materias'
@@ -458,15 +460,12 @@ export const DeckListScreen = ({ navigation }) => {
       );
       await minDelay;
       _cachedDecks = [...userDecks, ...purchasedDecks.filter(Boolean)];
-      setDecks(_cachedDecks);
       const allowEditing = await canEditDefaultDecks();
-      setAllowDefaultDeckEditing(allowEditing);
-      // Carrega categorias customizadas
-      try {
-        const customs = await getCustomCategories();
-        setCustomCats(customs);
-      } catch (_) {}
-      // Rastrear categorias que já tiveram decks (para manter estado vazio)
+
+      // Carrega customCats e usedCategoryIds em paralelo
+      let customs = [];
+      let stored = new Set();
+      try { customs = await getCustomCategories(); } catch (_) {}
       try {
         const activeCatIds = new Set(
           _cachedDecks
@@ -479,11 +478,19 @@ export const DeckListScreen = ({ navigation }) => {
               return 'personalizados';
             })
         );
-        const stored = await getUsedCategoryIds();
+        stored = await getUsedCategoryIds();
         activeCatIds.forEach(id => stored.add(id));
         await saveUsedCategoryIds(stored);
-        setUsedCategoryIds(new Set(stored));
       } catch (_) {}
+
+      // Todos os setState juntos — evita re-renders intermediários
+      unstable_batchedUpdates(() => {
+        setDecks(_cachedDecks);
+        setAllowDefaultDeckEditing(allowEditing);
+        setCustomCats(customs);
+        setUsedCategoryIds(new Set(stored));
+        setUsedCategoryOrder([...stored]);
+      });
     } catch (error) {
       console.error('Error loading decks:', error);
     } finally {
@@ -612,33 +619,40 @@ export const DeckListScreen = ({ navigation }) => {
       if (!catMap[catId]) catMap[catId] = [];
       catMap[catId].push(deck);
     });
+
+    // Lookup rápido por id
+    const presetById = Object.fromEntries(CONCURSO_CATEGORIES.map(c => [c.id, c]));
+    const customById = Object.fromEntries(customCats.map(c => [c.id, c]));
+
     const result = [];
-    // Categorias de concurso na ordem definida
-    CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados').forEach(cat => {
-      if (catMap[cat.id]?.length > 0) {
-        result.push({ category: cat, decks: catMap[cat.id] });
-      } else if (usedCategoryIds.has(cat.id)) {
-        result.push({ category: cat, decks: [] }); // estado vazio
-      }
-    });
-    // Categorias customizadas
-    customCats.forEach(cat => {
-      if (catMap[cat.id]?.length > 0) {
-        result.push({ category: cat, decks: catMap[cat.id] });
-      } else if (usedCategoryIds.has(cat.id)) {
-        result.push({ category: cat, decks: [] });
-      }
-    });
-    // "Meus estudos" por último
-    if (catMap['personalizados']?.length > 0) {
-      const meusEstudos = CONCURSO_CATEGORIES.find(c => c.id === 'personalizados');
-      result.push({ category: meusEstudos, decks: catMap['personalizados'] });
-    } else if (usedCategoryIds.has('personalizados')) {
-      const meusEstudos = CONCURSO_CATEGORIES.find(c => c.id === 'personalizados');
-      result.push({ category: meusEstudos, decks: [] });
+    const seen = new Set();
+
+    // Respeita a ordem de inserção (usedCategoryOrder), exceto "personalizados" que vai por último
+    for (const id of usedCategoryOrder) {
+      if (id === 'personalizados' || seen.has(id)) continue;
+      seen.add(id);
+      const cat = presetById[id] || customById[id];
+      if (!cat) continue;
+      result.push({ category: cat, decks: catMap[id] || [] });
     }
+
+    // Categorias com decks que ainda não estão no usedCategoryOrder (edge case)
+    for (const id of Object.keys(catMap)) {
+      if (id === 'personalizados' || seen.has(id)) continue;
+      seen.add(id);
+      const cat = presetById[id] || customById[id];
+      if (!cat) continue;
+      result.push({ category: cat, decks: catMap[id] });
+    }
+
+    // "Meus estudos" sempre por último
+    if (catMap['personalizados']?.length > 0 || usedCategoryIds.has('personalizados')) {
+      const meusEstudos = presetById['personalizados'];
+      if (meusEstudos) result.push({ category: meusEstudos, decks: catMap['personalizados'] || [] });
+    }
+
     return result;
-  }, [decks, getDeckCatId, usedCategoryIds, customCats]);
+  }, [decks, getDeckCatId, usedCategoryIds, usedCategoryOrder, customCats]);
 
   // Flat list de matérias de todos os decks (exceto deck de exemplo)
   const allSubjects = useMemo(() => {
@@ -1713,9 +1727,9 @@ export const DeckListScreen = ({ navigation }) => {
         presetCategoriesAvailable={CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados')}
         customCategoriesAvailable={customCats}
         onDismiss={() => setEditCatModal({ visible: false, item: null })}
-        onSaved={() => {
+        onSaved={async () => {
+          await loadData();
           setEditCatModal({ visible: false, item: null });
-          loadData();
         }}
       />
 
