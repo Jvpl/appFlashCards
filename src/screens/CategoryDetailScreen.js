@@ -130,7 +130,8 @@ const CATEGORY_SVG_ICONS = {
 };
 
 /** Ícone com glow verde para listas (usando Skia, igual ao home screen) */
-const CategoryIconGlow = ({ categoryId, size = 22 }) => {
+const CategoryIconGlow = ({ categoryId, ionIcon, size = 22 }) => {
+  if (ionIcon) return <Ionicons name={ionIcon} size={size} color={theme.primary} />;
   const iconData = CATEGORY_SVG_ICONS[categoryId];
   if (!iconData) return <Ionicons name="folder-outline" size={size} color={theme.primary} />;
   return <GlowIcon iconData={iconData} size={size} color={theme.primary} glowBlur={5} />;
@@ -299,6 +300,7 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
   // Modais
   const [contextMenu, setContextMenu] = useState({ visible: false, type: '', item: null, x: 0, y: 0 });
   const [moveModal, setMoveModal] = useState({ visible: false, deckIds: [] });
+  const [moveFilter, setMoveFilter] = useState('all'); // 'all' | 'preset' | 'custom'
   const [renameModal, setRenameModal] = useState({ visible: false, type: '', item: null, text: '' });
   // createCatModal: mode='preset'|'custom'
   const [createCatModal, setCreateCatModal] = useState({ visible: false, mode: 'preset', name: '', icon: 'folder-outline', pendingDeckIds: [] });
@@ -754,7 +756,7 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={s.selectBarBtn}
               hitSlop={HIT_SLOP}
-              onPress={() => setMoveModal({ visible: true, deckIds: [...selectedIds] })}
+              onPress={() => { setMoveModal({ visible: true, deckIds: [...selectedIds] }); setMoveFilter('all'); }}
             >
               <Ionicons name="swap-horizontal-outline" size={18} color={theme.primary} />
               <Text style={[s.selectBarBtnTxt, { color: theme.primary }]}>Mover para...</Text>
@@ -890,6 +892,7 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
                         onPress={() => {
                           setContextMenu(p => ({ ...p, visible: false }));
                           setMoveModal({ visible: true, deckIds: [contextMenu.item.id] });
+                          setMoveFilter('all');
                         }}
                       >
                         <Ionicons name="swap-horizontal-outline" size={16} color={theme.primary} />
@@ -933,42 +936,81 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
             <TouchableWithoutFeedback>
               <Animated.View style={[mv.sheet, { transform: [{ translateY: moveModalAnim.sheetTranslateY }] }]}>
                 <View style={mv.handle} />
-                <Text style={mv.title}>Mover para categoria</Text>
-                <Text style={mv.sub}>
-                  {moveModal.deckIds.length} deck{moveModal.deckIds.length !== 1 ? 's' : ''} selecionado{moveModal.deckIds.length !== 1 ? 's' : ''}
-                </Text>
 
-                <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
-                  {/* Categorias existentes (usedCategoryIds), exceto a atual */}
+                {/* Header */}
+                <View style={mv.header}>
+                  <View style={mv.headerIconWrap}>
+                    <CategoryIconGlow
+                      categoryId={categoryId}
+                      ionIcon={category?.isCustom ? (category.icon || null) : null}
+                      size={18}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={mv.title}>Mover para categoria</Text>
+                    <Text style={mv.sub} numberOfLines={1}>
+                      {moveModal.deckIds.length} deck{moveModal.deckIds.length !== 1 ? 's' : ''} de <Text style={mv.subBold}>{categoryName}</Text>
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={mv.divider} />
+
+                {/* Filtros */}
+                <View style={mv.filterRow}>
+                  {[{ key: 'all', label: 'Todas' }, { key: 'preset', label: 'Padrão' }, { key: 'custom', label: 'Personalizada' }].map(f => (
+                    <TouchableOpacity
+                      key={f.key}
+                      style={[mv.filterBtn, moveFilter === f.key && mv.filterBtnActive]}
+                      onPress={() => setMoveFilter(f.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[mv.filterTxt, moveFilter === f.key && mv.filterTxtActive]}>{f.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Lista */}
+                <ScrollView
+                  style={mv.listScroll}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={mv.listContent}
+                >
                   {allCategories
-                    .filter(c => c.id !== categoryId && c.id !== 'personalizados' && (usedCategoryIds.has(c.id) || c.isCustom))
-                    .map(cat => (
+                    .filter(c => {
+                      if (c.id === categoryId || c.id === 'personalizados') return false;
+                      if (!usedCategoryIds.has(c.id) && !c.isCustom) return false;
+                      if (moveFilter === 'preset') return !c.isCustom;
+                      if (moveFilter === 'custom') return !!c.isCustom;
+                      return true;
+                    })
+                    .map((cat, index, arr) => (
                       <TouchableOpacity
                         key={cat.id}
-                        style={mv.option}
+                        style={[mv.option, index === arr.length - 1 && { borderBottomWidth: 0 }]}
                         onPress={() => handleMoveDecks(cat.id)}
+                        activeOpacity={0.75}
                       >
                         <View style={mv.iconWrap}>
-                          <CategoryIconGlow categoryId={cat.id} size={20} />
+                          <CategoryIconGlow categoryId={cat.id} ionIcon={cat.isCustom ? (cat.icon || null) : null} size={20} />
                         </View>
-                        <Text style={mv.optionLabel}>{cat.name}</Text>
-                        <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+                        <Text style={mv.optionLabel} numberOfLines={1}>{cat.name}</Text>
+                        <Ionicons name="chevron-forward" size={15} color={theme.textMuted} />
                       </TouchableOpacity>
                     ))
                   }
-
-                  {/* Meus estudos */}
-                  {categoryId !== 'personalizados' && usedCategoryIds.has('personalizados') && (
-                    <TouchableOpacity
-                      style={mv.option}
-                      onPress={() => handleMoveDecks('personalizados')}
-                    >
-                      <View style={mv.iconWrap}>
-                        <Ionicons name="albums-outline" size={20} color={theme.textMuted} />
-                      </View>
-                      <Text style={mv.optionLabel}>Meus estudos</Text>
-                      <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
-                    </TouchableOpacity>
+                  {allCategories.filter(c => {
+                    if (c.id === categoryId || c.id === 'personalizados') return false;
+                    if (!usedCategoryIds.has(c.id) && !c.isCustom) return false;
+                    if (moveFilter === 'preset') return !c.isCustom;
+                    if (moveFilter === 'custom') return !!c.isCustom;
+                    return true;
+                  }).length === 0 && (
+                    <View style={mv.empty}>
+                      <Ionicons name="folder-open-outline" size={22} color={theme.textMuted} />
+                      <Text style={mv.emptyTxt}>Nenhuma categoria disponível.</Text>
+                    </View>
                   )}
                 </ScrollView>
               </Animated.View>
@@ -1735,16 +1777,68 @@ const ctx = StyleSheet.create({
 const mv = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
   sheet: {
-    backgroundColor: theme.backgroundSecondary,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 12,
+    backgroundColor: '#141414',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    paddingTop: 0,
     paddingBottom: 32,
+    maxHeight: '75%',
   },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: theme.backgroundTertiary, alignSelf: 'center', marginBottom: 16 },
-  title: { fontFamily: theme.fontFamily.headingSemiBold, fontSize: 17, color: theme.textPrimary, marginBottom: 4 },
-  sub: { fontFamily: theme.fontFamily.ui, fontSize: 13, color: theme.textMuted, marginBottom: 16 },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginTop: 8, marginBottom: 12 },
+
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingBottom: 12 },
+  headerIconWrap: {
+    width: 38, height: 38, borderRadius: 10,
+    backgroundColor: 'rgba(93,214,44,0.08)',
+    borderWidth: 1, borderColor: 'rgba(93,214,44,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  title: { fontFamily: theme.fontFamily.headingSemiBold, fontSize: 14, color: theme.textPrimary },
+  sub: { fontFamily: theme.fontFamily.ui, fontSize: 12, color: theme.textMuted, marginTop: 1 },
+  subBold: { fontFamily: theme.fontFamily.uiSemiBold, color: theme.textSecondary },
+
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)' },
+
+  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 18, paddingVertical: 10 },
+  filterBtn: {
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  filterBtnActive: { backgroundColor: 'rgba(93,214,44,0.1)', borderColor: 'rgba(93,214,44,0.35)' },
+  filterTxt: { fontFamily: theme.fontFamily.uiSemiBold, fontSize: 12, color: theme.textMuted },
+  filterTxtActive: { color: theme.primary },
+
+  listScroll: { flex: 0 },
+  listContent: {
+    marginHorizontal: 18,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderRadius: 16,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',
+    overflow: 'hidden',
+  },
+  option: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 13, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  iconWrap: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: 'transparent',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  optionLabel: { flex: 1, fontFamily: theme.fontFamily.uiMedium, fontSize: 14, color: theme.textPrimary },
+
+  empty: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 20, paddingHorizontal: 14,
+  },
+  emptyTxt: { color: theme.textMuted, fontSize: 13, fontFamily: theme.fontFamily.uiMedium },
+
+  // Mantidos para o modal de criar categoria que também usa mv
   createOption: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 14, paddingHorizontal: 4,
@@ -1756,12 +1850,6 @@ const mv = StyleSheet.create({
   },
   createLabel: { fontFamily: theme.fontFamily.uiSemiBold, fontSize: 15, color: theme.primary },
   separator: { height: 1, backgroundColor: theme.backgroundTertiary, marginVertical: 8 },
-  option: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 12, paddingHorizontal: 4,
-  },
-  iconWrap: { width: 38, height: 38, borderRadius: 10, backgroundColor: theme.backgroundTertiary, alignItems: 'center', justifyContent: 'center' },
-  optionLabel: { flex: 1, fontFamily: theme.fontFamily.uiMedium, fontSize: 15, color: theme.textPrimary },
 });
 
 // Edit category modal — sheet posicionado absolutamente, sobe com teclado
