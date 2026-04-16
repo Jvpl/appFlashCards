@@ -35,7 +35,7 @@ import {
 import { getAppData, saveAppData, getUsedCategoryIds, saveUsedCategoryIds } from '../../services/storage';
 import { NativeKeyboardAvoidingContainer } from '../../native/NativeKeyboardAvoidingContainer';
 
-const { width: SW } = Dimensions.get('window');
+const { width: SW, height: SH } = Dimensions.get('window');
 
 const CATEGORY_SVG_ICONS = {
   administrativo: administrativoIcon,
@@ -95,6 +95,8 @@ export function EditCategoryModal({
   // TouchTargetHelper usa child.matrix para hit-test → sempre correto.
   const entryTranslateY = useSharedValue(500);
   const kbTranslateY = useSharedValue(0);
+  // Dois transforms separados: entryTranslateY via withTiming (JS thread),
+  // kbTranslateY aplicado direto na UI thread pelo Reanimated sem passar pelo JS.
   const sheetAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: entryTranslateY.value + kbTranslateY.value }],
   }));
@@ -194,7 +196,20 @@ export function EditCategoryModal({
     } else if (customName.trim()) {
       const icon = customIcon && customIcon !== '__picker__' ? customIcon : DEFAULT_ICON;
       const customs = await getCustomCategories();
-      const nameLower = customName.trim().toLowerCase();
+      const nameTrimmed = customName.trim();
+      const nameLower = nameTrimmed.toLowerCase();
+
+      // Se o nome digitado é idêntico (case-sensitive) ao nome da categoria atual, não faz nada
+      if (nameTrimmed === categoryName) {
+        setSaving(false);
+        // Fecha sem salvar — não há mudança real
+        entryTranslateY.value = withTiming(500, { duration: 260 });
+        Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => {
+          if (finished) { kbTranslateY.value = 0; reset(); onDismiss(); }
+        });
+        return;
+      }
+
       const duplicateInCustom = customs.find(c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId);
       const duplicateInPreset = presetCategoriesAvailable.find(c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId);
       if (duplicateInCustom || duplicateInPreset) {
@@ -202,7 +217,7 @@ export function EditCategoryModal({
         setAlertConfig({
           visible: true,
           title: 'Nome já existe',
-          message: `Já existe uma categoria chamada "${customName.trim()}". Escolha um nome diferente.`,
+          message: `Já existe uma categoria chamada "${nameTrimmed}". Escolha um nome diferente.`,
           buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
         });
         return;
@@ -210,12 +225,12 @@ export function EditCategoryModal({
       const existing = customs.find(c => c.id === categoryId);
       if (existing) {
         await saveCustomCategories(customs.map(c =>
-          c.id === categoryId ? { ...c, name: customName.trim(), icon } : c
+          c.id === categoryId ? { ...c, name: nameTrimmed, icon } : c
         ));
       } else {
         const newId = `custom_${Date.now()}`;
         await saveCustomCategories([...customs, {
-          id: newId, name: customName.trim(), icon,
+          id: newId, name: nameTrimmed, icon,
           color: theme.primary, keywords: [], isCustom: true,
         }]);
         const allData = await getAppData();
@@ -259,21 +274,21 @@ export function EditCategoryModal({
       onRequestClose={handleDismiss}
       statusBarTranslucent
     >
-      {/* Container principal — box-none para não interceptar toques na área vazia */}
-      <NativeKeyboardAvoidingContainer style={StyleSheet.absoluteFillObject} pointerEvents="box-none" onKeyboardSettle={handleKeyboardSettle}>
-        {/* Overlay dentro do container — fecha ao tocar fora do sheet */}
-        <TouchableWithoutFeedback onPress={handleDismiss}>
-          <Animated.View style={[StyleSheet.absoluteFillObject, s.overlayBg, { opacity: overlayOpacity }]} />
-        </TouchableWithoutFeedback>
+      {/* Container mínimo só para capturar onKeyboardSettle — sem filhos pesados */}
+      <NativeKeyboardAvoidingContainer style={StyleSheet.absoluteFillObject} pointerEvents="none" onKeyboardSettle={handleKeyboardSettle} />
 
-        {/* Sheet animado via Reanimated — shadow tree sincronizado, hit-test correto */}
-        {/* onStartShouldSetResponder=true: sheet consome o toque, overlay não recebe, teclado não fecha */}
-        <Reanimated.View
-          style={[s.sheetWrap, sheetAnimStyle, !sheetReady && { opacity: 0 }]}
-          onStartShouldSetResponder={() => true}
-          onResponderGrant={() => {}}
-          onResponderRelease={() => {}}
-        >
+      {/* Overlay — fecha ao tocar fora do sheet */}
+      <TouchableWithoutFeedback onPress={handleDismiss}>
+        <Animated.View style={[StyleSheet.absoluteFillObject, s.overlayBg, { opacity: overlayOpacity }]} />
+      </TouchableWithoutFeedback>
+
+      {/* Sheet animado via Reanimated */}
+      <Reanimated.View
+        style={[s.sheetWrap, sheetAnimStyle, !sheetReady && { opacity: 0 }]}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={() => {}}
+        onResponderRelease={() => {}}
+      >
         <View style={s.sheet}>
               {/* Handle */}
               <View style={s.handle} />
@@ -451,8 +466,8 @@ export function EditCategoryModal({
                 </Pressable>
               </View>
             </View>
-        </Reanimated.View>
-      </NativeKeyboardAvoidingContainer>
+      </Reanimated.View>
+
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -473,7 +488,7 @@ const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '50%',
+    height: Math.round(SH * 0.5),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
