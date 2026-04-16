@@ -16,6 +16,9 @@ import {
   ScrollView, TextInput, Dimensions, TouchableWithoutFeedback,
   Animated,
 } from 'react-native';
+import Reanimated, {
+  useSharedValue, useAnimatedStyle, withTiming,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -71,6 +74,7 @@ export function EditCategoryModal({
 }) {
   const insets = useSafeAreaInsets();
   const [page, setPage] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   const [selectedId, setSelectedId] = useState(null);
   const [customName, setCustomName] = useState('');
@@ -78,15 +82,22 @@ export function EditCategoryModal({
   const [iconGroup, setIconGroup] = useState(0);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
   const [activeCatIds, setActiveCatIds] = useState(new Set());
+  // sheetReady: false até onShow disparar — sheet fica com opacity:0 para não piscar
+  const [sheetReady, setSheetReady] = useState(false);
   const pageScrollRef = useRef(null);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const exitAnim = useRef(null);
-  // Guarda a altura atual do teclado (em dp) para corrigir o hit-test do overlay.
-  // O NativeKeyboardAvoidingContainer usa translationY nativo (native driver),
-  // e o RN usa bounds de layout originais para hit-test — sem essa correção,
-  // toques na área visual do sheet (que subiu) chegam no overlay e fecham o modal.
-  const kbHeightRef = useRef(0);
+  const isDismissing = useRef(false);
+
+  // Reanimated shared values para o sheet — shadow tree sincronizado via JSI.
+  // entryTranslateY: animação de entrada/saída do sheet
+  // kbTranslateY: movimento do teclado frame a frame via onKeyboardSettle
+  // TouchTargetHelper usa child.matrix para hit-test → sempre correto.
+  const entryTranslateY = useSharedValue(500);
+  const kbTranslateY = useSharedValue(0);
+  const sheetAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: entryTranslateY.value + kbTranslateY.value }],
+  }));
 
   // Carrega IDs de todas as categorias que já têm decks ao abrir
   useEffect(() => {
@@ -111,16 +122,24 @@ export function EditCategoryModal({
     }
   }, [visible, categoryId, customCategoriesAvailable]);
 
+  // Recebe altura do teclado frame a frame do Kotlin (onProgress).
+  // withTiming(duration:0) = instantâneo mas via JSI — shadow tree atualizado corretamente.
+  // Ignora eventos durante o fechamento para não interferir na animação de saída.
+  const handleKeyboardSettle = useCallback((e) => {
+    if (isDismissing.current) return;
+    const h = e.nativeEvent?.height ?? 0;
+    kbTranslateY.value = withTiming(-h, { duration: 0 });
+  }, [kbTranslateY]);
+
   const handleShow = useCallback(() => {
-    exitAnim.current?.stop();
-    sheetTranslateY.setValue(0);
+    setSheetReady(true);
+    kbTranslateY.value = 0;
+    entryTranslateY.value = withTiming(0, { duration: 320 });
     Animated.timing(overlayOpacity, { toValue: 1, duration: 280, useNativeDriver: true }).start();
-  }, []);
+  }, [entryTranslateY, kbTranslateY]);
 
   useEffect(() => {
-    if (!visible) {
-      overlayOpacity.setValue(0);
-    } else {
+    if (visible) {
       setAlertConfig({ visible: false, title: '', message: '', buttons: [] });
     }
   }, [visible]);
@@ -136,21 +155,23 @@ export function EditCategoryModal({
   }, []);
 
   const handleDismiss = useCallback(() => {
-    exitAnim.current = Animated.parallel([
-      Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }),
-      Animated.timing(sheetTranslateY, { toValue: 500, duration: 260, useNativeDriver: true }),
-    ]);
-    exitAnim.current.start(({ finished }) => {
+    if (isDismissing.current) return;
+    isDismissing.current = true;
+    Keyboard.dismiss();
+    // Congela kbTranslateY para o teclado descendo não interferir na animação de saída
+    kbTranslateY.value = kbTranslateY.value;
+    entryTranslateY.value = withTiming(500, { duration: 260 });
+    Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => {
       if (finished) {
-        sheetTranslateY.setValue(0);
+        // Mantém em 500 (fora da tela) — não volta para 0 para não piscar
+        kbTranslateY.value = 0;
+        isDismissing.current = false;
+        setSheetReady(false);
         reset();
         onDismiss();
       }
     });
-  }, [reset, onDismiss]);
-
-  const [saving, setSaving] = useState(false);
-  const canSave = (!!selectedId || (page === 1 && !!customName.trim())) && !saving;
+  }, [entryTranslateY, kbTranslateY, reset, onDismiss]);
 
   const handleSave = useCallback(async () => {
     if (saving) return;
@@ -208,18 +229,18 @@ export function EditCategoryModal({
         await saveUsedCategoryIds(usedIds);
       }
     }
-    exitAnim.current = Animated.parallel([
-      Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }),
-      Animated.timing(sheetTranslateY, { toValue: 500, duration: 260, useNativeDriver: true }),
-    ]);
-    exitAnim.current.start(({ finished }) => {
+    entryTranslateY.value = withTiming(500, { duration: 260 });
+    Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => {
       if (finished) {
-        sheetTranslateY.setValue(0);
+        // Mantém em 500 — não volta para 0 para não piscar antes do Modal sumir
+        kbTranslateY.value = 0;
         reset();
         onSaved?.();
       }
     });
-  }, [selectedId, customName, customIcon, categoryId, page, reset, onSaved]);
+  }, [selectedId, customName, customIcon, categoryId, page, entryTranslateY, kbTranslateY, reset, onSaved]);
+
+  const canSave = (!!selectedId || (page === 1 && !!customName.trim())) && !saving;
 
   // Aba Padrão: exclui a categoria atual e qualquer categoria que já tem decks
   const listItems = presetCategoriesAvailable.filter(c =>
@@ -238,27 +259,22 @@ export function EditCategoryModal({
       onRequestClose={handleDismiss}
       statusBarTranslucent
     >
-      <TouchableWithoutFeedback
-        onPress={(e) => {
-          // O NativeKeyboardAvoidingContainer translada o sheet via translationY nativo.
-          // O sistema de toque do RN usa bounds de layout originais (sem a translação),
-          // então toques na área visual do sheet chegam aqui. Só dispara handleDismiss
-          // se o toque realmente for acima do sheet visual (i.e., na área de overlay).
-          const touchY = e.nativeEvent.pageY;
-          const screenH = Dimensions.get('window').height;
-          // Sheet visual começa em 50% da tela menos a altura do teclado.
-          const sheetVisualTop = screenH * 0.5 - kbHeightRef.current;
-          if (touchY < sheetVisualTop) handleDismiss();
-        }}
-      >
-        <Animated.View style={[s.overlay, { opacity: overlayOpacity }]}>
-            <Animated.View style={[s.sheetWrap, { transform: [{ translateY: sheetTranslateY }] }]} pointerEvents="box-none">
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <NativeKeyboardAvoidingContainer
-                style={s.nativeContainer}
-                onKeyboardSettle={(e) => { kbHeightRef.current = e.nativeEvent.height; }}
-              >
-            <View style={s.sheet}>
+      {/* Container principal — box-none para não interceptar toques na área vazia */}
+      <NativeKeyboardAvoidingContainer style={StyleSheet.absoluteFillObject} pointerEvents="box-none" onKeyboardSettle={handleKeyboardSettle}>
+        {/* Overlay dentro do container — fecha ao tocar fora do sheet */}
+        <TouchableWithoutFeedback onPress={handleDismiss}>
+          <Animated.View style={[StyleSheet.absoluteFillObject, s.overlayBg, { opacity: overlayOpacity }]} />
+        </TouchableWithoutFeedback>
+
+        {/* Sheet animado via Reanimated — shadow tree sincronizado, hit-test correto */}
+        {/* onStartShouldSetResponder=true: sheet consome o toque, overlay não recebe, teclado não fecha */}
+        <Reanimated.View
+          style={[s.sheetWrap, sheetAnimStyle, !sheetReady && { opacity: 0 }]}
+          onStartShouldSetResponder={() => true}
+          onResponderGrant={() => {}}
+          onResponderRelease={() => {}}
+        >
+        <View style={s.sheet}>
               {/* Handle */}
               <View style={s.handle} />
 
@@ -300,7 +316,7 @@ export function EditCategoryModal({
                 scrollEnabled={false}
                 showsHorizontalScrollIndicator={false}
                 style={s.pager}
-                keyboardShouldPersistTaps="handled"
+                keyboardShouldPersistTaps="always"
               >
                 {/* Página 0: lista de categorias */}
                 <View style={[s.page, { width: SW }]}>
@@ -312,7 +328,7 @@ export function EditCategoryModal({
                   ) : (
                     <ScrollView
                       showsVerticalScrollIndicator={false}
-                      keyboardShouldPersistTaps="handled"
+                      keyboardShouldPersistTaps="always"
                       style={s.listScroll}
                       contentContainerStyle={s.listContent}
                     >
@@ -415,6 +431,10 @@ export function EditCategoryModal({
                         </View>
                       </View>
                     )}
+                    {/* Área vazia — consome toque para não fechar teclado */}
+                    <TouchableWithoutFeedback onPress={() => {}}>
+                      <View style={{ flex: 1 }} />
+                    </TouchableWithoutFeedback>
                   </View>
                 </View>
               </ScrollView>
@@ -431,11 +451,8 @@ export function EditCategoryModal({
                 </Pressable>
               </View>
             </View>
-              </NativeKeyboardAvoidingContainer>
-            </TouchableWithoutFeedback>
-            </Animated.View>
-        </Animated.View>
-      </TouchableWithoutFeedback>
+        </Reanimated.View>
+      </NativeKeyboardAvoidingContainer>
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -448,8 +465,7 @@ export function EditCategoryModal({
 }
 
 const s = StyleSheet.create({
-  overlay: {
-    flex: 1,
+  overlayBg: {
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   sheetWrap: {
@@ -466,9 +482,17 @@ const s = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.07)',
   },
   nativeContainer: {
-    flex: 1,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
     overflow: 'hidden',
   },
   sheet: {

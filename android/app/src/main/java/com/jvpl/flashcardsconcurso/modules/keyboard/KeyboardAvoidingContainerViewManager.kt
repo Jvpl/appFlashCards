@@ -5,24 +5,23 @@ package com.jvpl.flashcardsconcurso.modules.keyboard
 // =============================================================================
 //
 // POR QUE KOTLIN E NÃO JS:
-//   O React Native detecta o teclado via bridge com ~300ms de delay.
-//   Este módulo usa globalLayoutListener + ValueAnimator para animar o
-//   translationY em sincronia com o teclado, sem passar pela bridge JS.
-//
-// FABRIC (New Architecture):
-//   O modal não usa ReactModalHostView — usa DialogRootViewGroup.
-//   O insetsCallback é registrado na rootView do DialogRootViewGroup.
-//   O globalLayoutListener serve como fallback principal quando o
-//   WindowInsetsAnimationCompat não está disponível.
+//   O React Native (Fabric) detecta eventos de teclado via JS bridge com delay.
+//   Este módulo usa WindowInsetsAnimationCompat para detectar a altura do teclado
+//   com precisão nativa e emite onKeyboardSettle(height) ao JS sem delay.
 //
 // RESPONSABILIDADE:
-//   Animar translationY junto com o teclado e emitir onKeyboardSettle(height)
-//   quando o teclado termina de animar.
+//   Detectar abertura/fechamento do teclado e emitir onKeyboardSettle(height).
+//   O movimento do sheet (translateY) é feito pelo JS via Animated.Value —
+//   NÃO usamos translationY nativo aqui. Motivo: o Fabric (New Architecture)
+//   faz hit-testing com base nos bounds de layout JS. Se movermos a view com
+//   translationY nativo, os bounds JS ficam desatualizados e toques na posição
+//   visual dos filhos são rejeitados pelo Fabric antes de chegar ao dispatchTouchEvent.
 // =============================================================================
 
 import android.content.Context
 import android.util.AttributeSet
 import android.util.Log
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
@@ -54,18 +53,21 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
     private var lastKbHeight = 0
     private var isAnimating = false
     private var dialogRootViewRef: ViewGroup? = null
-    private var entryAnimator: android.animation.ValueAnimator? = null
     private var kbAnimator: android.animation.ValueAnimator? = null
 
-    // Callback registrado na rootView do dialog (quando disponível).
-    // Sincroniza translationY frame-a-frame com a animação do teclado.
+    // Sem translationY nativo — o Reanimated.View do sheet anima via JSI.
+    // checkInputConnectionProxy=true: diz ao Android que este ViewGroup "gerencia" o input,
+    // impedindo que toques nele causem o fechamento automático do teclado pelo sistema.
+    // Isso mantém child.matrix sincronizado com o shadow tree.
+    // TouchTargetHelper usa child.matrix.invert() para hit-test → sempre correto.
+
+    override fun checkInputConnectionProxy(focused: android.view.View?): Boolean = true
+
     private val insetsCallback = object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP) {
 
         override fun onPrepare(animation: WindowInsetsAnimationCompat) {
             if (animation.typeMask and WindowInsetsCompat.Type.ime() == 0) return
             isAnimating = true
-            entryAnimator?.cancel()
-            entryAnimator = null
         }
 
         override fun onStart(
@@ -78,7 +80,8 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
             runningAnimations: List<WindowInsetsAnimationCompat>
         ): WindowInsetsCompat {
             if (runningAnimations.none { it.typeMask and WindowInsetsCompat.Type.ime() != 0 }) return insets
-            translationY = -getKeyboardHeight(insets).toFloat()
+            val kbH = getKeyboardHeight(insets)
+            emitSettle(kbH)
             return insets
         }
 
@@ -87,11 +90,9 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
             isAnimating = false
             val insets = ViewCompat.getRootWindowInsets(this@KeyboardAvoidingContainerView) ?: return
             val kbHeight = getKeyboardHeight(insets)
-            translationY = -kbHeight.toFloat()
-            if (kbHeight != lastKbHeight) {
-                lastKbHeight = kbHeight
-                emitSettle(kbHeight)
-            }
+            Log.d("KbContainer", "insetsCallback.onEnd — kbHeight=$kbHeight")
+            lastKbHeight = kbHeight
+            emitSettle(kbHeight)
         }
     }
 
@@ -105,22 +106,14 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
         }
     }
 
-    // Fallback principal: detecta mudança de altura do teclado via layout.
-    // Anima suavemente com ValueAnimator em vez de teleportar.
+    // Fallback: emite onKeyboardSettle quando insetsCallback não dispara.
     private val globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
         if (isAnimating) return@OnGlobalLayoutListener
         val insets = ViewCompat.getRootWindowInsets(this) ?: return@OnGlobalLayoutListener
         val kbHeight = getKeyboardHeight(insets)
         if (kbHeight == lastKbHeight) return@OnGlobalLayoutListener
+        Log.d("KbContainer", "globalLayout — kbHeight=$kbHeight lastKbHeight=$lastKbHeight")
         lastKbHeight = kbHeight
-        val targetY = -kbHeight.toFloat()
-        kbAnimator?.cancel()
-        kbAnimator = android.animation.ValueAnimator.ofFloat(translationY, targetY).also { anim ->
-            anim.duration = 280
-            anim.interpolator = android.view.animation.DecelerateInterpolator(1.5f)
-            anim.addUpdateListener { translationY = it.animatedValue as Float }
-            anim.start()
-        }
         emitSettle(kbHeight)
     }
 
@@ -152,17 +145,6 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
         post { tryRegisterFromCurrentWindow() }
         postDelayed({ tryRegisterFromCurrentWindow() }, 50)
         postDelayed({ tryRegisterFromCurrentWindow() }, 150)
-
-        // Animação de entrada nativa — sem JS, sem race condition.
-        val screenHeight = resources.displayMetrics.heightPixels
-        val startY = (screenHeight / 2).toFloat()
-        translationY = startY
-        entryAnimator = android.animation.ValueAnimator.ofFloat(startY, 0f).also { anim ->
-            anim.duration = 320
-            anim.interpolator = android.view.animation.DecelerateInterpolator(1.5f)
-            anim.addUpdateListener { translationY = it.animatedValue as Float }
-            anim.start()
-        }
     }
 
     // No Fabric (New Architecture) o modal usa DialogRootViewGroup em vez de ReactModalHostView.
@@ -179,29 +161,31 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
             if (parentView::class.simpleName == "DialogRootViewGroup") {
                 val rootView = parentView.rootView as? ViewGroup ?: return
 
-                val window: android.view.Window? = try {
-                    val f = parentView::class.java.getDeclaredField("mDialog")
-                    f.isAccessible = true
-                    (f.get(parentView) as? android.app.Dialog)?.window
-                } catch (e1: Exception) {
-                    try {
-                        val f = parentView::class.java.getDeclaredField("mContext")
-                        f.isAccessible = true
-                        (f.get(parentView) as? android.app.Dialog)?.window
-                    } catch (e2: Exception) { null }
-                }
+                val window: android.view.Window? = findWindowFromView(parentView)
 
                 if (window != null) {
                     WindowCompat.setDecorFitsSystemWindows(window, false)
                     window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-                    window.decorView.rootView.let { dv ->
-                        (dv as? ViewGroup)?.let { decorGroup ->
-                            ViewCompat.setWindowInsetsAnimationCallback(decorGroup, insetsCallback)
-                            dialogRootViewRef = decorGroup
-                        }
-                    }
+                    val decorRoot = window.decorView.rootView as? ViewGroup ?: rootView
+                    ViewCompat.setWindowInsetsAnimationCallback(decorRoot, insetsCallback)
+                    dialogRootViewRef = decorRoot
                     Log.d("KbContainer", "tryRegister — Window+insetsCallback via DialogRootViewGroup")
                 } else {
+                    // Sem Window: configura adjustNothing via WindowManager.LayoutParams diretamente
+                    val wm = context.getSystemService(Context.WINDOW_SERVICE) as? android.view.WindowManager
+                    val token = rootView.windowToken
+                    if (token != null && wm != null) {
+                        try {
+                            val lp = rootView.layoutParams as? android.view.WindowManager.LayoutParams
+                            if (lp != null) {
+                                lp.softInputMode = android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                                wm.updateViewLayout(rootView, lp)
+                                Log.d("KbContainer", "tryRegister — adjustNothing via WindowManager.updateViewLayout")
+                            }
+                        } catch (e: Exception) {
+                            Log.d("KbContainer", "tryRegister — updateViewLayout falhou: ${e.message}")
+                        }
+                    }
                     ViewCompat.setWindowInsetsAnimationCallback(rootView, insetsCallback)
                     dialogRootViewRef = rootView
                     Log.d("KbContainer", "tryRegister — insetsCallback via DialogRootViewGroup (sem Window)")
@@ -210,6 +194,50 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
             }
             parent = parentView.parent
         }
+    }
+
+    // Tenta obter a Window do DialogRootViewGroup por múltiplos caminhos de reflection.
+    // O React Native não expõe a Window diretamente — precisamos inspecionar os campos internos.
+    private fun findWindowFromView(view: android.view.View): android.view.Window? {
+        // Tentativa 1: campo mDialog (Paper/Old Architecture)
+        try {
+            val f = view::class.java.getDeclaredField("mDialog")
+            f.isAccessible = true
+            val w = (f.get(view) as? android.app.Dialog)?.window
+            if (w != null) { Log.d("KbContainer", "findWindow — via mDialog"); return w }
+        } catch (_: Exception) {}
+
+        // Tentativa 2: campo mContext como Dialog (variação)
+        try {
+            val f = view::class.java.getDeclaredField("mContext")
+            f.isAccessible = true
+            val w = (f.get(view) as? android.app.Dialog)?.window
+            if (w != null) { Log.d("KbContainer", "findWindow — via mContext Dialog"); return w }
+        } catch (_: Exception) {}
+
+        // Tentativa 3: busca em superclasses
+        var clazz: Class<*>? = view::class.java.superclass
+        while (clazz != null) {
+            for (fieldName in listOf("mDialog", "mWindow", "mDecorView")) {
+                try {
+                    val f = clazz.getDeclaredField(fieldName)
+                    f.isAccessible = true
+                    val obj = f.get(view)
+                    val w = when (obj) {
+                        is android.view.Window -> obj
+                        is android.app.Dialog -> obj.window
+                        else -> null
+                    }
+                    if (w != null) { Log.d("KbContainer", "findWindow — via superclass $fieldName"); return w }
+                } catch (_: Exception) {}
+            }
+            clazz = clazz.superclass
+        }
+
+        // Tentativa 4: windowToken → WindowManager para obter LayoutParams e configurar softInputMode
+        // Não retorna Window mas sinaliza que devemos usar updateViewLayout
+        Log.d("KbContainer", "findWindow — nenhuma Window encontrada")
+        return null
     }
 
     override fun onDetachedFromWindow() {
@@ -222,7 +250,6 @@ class KeyboardAvoidingContainerView @JvmOverloads constructor(
         dialogRootViewRef?.let { ViewCompat.setWindowInsetsAnimationCallback(it, null) }
         dialogRootViewRef = null
         viewTreeObserver.removeOnGlobalLayoutListener(globalLayoutListener)
-        entryAnimator?.cancel()
         kbAnimator?.cancel()
         lastKbHeight = 0
     }
