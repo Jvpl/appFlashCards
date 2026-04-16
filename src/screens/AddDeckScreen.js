@@ -140,6 +140,8 @@ export const AddDeckScreen = ({ route, navigation }) => {
   const catInputRef = useRef(null);
   const catSectionY = useRef(0);
   const catInputFocusedRef = useRef(false);
+  const preselectedCardRef = useRef(null);
+  const preselectedCardY = useRef(null);
 
   // Carrega categorias customizadas e contagem de decks por categoria
   useEffect(() => {
@@ -159,6 +161,15 @@ export const AddDeckScreen = ({ route, navigation }) => {
         if (preselectedCategoryId.startsWith('custom_')) {
           setCatFilter('custom');
         }
+        // Scroll até o card pré-selecionado após o layout renderizar
+        setTimeout(() => {
+          const y = preselectedCardY.current;
+          if (y !== null) {
+            scrollRef.current?.scrollTo({ y: y - 24, animated: true });
+          } else {
+            scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
+          }
+        }, 350);
       }
     };
     load();
@@ -424,26 +435,28 @@ export const AddDeckScreen = ({ route, navigation }) => {
               <View style={s.colsWrap}>
                 <View style={s.col}>
                   {left.map(item => (
-                    <CategoryTile
-                      key={item.id}
-                      item={item}
-                      selected={selectedCategory === item.id}
-                      onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
-                      onBlurInput={() => inputRef.current?.blur()}
-                      deckCount={deckCountMap[item.id] || 0}
-                    />
+                    <View key={item.id} onLayout={item.id === preselectedCategoryId ? e => { preselectedCardY.current = e.nativeEvent.layout.y + catSectionY.current; } : undefined}>
+                      <CategoryTile
+                        item={item}
+                        selected={selectedCategory === item.id}
+                        onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                        onBlurInput={() => inputRef.current?.blur()}
+                        deckCount={deckCountMap[item.id] || 0}
+                      />
+                    </View>
                   ))}
                 </View>
                 <View style={s.col}>
                   {right.map(item => (
-                    <CategoryTile
-                      key={item.id}
-                      item={item}
-                      selected={selectedCategory === item.id}
-                      onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
-                      onBlurInput={() => inputRef.current?.blur()}
-                      deckCount={deckCountMap[item.id] || 0}
-                    />
+                    <View key={item.id} onLayout={item.id === preselectedCategoryId ? e => { preselectedCardY.current = e.nativeEvent.layout.y + catSectionY.current; } : undefined}>
+                      <CategoryTile
+                        item={item}
+                        selected={selectedCategory === item.id}
+                        onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                        onBlurInput={() => inputRef.current?.blur()}
+                        deckCount={deckCountMap[item.id] || 0}
+                      />
+                    </View>
                   ))}
                 </View>
               </View>
@@ -458,26 +471,28 @@ export const AddDeckScreen = ({ route, navigation }) => {
               <View style={s.colsWrap}>
                 <View style={s.col}>
                   {left.map(item => (
-                    <CustomCategoryTile
-                      key={item.id}
-                      item={item}
-                      selected={selectedCategory === item.id}
-                      onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
-                      onBlurInput={() => inputRef.current?.blur()}
-                      deckCount={deckCountMap[item.id] || 0}
-                    />
+                    <View key={item.id} onLayout={item.id === preselectedCategoryId ? e => { preselectedCardY.current = e.nativeEvent.layout.y + catSectionY.current; } : undefined}>
+                      <CustomCategoryTile
+                        item={item}
+                        selected={selectedCategory === item.id}
+                        onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                        onBlurInput={() => inputRef.current?.blur()}
+                        deckCount={deckCountMap[item.id] || 0}
+                      />
+                    </View>
                   ))}
                 </View>
                 <View style={s.col}>
                   {right.map(item => (
-                    <CustomCategoryTile
-                      key={item.id}
-                      item={item}
-                      selected={selectedCategory === item.id}
-                      onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
-                      onBlurInput={() => inputRef.current?.blur()}
-                      deckCount={deckCountMap[item.id] || 0}
-                    />
+                    <View key={item.id} onLayout={item.id === preselectedCategoryId ? e => { preselectedCardY.current = e.nativeEvent.layout.y + catSectionY.current; } : undefined}>
+                      <CustomCategoryTile
+                        item={item}
+                        selected={selectedCategory === item.id}
+                        onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                        onBlurInput={() => inputRef.current?.blur()}
+                        deckCount={deckCountMap[item.id] || 0}
+                      />
+                    </View>
                   ))}
                 </View>
               </View>
