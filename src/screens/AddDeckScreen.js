@@ -406,26 +406,24 @@ export const AddDeckScreen = ({ route, navigation }) => {
         </View>
 
         {/* ── Categoria ───────────────────────────────────────── */}
-        <View style={s.section}>
+        <View style={s.section} onLayout={e => { catSectionY.current = e.nativeEvent.layout.y; }}>
           <Text style={[s.sectionTitle, { marginBottom: 10 }]}>CATEGORIA</Text>
 
-          {/* Filtro padrão / customizadas — só aparece se tiver customizadas */}
-          {customCategories.length > 0 && (
-            <View style={s.catFilterRow}>
-              {['preset', 'custom'].map(f => (
-                <TouchableOpacity
-                  key={f}
-                  style={[s.catFilterChip, catFilter === f && s.catFilterChipActive]}
-                  onPress={() => setCatFilter(f)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[s.catFilterText, catFilter === f && s.catFilterTextActive]}>
-                    {f === 'preset' ? 'Padrão' : 'Personalizadas'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          {/* Filtro padrão / customizadas — sempre visível */}
+          <View style={s.catFilterRow}>
+            {['preset', 'custom'].map(f => (
+              <TouchableOpacity
+                key={f}
+                style={[s.catFilterChip, catFilter === f && s.catFilterChipActive]}
+                onPress={() => setCatFilter(f)}
+                activeOpacity={0.75}
+              >
+                <Text style={[s.catFilterText, catFilter === f && s.catFilterTextActive]}>
+                  {f === 'preset' ? 'Padrão' : 'Personalizar'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {/* 2-column tile grid — padrão */}
           {catFilter === 'preset' && (() => {
@@ -468,6 +466,129 @@ export const AddDeckScreen = ({ route, navigation }) => {
             const left = customCategories.filter((_, i) => i % 2 === 0);
             const right = customCategories.filter((_, i) => i % 2 !== 0);
             return (
+              <>
+              {/* Botão criar nova categoria — fixo no topo da aba Personalizar */}
+              {!customCatExpanded ? (
+                <TouchableOpacity
+                  style={s.newCatTrigger}
+                  onPress={toggleCustomCat}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="add-circle-outline" size={16} color="rgba(93,214,44,0.7)" />
+                  <Text style={s.newCatTriggerText}>Criar nova categoria</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={s.newCatPanel}>
+                  <View style={s.panelHeader}>
+                    <Text style={s.panelTitle}>NOVA CATEGORIA</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      {customCatName.length > 0 && (
+                        <Text style={[s.charCount, customCatName.length >= 20 && s.charCountWarn]}>
+                          {customCatName.length}/25
+                        </Text>
+                      )}
+                      <TouchableOpacity onPress={toggleCustomCat} hitSlop={HIT_SLOP}>
+                        <Ionicons name="close" size={18} color={theme.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={s.panelNameRow}>
+                    <TouchableOpacity
+                      style={s.panelIconPreview}
+                      onPress={() => setCustomCatIcon(p => p === '__picker__' ? null : '__picker__')}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons
+                        name={customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : DEFAULT_CAT_ICON}
+                        size={22}
+                        color={customCatIcon && customCatIcon !== '__picker__' ? theme.primary : theme.textMuted}
+                      />
+                    </TouchableOpacity>
+                    <View style={s.panelInputWrap}>
+                      <TextInput
+                        ref={catInputRef}
+                        style={s.panelInput}
+                        placeholder="Nome da categoria"
+                        placeholderTextColor={theme.textMuted}
+                        value={customCatName}
+                        onChangeText={t => setCustomCatName(t.slice(0, 25))}
+                        onFocus={() => {
+                          catInputFocusedRef.current = true;
+                          if (keyboardHeight > 0) {
+                            setTimeout(() => {
+                              scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
+                            }, 50);
+                          }
+                        }}
+                        onBlur={() => { catInputFocusedRef.current = false; }}
+                        returnKeyType="done"
+                        maxLength={25}
+                      />
+                    </View>
+                  </View>
+                  {customCatIcon === '__picker__' && (
+                    <View style={s.iconPickerWrap}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.iconTabsScroll} contentContainerStyle={s.iconTabsContent}>
+                        {ICON_GROUPS.map((g, i) => (
+                          <TouchableOpacity
+                            key={g.label}
+                            style={[s.iconTab, activeIconGroup === i && s.iconTabActive]}
+                            onPress={() => setActiveIconGroup(i)}
+                            activeOpacity={0.75}
+                          >
+                            <Text style={[s.iconTabText, activeIconGroup === i && s.iconTabTextActive]}>{g.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                      <View style={s.iconGrid}>
+                        {ICON_GROUPS[activeIconGroup].icons.map(icon => (
+                          <TouchableOpacity
+                            key={icon}
+                            style={s.iconOpt}
+                            onPress={() => setCustomCatIcon(icon)}
+                            activeOpacity={0.75}
+                          >
+                            <Ionicons name={icon} size={20} color={theme.textSecondary} />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={[s.saveCatBtn, !customCatName.trim() && s.saveCatBtnOff]}
+                    onPress={async () => {
+                      if (!customCatName.trim()) return;
+                      const existing = await getCustomCategories();
+                      const nameLower = customCatName.trim().toLowerCase();
+                      const duplicate = existing.find(c => c.name?.trim().toLowerCase() === nameLower);
+                      if (duplicate) {
+                        setAlertConfig({
+                          visible: true,
+                          title: 'Nome já existe',
+                          message: `Já existe uma categoria chamada "${customCatName.trim()}". Escolha um nome diferente.`,
+                          buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+                        });
+                        return;
+                      }
+                      const icon = customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : 'folder-outline';
+                      const newId = `custom_${Date.now()}`;
+                      const newCat = { id: newId, name: customCatName.trim(), icon, color: theme.primary, keywords: [], isCustom: true };
+                      await saveCustomCategories([...existing, newCat]);
+                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                      setCustomCategories(prev => [...prev, newCat]);
+                      setSelectedCategory(newId);
+                      setCustomCatExpanded(false);
+                      setCustomCatName('');
+                      setCustomCatIcon(null);
+                      setCatFilter('custom');
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="checkmark" size={15} color={theme.primary} style={{ marginRight: 6 }} />
+                    <Text style={s.saveCatBtnText}>Salvar categoria</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               <View style={s.colsWrap}>
                 <View style={s.col}>
                   {left.map(item => (
@@ -496,160 +617,11 @@ export const AddDeckScreen = ({ route, navigation }) => {
                   ))}
                 </View>
               </View>
+              </>
             );
           })()}
         </View>
 
-        {/* ── Criar nova categoria ─────────────────────────────── */}
-        <View style={s.section} onLayout={e => { catSectionY.current = e.nativeEvent.layout.y; }}>
-          {!customCatExpanded ? (
-            <TouchableOpacity
-              style={s.newCatTrigger}
-              onPress={toggleCustomCat}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="add-circle-outline" size={16} color="rgba(93,214,44,0.7)" />
-              <Text style={s.newCatTriggerText}>Criar nova categoria</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={s.newCatPanel}>
-              {/* Header do painel */}
-              <View style={s.panelHeader}>
-                <Text style={s.panelTitle}>NOVA CATEGORIA</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  {customCatName.length > 0 && (
-                    <Text style={[s.charCount, customCatName.length >= 20 && s.charCountWarn]}>
-                      {customCatName.length}/25
-                    </Text>
-                  )}
-                  <TouchableOpacity onPress={toggleCustomCat} hitSlop={HIT_SLOP}>
-                    <Ionicons name="close" size={18} color={theme.textMuted} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Nome + ícone selecionado lado a lado */}
-              <View style={s.panelNameRow}>
-                <TouchableOpacity
-                  style={s.panelIconPreview}
-                  onPress={() => setCustomCatIcon(p => p === '__picker__' ? null : '__picker__')}
-                  activeOpacity={0.75}
-                >
-                  <Ionicons
-                    name={customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : DEFAULT_CAT_ICON}
-                    size={22}
-                    color={customCatIcon && customCatIcon !== '__picker__' ? theme.primary : theme.textMuted}
-                  />
-                </TouchableOpacity>
-                <View style={s.panelInputWrap}>
-                  <TextInput
-                    ref={catInputRef}
-                    style={s.panelInput}
-                    placeholder="Nome da categoria"
-                    placeholderTextColor={theme.textMuted}
-                    value={customCatName}
-                    onChangeText={t => setCustomCatName(t.slice(0, 25))}
-                    onFocus={() => {
-                      catInputFocusedRef.current = true;
-                      // se teclado já está aberto, rola imediatamente
-                      if (keyboardHeight > 0) {
-                        setTimeout(() => {
-                          scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
-                        }, 50);
-                      }
-                    }}
-                    onBlur={() => { catInputFocusedRef.current = false; }}
-                    returnKeyType="done"
-                    maxLength={25}
-                  />
-                </View>
-              </View>
-
-              {/* Hint para abrir picker */}
-              <View style={s.panelIconHint}>
-                <Ionicons name="information-circle-outline" size={14} color={theme.textMuted} />
-                <Text style={s.panelIconHintText}>
-                  Toque no ícone para personalizar. Se não escolher, um ícone padrão será usado.
-                </Text>
-              </View>
-
-              {/* Picker de ícones com abas */}
-              {customCatIcon === '__picker__' && (
-                <View style={s.iconPicker}>
-                  {/* Abas */}
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.iconTabsScroll} contentContainerStyle={s.iconTabsContent}>
-                    {ICON_GROUPS.map((group, i) => (
-                      <TouchableOpacity
-                        key={group.label}
-                        style={[s.iconTab, activeIconGroup === i && s.iconTabActive]}
-                        onPress={() => setActiveIconGroup(i)}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={[s.iconTabText, activeIconGroup === i && s.iconTabTextActive]}>
-                          {group.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                  {/* Grid 4x2 */}
-                  <View style={s.iconGrid}>
-                    {ICON_GROUPS[activeIconGroup].icons.map(icon => (
-                      <TouchableOpacity
-                        key={icon}
-                        style={s.iconOpt}
-                        onPress={() => setCustomCatIcon(icon)}
-                        activeOpacity={0.75}
-                      >
-                        <Ionicons name={icon} size={20} color={theme.textSecondary} />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={[s.saveCatBtn, !customCatName.trim() && s.saveCatBtnOff]}
-                onPress={async () => {
-                  if (!customCatName.trim()) return;
-                  const existing = await getCustomCategories();
-                  const nameLower = customCatName.trim().toLowerCase();
-                  const duplicate = existing.find(c => c.name?.trim().toLowerCase() === nameLower);
-                  if (duplicate) {
-                    setAlertConfig({
-                      visible: true,
-                      title: 'Nome já existe',
-                      message: `Já existe uma categoria chamada "${customCatName.trim()}". Escolha um nome diferente.`,
-                      buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
-                    });
-                    return;
-                  }
-                  const icon = customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : 'folder-outline';
-                  const newId = `custom_${Date.now()}`;
-                  const newCat = {
-                    id: newId,
-                    name: customCatName.trim(),
-                    icon,
-                    color: theme.primary,
-                    keywords: [],
-                    isCustom: true,
-                  };
-                  await saveCustomCategories([...existing, newCat]);
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setCustomCategories(prev => [...prev, newCat]);
-                  setSelectedCategory(newId);
-                  setCustomCatExpanded(false);
-                  setCustomCatName('');
-                  setCustomCatIcon(null);
-                  setCatFilter('custom');
-                }}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="checkmark" size={15} color={theme.primary} style={{ marginRight: 6 }} />
-                <Text style={s.saveCatBtnText}>Salvar categoria</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
 
         {/* ── Salvar deck ──────────────────────────────────────── */}
         <TouchableOpacity
