@@ -5,7 +5,7 @@
 - [x] Etapa 2 — FAB da categoria faz scroll automático até ela no AddDeck
 - [x] Etapa 3 — Redesign do AddDeckScreen (filtro sempre visível + botão nova categoria)
 - [x] Etapa 4 — Botão seta no card selecionado + label de categoria acima do input
-- [ ] Etapa 5 — Botão "Salvar deck" compacto ao lado do input
+- [x] Etapa 5 — Botão "Salvar deck" compacto ao lado do input
 
 ---
 
