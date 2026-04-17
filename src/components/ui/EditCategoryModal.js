@@ -13,7 +13,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal, Keyboard, Pressable,
-  ScrollView, TextInput, Dimensions, TouchableWithoutFeedback,
+  ScrollView, FlatList, TextInput, Dimensions, TouchableWithoutFeedback,
   Animated,
 } from 'react-native';
 import Reanimated, {
@@ -97,7 +97,6 @@ export function EditCategoryModal({
     Promise.all([getAppData(), getCustomCategories()]).then(([allData, customs]) => {
       const ids = new Set();
       allData.filter(d => !d.isExample && d.category).forEach(d => ids.add(d.category));
-      customs.forEach(c => ids.add(c.id));
       setActiveCatIds(ids);
     });
   }, [visible]);
@@ -261,9 +260,6 @@ export function EditCategoryModal({
       {/* Sheet */}
       <Reanimated.View
         style={[s.sheetWrap, sheetAnimStyle, !sheetReady && { opacity: 0 }]}
-        onStartShouldSetResponder={() => true}
-        onResponderGrant={() => {}}
-        onResponderRelease={() => {}}
       >
         <View style={s.sheet}>
           <View style={s.handle} />
@@ -271,7 +267,7 @@ export function EditCategoryModal({
           {/* ── Header: categoria atual ── */}
           <View style={s.currentRow}>
             <View style={s.currentIconWrap}>
-              <CategoryIconGlow categoryId={categoryId} ionIcon={currentCatIonIcon} size={20} />
+              <CategoryIconGlow categoryId={categoryId} ionIcon={currentCatIonIcon} size={22} />
             </View>
             <Text style={s.currentName} numberOfLines={1}>{categoryName}</Text>
           </View>
@@ -390,35 +386,75 @@ export function EditCategoryModal({
                     : 'Nenhuma categoria personalizada disponível.'}
                 </Text>
               </View>
-            ) : (
+            ) : page === 0 ? (
+              /* Aba Padrão — grade 2 colunas */
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="always"
                 style={s.listScroll}
-                contentContainerStyle={s.listContent}
+                contentContainerStyle={s.gridContent}
               >
-                {listItems.map((cat, index) => {
-                  const isSel = selectedId === cat.id;
-                  const isLast = index === listItems.length - 1;
+                {Array.from({ length: Math.ceil(listItems.length / 2) }, (_, rowIdx) => {
+                  const pair = listItems.slice(rowIdx * 2, rowIdx * 2 + 2);
                   return (
-                    <TouchableOpacity
-                      key={cat.id}
-                      style={[s.listRow, isSel && s.listRowActive, isLast && { borderBottomWidth: 0 }]}
-                      onPress={() => { if (listLocked) return; setSelectedId(p => p === cat.id ? null : cat.id); }}
-                      activeOpacity={listLocked ? 1 : 0.75}
-                      delayPressIn={50}
-                    >
-                      <View style={[s.listIconWrap, isSel && s.listIconWrapActive]}>
-                        <CategoryIconGlow categoryId={cat.id} ionIcon={cat.isCustom ? (cat.icon || null) : null} size={20} />
-                      </View>
-                      <Text style={[s.listName, isSel && s.listNameActive]} numberOfLines={1}>
-                        {cat.name}
-                      </Text>
-                      {isSel
-                        ? <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
-                        : <Ionicons name="chevron-forward" size={15} color={theme.textMuted} />
-                      }
-                    </TouchableOpacity>
+                    <View key={rowIdx} style={s.gridRow}>
+                      {pair.map((cat) => {
+                        const isSel = selectedId === cat.id;
+                        return (
+                          <TouchableOpacity
+                            key={cat.id}
+                            style={[s.gridCard, isSel && s.gridCardActive]}
+                            onPress={() => { if (listLocked) return; setSelectedId(p => p === cat.id ? null : cat.id); }}
+                            activeOpacity={listLocked ? 1 : 0.75}
+                          >
+                            {isSel && (
+                              <View style={s.gridCardCheck}>
+                                <Ionicons name="checkmark" size={10} color="#0F0F0F" />
+                              </View>
+                            )}
+                            <CategoryIconGlow categoryId={cat.id} ionIcon={null} size={36} />
+                            <Text style={[s.gridCardName, isSel && s.gridCardNameActive]}>{cat.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                      {pair.length === 1 && <View style={[s.gridCard, s.gridCardEmpty]} />}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              /* Aba Personalizadas — grade 2 colunas */
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="always"
+                style={s.listScroll}
+                contentContainerStyle={s.gridContent}
+              >
+                {Array.from({ length: Math.ceil(listItems.length / 2) }, (_, rowIdx) => {
+                  const pair = listItems.slice(rowIdx * 2, rowIdx * 2 + 2);
+                  return (
+                    <View key={rowIdx} style={s.gridRow}>
+                      {pair.map((cat) => {
+                        const isSel = selectedId === cat.id;
+                        return (
+                          <TouchableOpacity
+                            key={cat.id}
+                            style={[s.gridCard, isSel && s.gridCardActive]}
+                            onPress={() => { if (listLocked) return; setSelectedId(p => p === cat.id ? null : cat.id); }}
+                            activeOpacity={listLocked ? 1 : 0.75}
+                          >
+                            {isSel && (
+                              <View style={s.gridCardCheck}>
+                                <Ionicons name="checkmark" size={10} color="#0F0F0F" />
+                              </View>
+                            )}
+                            <Ionicons name={cat.icon || 'folder-outline'} size={36} color={theme.primary} />
+                            <Text style={[s.gridCardName, isSel && s.gridCardNameActive]}>{cat.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                      {pair.length === 1 && <View style={[s.gridCard, s.gridCardEmpty]} />}
+                    </View>
                   );
                 })}
               </ScrollView>
@@ -482,9 +518,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 18, paddingBottom: 10, gap: 8,
   },
   currentIconWrap: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: 'rgba(93,214,44,0.08)',
-    borderWidth: 1, borderColor: 'rgba(93,214,44,0.2)',
+    width: 38, height: 38, borderRadius: 10,
+    backgroundColor: 'transparent',
+    borderWidth: 1, borderColor: theme.primary,
     alignItems: 'center', justifyContent: 'center',
   },
   currentName: {
@@ -586,6 +622,60 @@ const s = StyleSheet.create({
     borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',
   },
   emptyText: { flex: 1, color: theme.textSecondary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium },
+
+  // Grade personalizadas
+  gridContent: {
+    flexGrow: 1,
+    gap: 10,
+    paddingBottom: 8,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  gridCard: {
+    flex: 1,
+    minHeight: 110,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    position: 'relative',
+  },
+  gridCardActive: {
+    borderColor: theme.primary,
+    backgroundColor: 'rgba(93,214,44,0.07)',
+  },
+  gridCardEmpty: {
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  gridCardCheck: {
+    position: 'absolute',
+    top: 7, right: 7,
+    width: 16, height: 16,
+    borderRadius: 8,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridCardName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: theme.fontFamily.uiMedium,
+    textAlign: 'center',
+    flexShrink: 1,
+  },
+  gridCardNameActive: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiBold,
+  },
 
   // Footer
   footer: {
