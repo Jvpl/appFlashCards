@@ -77,27 +77,36 @@ const CategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0, onS
   </TouchableOpacity>
 );
 
-const CustomCategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0, onScrollToInput }) => (
+const CustomCategoryTile = ({ item, selected, onPress, onLongPress, onBlurInput, deckCount = 0, onScrollToInput, deleteMode, deleteSelected }) => (
   <TouchableOpacity
     onPress={() => { Keyboard.dismiss(); onBlurInput?.(); onPress(); }}
+    onLongPress={() => { Keyboard.dismiss(); onLongPress?.(); }}
+    delayLongPress={400}
     activeOpacity={0.75}
     style={s.catTile}
   >
     <SvgXml xml={CATEGORY_TILE_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />
-    {selected && <SvgXml xml={CATEGORY_TILE_SELECTED_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
-    {selected && (
+    {selected && !deleteMode && <SvgXml xml={CATEGORY_TILE_SELECTED_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
+    {/* Modo normal: checkmark de seleção */}
+    {selected && !deleteMode && (
       <View style={s.catTileCheck}>
         <Ionicons name="checkmark" size={10} color="#0F0F0F" />
       </View>
     )}
-    {selected && onScrollToInput !== undefined && (
+    {selected && !deleteMode && onScrollToInput !== undefined && (
       <TouchableOpacity style={s.catTileArrow} onPress={e => { e.stopPropagation(); onScrollToInput?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <Ionicons name="chevron-up" size={16} color={theme.primary} />
       </TouchableOpacity>
     )}
+    {/* Modo deleção: círculo vermelho */}
+    {deleteMode && (
+      <View style={[s.catTileDeleteDot, deleteSelected && s.catTileDeleteDotActive]}>
+        {deleteSelected && <Ionicons name="checkmark" size={10} color="#fff" />}
+      </View>
+    )}
     <View style={s.catTileContent}>
-      <Ionicons name={item.icon || 'folder-outline'} size={44} color={theme.primary} />
-      <Text style={[s.catTileLabel, selected && s.catTileLabelSelected]} numberOfLines={2}>
+      <Ionicons name={item.icon || 'folder-outline'} size={44} color={deleteMode ? 'rgba(93,214,44,0.4)' : theme.primary} />
+      <Text style={[s.catTileLabel, selected && !deleteMode && s.catTileLabelSelected, deleteMode && { color: theme.textMuted }]} numberOfLines={2}>
         {item.name}
       </Text>
     </View>
@@ -132,6 +141,10 @@ export const AddDeckScreen = ({ route, navigation }) => {
   const [customCategories, setCustomCategories] = useState([]);
   const [deckCountMap, setDeckCountMap] = useState({}); // { categoryId: count }
   const [catFilter, setCatFilter] = useState('preset'); // 'preset' | 'custom'
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [deleteSelected, setDeleteSelected] = useState(new Set()); // ids selecionados para deletar
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteSelectAll, setDeleteSelectAll] = useState(false);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const catInputRef = useRef(null);
@@ -246,11 +259,16 @@ export const AddDeckScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (deleteMode) {
+        setDeleteMode(false);
+        setDeleteSelected(new Set());
+        return true;
+      }
       handleBack();
       return true;
     });
     return () => backSub.remove();
-  }, [name, selectedCategory]);
+  }, [name, selectedCategory, deleteMode]);
 
   // Intercepta gesto de swipe do React Navigation — usa refs para evitar re-registro
   useEffect(() => {
@@ -464,6 +482,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     onPress={() => {
                       setCatFilter(f);
+                      setDeleteMode(false); setDeleteSelected(new Set());
                       if (f === 'preset' && selectedCategoryRef.current?.startsWith('custom_')) {
                         preselectedCardY.current = null; selectedCategoryRef.current = null; setShowLabel(false); setShowArrow(false); showLabelRef.current = false; showArrowRef.current = false; setSelectedCategory(null);
                       } else if (f === 'custom' && selectedCategoryRef.current && !selectedCategoryRef.current.startsWith('custom_')) {
@@ -618,6 +637,15 @@ export const AddDeckScreen = ({ route, navigation }) => {
                     onPress={async () => {
                       if (!customCatName.trim()) return;
                       const existing = await getCustomCategories();
+                      if (existing.length >= 30) {
+                        setAlertConfig({
+                          visible: true,
+                          title: 'Limite atingido',
+                          message: 'Você já criou 30 categorias personalizadas. Exclua alguma para criar uma nova.',
+                          buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+                        });
+                        return;
+                      }
                       const nameLower = customCatName.trim().toLowerCase();
                       const duplicate = existing.find(c => c.name?.trim().toLowerCase() === nameLower);
                       if (duplicate) {
@@ -659,10 +687,19 @@ export const AddDeckScreen = ({ route, navigation }) => {
                       <CustomCategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
-                        onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
+                        onPress={() => {
+                          if (deleteMode) {
+                            setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; });
+                            return;
+                          }
+                          const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility();
+                        }}
+                        onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
                         onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
+                        deleteMode={deleteMode}
+                        deleteSelected={deleteSelected.has(item.id)}
                       />
                     </View>
                   ))}
@@ -673,10 +710,19 @@ export const AddDeckScreen = ({ route, navigation }) => {
                       <CustomCategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
-                        onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
+                        onPress={() => {
+                          if (deleteMode) {
+                            setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; });
+                            return;
+                          }
+                          const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility();
+                        }}
+                        onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
                         onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
+                        deleteMode={deleteMode}
+                        deleteSelected={deleteSelected.has(item.id)}
                       />
                     </View>
                   ))}
@@ -687,10 +733,55 @@ export const AddDeckScreen = ({ route, navigation }) => {
           })()}
         </View>
 
-
         <View style={{ height: insets.bottom + 28 }} />
       </Pressable>
       </ScrollView>
+
+      {/* ── FAB de deleção — só no modo delete ── */}
+      {deleteMode && (
+        <View style={[s.deleteFabWrap, { bottom: 20 }]}>
+          <TouchableOpacity style={[s.deleteFab, deleteSelected.size === 0 && { opacity: 0.4 }]} onPress={() => { if (deleteSelected.size === 0) return; setDeleteSelectAll(false); setDeleteConfirmVisible(true); }} activeOpacity={0.85}>
+            <Ionicons name="trash-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.deleteFabCancel} onPress={() => { setDeleteMode(false); setDeleteSelected(new Set()); }} activeOpacity={0.8}>
+            <Ionicons name="close" size={20} color={theme.textMuted} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ── Modal de confirmação de deleção ── */}
+      {deleteConfirmVisible && (
+        <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', paddingTop: insets.top + 56 }]} pointerEvents="box-none">
+          <TouchableOpacity style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]} activeOpacity={1} onPress={() => setDeleteConfirmVisible(false)} />
+          <View style={s.deleteModal}>
+            <Text style={s.deleteModalTitle}>Excluir {deleteSelectAll ? customCategories.length : deleteSelected.size} categoria{(deleteSelectAll ? customCategories.length : deleteSelected.size) !== 1 ? 's' : ''}?</Text>
+            <Text style={s.deleteModalMsg}>Esta ação não pode ser desfeita.</Text>
+            <TouchableOpacity style={s.deleteSelectAllRow} onPress={() => setDeleteSelectAll(p => !p)} activeOpacity={0.75}>
+              <View style={[s.deleteCheckbox, deleteSelectAll && s.deleteCheckboxActive]}>
+                {deleteSelectAll && <Ionicons name="checkmark" size={12} color="#fff" />}
+              </View>
+              <Text style={s.deleteSelectAllText}>Selecionar todas as categorias personalizadas</Text>
+            </TouchableOpacity>
+            <View style={s.deleteModalBtns}>
+              <TouchableOpacity style={s.deleteModalCancel} onPress={() => setDeleteConfirmVisible(false)} activeOpacity={0.75}>
+                <Text style={s.deleteModalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.deleteModalConfirm} onPress={async () => {
+                const idsToDelete = deleteSelectAll ? new Set(customCategories.map(c => c.id)) : deleteSelected;
+                const remaining = customCategories.filter(c => !idsToDelete.has(c.id));
+                await saveCustomCategories(remaining);
+                setCustomCategories(remaining);
+                if (idsToDelete.has(selectedCategory)) { setSelectedCategory(null); selectedCategoryRef.current = null; preselectedCardY.current = null; setShowLabel(false); setShowArrow(false); }
+                setDeleteConfirmVisible(false);
+                setDeleteMode(false);
+                setDeleteSelected(new Set());
+              }} activeOpacity={0.85}>
+                <Text style={s.deleteModalConfirmText}>Excluir</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
 
       <CustomAlert
         visible={alertConfig.visible}
@@ -1101,6 +1192,141 @@ const s = StyleSheet.create({
     elevation: 5,
   },
   saveBtnOff: { opacity: 0.35, shadowOpacity: 0 },
+
+  // ── Delete mode
+  catTileDeleteDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: '#e53935',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  catTileDeleteDotActive: {
+    backgroundColor: '#e53935',
+    borderColor: '#e53935',
+  },
+  catTileDeleteDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(229,57,53,0.4)',
+  },
+  deleteFabWrap: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'column-reverse',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteFabCancel: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#e53935',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#e53935',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  deleteModal: {
+    marginHorizontal: 16,
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  deleteModalTitle: {
+    color: theme.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  deleteModalMsg: {
+    color: theme.textMuted,
+    fontSize: 13,
+    marginBottom: 16,
+  },
+  deleteSelectAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  deleteCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCheckboxActive: {
+    backgroundColor: '#e53935',
+    borderColor: '#e53935',
+  },
+  deleteSelectAllText: {
+    color: theme.textSecondary,
+    fontSize: 13,
+    flex: 1,
+  },
+  deleteModalBtns: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  deleteModalCancel: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteModalCancelText: {
+    color: theme.textMuted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deleteModalConfirm: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: '#e53935',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteModalConfirmText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });
 
 export default AddDeckScreen;
