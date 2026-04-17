@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, Pressable,
   StyleSheet, ScrollView, KeyboardAvoidingView, Dimensions, LayoutAnimation, Platform, UIManager, Keyboard, BackHandler,
@@ -30,7 +30,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const { width } = Dimensions.get('window');
+const { width, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 const COL_GAP = 10;
 
@@ -49,40 +49,38 @@ const CATEGORIES = [
 
 // ── Category tile ─────────────────────────────────────────────────
 
-const CategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0 }) => (
+const CategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0, onScrollToInput }) => (
   <TouchableOpacity
     onPress={() => { Keyboard.dismiss(); onBlurInput?.(); onPress(); }}
     activeOpacity={0.75}
     style={s.catTile}
   >
-    {/* Fundo SVG */}
     <SvgXml xml={CATEGORY_TILE_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />
-    {/* Overlay de seleção — stroke verde no mesmo shape */}
     {selected && <SvgXml xml={CATEGORY_TILE_SELECTED_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
-
-    {/* Checkmark de seleção */}
     {selected && (
       <View style={s.catTileCheck}>
         <Ionicons name="checkmark" size={10} color="#0F0F0F" />
       </View>
     )}
-
-    {/* Ícone + label centralizados */}
+    {/* Seta para cima — scroll até o input — aparece só quando input saiu da tela */}
+    {selected && onScrollToInput !== undefined && (
+      <TouchableOpacity style={s.catTileArrow} onPress={e => { e.stopPropagation(); onScrollToInput?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="chevron-up" size={16} color={theme.primary} />
+      </TouchableOpacity>
+    )}
     <View style={s.catTileContent}>
       <GlowIcon iconData={item.icon} size={44} color={theme.primary} glowBlur={7} />
       <Text style={[s.catTileLabel, selected && s.catTileLabelSelected]} numberOfLines={2}>
         {item.name}
       </Text>
     </View>
-
-    {/* Contador de decks no recorte inferior esquerdo — sempre visível */}
     <View style={s.catTileBadge}>
       <Text style={s.catTileBadgeText}>{String(deckCount).padStart(2, '0')}</Text>
     </View>
   </TouchableOpacity>
 );
 
-const CustomCategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0 }) => (
+const CustomCategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0, onScrollToInput }) => (
   <TouchableOpacity
     onPress={() => { Keyboard.dismiss(); onBlurInput?.(); onPress(); }}
     activeOpacity={0.75}
@@ -90,20 +88,22 @@ const CustomCategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 
   >
     <SvgXml xml={CATEGORY_TILE_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />
     {selected && <SvgXml xml={CATEGORY_TILE_SELECTED_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
-
     {selected && (
       <View style={s.catTileCheck}>
         <Ionicons name="checkmark" size={10} color="#0F0F0F" />
       </View>
     )}
-
+    {selected && onScrollToInput !== undefined && (
+      <TouchableOpacity style={s.catTileArrow} onPress={e => { e.stopPropagation(); onScrollToInput?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="chevron-up" size={16} color={theme.primary} />
+      </TouchableOpacity>
+    )}
     <View style={s.catTileContent}>
       <Ionicons name={item.icon || 'folder-outline'} size={44} color={theme.primary} />
       <Text style={[s.catTileLabel, selected && s.catTileLabelSelected]} numberOfLines={2}>
         {item.name}
       </Text>
     </View>
-
     <View style={s.catTileBadge}>
       <Text style={s.catTileBadgeText}>{String(deckCount).padStart(2, '0')}</Text>
     </View>
@@ -142,6 +142,14 @@ export const AddDeckScreen = ({ route, navigation }) => {
   const catInputFocusedRef = useRef(false);
   const preselectedCardRef = useRef(null);
   const preselectedCardY = useRef(null);
+  const cardYMap = useRef({}); // { categoryId: absoluteY }
+  const scrollY = useRef(0);
+  const inputSectionBottom = useRef(0);
+  const selectedCategoryRef = useRef(null);
+  const [showArrow, setShowArrow] = useState(false);
+  const [showLabel, setShowLabel] = useState(false);
+  const showLabelRef = useRef(false);
+  const showArrowRef = useRef(false);
 
   // Carrega categorias customizadas e contagem de decks por categoria
   useEffect(() => {
@@ -188,6 +196,17 @@ export const AddDeckScreen = ({ route, navigation }) => {
       initialCategory.current = cat;
     });
   }, [editDeckId]);
+
+  const updateVisibility = useCallback(() => {
+    const sel = selectedCategoryRef.current;
+    const sy = scrollY.current;
+    const cardY = preselectedCardY.current;
+    const inputBottom = inputSectionBottom.current;
+
+    const nextArrow = !!(sel && inputBottom > 0 && sy > inputBottom);
+
+    if (nextArrow !== showArrowRef.current) { showArrowRef.current = nextArrow; setShowArrow(nextArrow); }
+  }, []);
 
   // Mantém refs sincronizados com state para o listener beforeRemove
   useEffect(() => { nameRef.current = name; }, [name]);
@@ -370,10 +389,12 @@ export const AddDeckScreen = ({ route, navigation }) => {
         contentContainerStyle={{ paddingBottom: keyboardHeight + 16 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={e => { scrollY.current = e.nativeEvent.contentOffset.y; updateVisibility(); }}
       >
       <Pressable onPress={() => inputRef.current?.blur()} style={s.scrollContent}>
         {/* ── Nome do deck ────────────────────────────────────── */}
-        <View style={s.section}>
+        <View style={s.section} onLayout={e => { inputSectionBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height; }}>
           <Text style={[s.sectionTitle, { marginBottom: 10 }]}>NOME DO DECK</Text>
           <TouchableOpacity
             style={s.inputWrap}
@@ -403,6 +424,25 @@ export const AddDeckScreen = ({ route, navigation }) => {
             )}
           </TouchableOpacity>
           <View style={[s.inputLine, { backgroundColor: inputFocused ? theme.primary : theme.primaryDark }]} />
+          {/* Label de categoria — visível quando card selecionado está além do viewport inicial */}
+          {selectedCategory && showLabel && (() => {
+            const cat = [...CATEGORIES, ...customCategories].find(c => c.id === selectedCategory);
+            if (!cat) return null;
+            return (
+              <TouchableOpacity
+                style={s.selectedCatLabel}
+                onPress={() => {
+                  const y = preselectedCardY.current ?? catSectionY.current - 16;
+                  scrollRef.current?.scrollTo({ y: y - 24, animated: true });
+                }}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="pricetag-outline" size={11} color={theme.primary} />
+                <Text style={s.selectedCatLabelText} numberOfLines={1}>{cat.name}</Text>
+                <Ionicons name="chevron-down" size={11} color={theme.primary} />
+              </TouchableOpacity>
+            );
+          })()}
         </View>
 
         {/* ── Categoria ───────────────────────────────────────── */}
@@ -433,26 +473,28 @@ export const AddDeckScreen = ({ route, navigation }) => {
               <View style={s.colsWrap}>
                 <View style={s.col}>
                   {left.map(item => (
-                    <View key={item.id} onLayout={item.id === preselectedCategoryId ? e => { preselectedCardY.current = e.nativeEvent.layout.y + catSectionY.current; } : undefined}>
+                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); } }}>
                       <CategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
-                        onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                        onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
+                        onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
                       />
                     </View>
                   ))}
                 </View>
                 <View style={s.col}>
                   {right.map(item => (
-                    <View key={item.id} onLayout={item.id === preselectedCategoryId ? e => { preselectedCardY.current = e.nativeEvent.layout.y + catSectionY.current; } : undefined}>
+                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); } }}>
                       <CategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
-                        onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                        onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
+                        onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
                       />
                     </View>
                   ))}
@@ -528,7 +570,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
                   </View>
                   {customCatIcon === '__picker__' && (
                     <View style={s.iconPickerWrap}>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.iconTabsScroll} contentContainerStyle={s.iconTabsContent}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.iconTabsScroll} contentContainerStyle={s.iconTabsContent} keyboardShouldPersistTaps="always">
                         {ICON_GROUPS.map((g, i) => (
                           <TouchableOpacity
                             key={g.label}
@@ -592,26 +634,28 @@ export const AddDeckScreen = ({ route, navigation }) => {
               <View style={s.colsWrap}>
                 <View style={s.col}>
                   {left.map(item => (
-                    <View key={item.id} onLayout={item.id === preselectedCategoryId ? e => { preselectedCardY.current = e.nativeEvent.layout.y + catSectionY.current; } : undefined}>
+                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); } }}>
                       <CustomCategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
-                        onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                        onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
+                        onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
                       />
                     </View>
                   ))}
                 </View>
                 <View style={s.col}>
                   {right.map(item => (
-                    <View key={item.id} onLayout={item.id === preselectedCategoryId ? e => { preselectedCardY.current = e.nativeEvent.layout.y + catSectionY.current; } : undefined}>
+                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); } }}>
                       <CustomCategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
-                        onPress={() => setSelectedCategory(p => p === item.id ? null : item.id)}
+                        onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
+                        onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
                       />
                     </View>
                   ))}
@@ -825,6 +869,41 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
+  },
+
+  catTileArrow: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: 'rgba(93,214,44,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+
+  selectedCatLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(93,214,44,0.45)',
+  },
+  selectedCatLabelText: {
+    color: theme.primary,
+    fontSize: 11,
+    fontFamily: theme.fontFamily.uiMedium,
+    maxWidth: 160,
   },
 
   // ── Create custom category trigger
