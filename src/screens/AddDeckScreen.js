@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, Pressable,
-  StyleSheet, ScrollView, KeyboardAvoidingView, Dimensions, LayoutAnimation, Platform, UIManager, Keyboard, BackHandler,
+  StyleSheet, ScrollView, KeyboardAvoidingView, Dimensions, LayoutAnimation, Keyboard, BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,9 +26,6 @@ import {
   segurancaIcon,
 } from '../assets/svgIconPaths';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const { width, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
@@ -142,7 +139,8 @@ export const AddDeckScreen = ({ route, navigation }) => {
   const catInputFocusedRef = useRef(false);
   const preselectedCardRef = useRef(null);
   const preselectedCardY = useRef(null);
-  const cardYMap = useRef({}); // { categoryId: absoluteY }
+  const cardYMap = useRef({});
+  const pendingScrollToCard = useRef(false); // { categoryId: absoluteY }
   const scrollY = useRef(0);
   const inputSectionBottom = useRef(0);
   const selectedCategoryRef = useRef(null);
@@ -396,73 +394,92 @@ export const AddDeckScreen = ({ route, navigation }) => {
         {/* ── Nome do deck ────────────────────────────────────── */}
         <View style={s.section} onLayout={e => { inputSectionBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height; }}>
           <Text style={[s.sectionTitle, { marginBottom: 10 }]}>NOME DO DECK</Text>
-          <TouchableOpacity
-            style={s.inputWrap}
-            onPress={() => inputRef.current?.focus()}
-            activeOpacity={1}
-          >
-            <Ionicons name="albums-outline" size={18} color={inputFocused ? theme.primary : theme.primaryDark} style={s.inputIcon} />
-            <TextInput
-              ref={inputRef}
-              style={s.input}
-              placeholder="Ex: Concurso XYZ"
-              placeholderTextColor={theme.textMuted}
-              value={name}
-              onChangeText={t => setName(t.slice(0, 30))}
-              onFocus={() => {
-                setInputFocused(true);
-                setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 150);
-              }}
-              onBlur={() => setInputFocused(false)}
-              returnKeyType="done"
-              maxLength={30}
-            />
-            {name.length > 0 && (
-              <Text style={[s.charCount, name.length >= 25 && s.charCountWarn]}>
-                {name.length}/30
-              </Text>
-            )}
-          </TouchableOpacity>
-          <View style={[s.inputLine, { backgroundColor: inputFocused ? theme.primary : theme.primaryDark }]} />
-          {/* Label de categoria — visível quando card selecionado está além do viewport inicial */}
-          {selectedCategory && showLabel && (() => {
-            const cat = [...CATEGORIES, ...customCategories].find(c => c.id === selectedCategory);
-            if (!cat) return null;
-            return (
-              <TouchableOpacity
-                style={s.selectedCatLabel}
-                onPress={() => {
-                  const y = preselectedCardY.current ?? catSectionY.current - 16;
-                  scrollRef.current?.scrollTo({ y: y - 24, animated: true });
-                }}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="pricetag-outline" size={11} color={theme.primary} />
-                <Text style={s.selectedCatLabelText} numberOfLines={1}>{cat.name}</Text>
-                <Ionicons name="chevron-down" size={11} color={theme.primary} />
-              </TouchableOpacity>
-            );
-          })()}
+          <View style={s.inputAreaWrap}>
+            <View style={s.inputUnderlineWrap}>
+              <View style={s.inputWrap}>
+                <Ionicons name="albums-outline" size={18} color={inputFocused ? theme.primary : theme.primaryDark} style={s.inputIcon} />
+                <TextInput
+                  ref={inputRef}
+                  style={s.input}
+                  placeholder="Ex: Concurso XYZ"
+                  placeholderTextColor={theme.textMuted}
+                  value={name}
+                  onChangeText={t => setName(t.slice(0, 30))}
+                  onFocus={() => {
+                    setInputFocused(true);
+                    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 150);
+                  }}
+                  onBlur={() => setInputFocused(false)}
+                  returnKeyType="done"
+                  maxLength={30}
+                />
+                {name.length > 0 && (
+                  <Text style={[s.charCount, name.length >= 25 && s.charCountWarn]}>
+                    {name.length}/30
+                  </Text>
+                )}
+              </View>
+              <View style={[s.inputLine, { backgroundColor: inputFocused ? theme.primary : theme.primaryDark }]} />
+            </View>
+            <TouchableOpacity
+              style={[s.saveBtnCircle, !name.trim() && s.saveBtnOff]}
+              onPress={() => { Keyboard.dismiss(); handleSave(); }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="checkmark" size={22} color="#0F0F0F" />
+            </TouchableOpacity>
+          </View>
+          {/* Espaço fixo reservado para o label — evita layout shift */}
+          <View style={s.labelReservedArea}>
+            {selectedCategory && showLabel && (() => {
+              const cat = [...CATEGORIES, ...customCategories].find(c => c.id === selectedCategory);
+              if (!cat) return null;
+              return (
+                <TouchableOpacity
+                  style={s.selectedCatLabel}
+                  onPress={() => {
+                    const y = preselectedCardY.current ?? catSectionY.current - 16;
+                    scrollRef.current?.scrollTo({ y: y - 24, animated: true });
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="pricetag-outline" size={12} color={theme.primary} />
+                  <Text style={s.selectedCatLabelText} numberOfLines={1}>{cat.name}</Text>
+                  <Ionicons name="chevron-down" size={12} color={theme.primary} />
+                </TouchableOpacity>
+              );
+            })()}
+          </View>
         </View>
 
         {/* ── Categoria ───────────────────────────────────────── */}
         <View style={s.section} onLayout={e => { catSectionY.current = e.nativeEvent.layout.y; }}>
-          <Text style={[s.sectionTitle, { marginBottom: 10 }]}>CATEGORIA</Text>
-
-          {/* Filtro padrão / customizadas — sempre visível */}
-          <View style={s.catFilterRow}>
-            {['preset', 'custom'].map(f => (
-              <TouchableOpacity
-                key={f}
-                style={[s.catFilterChip, catFilter === f && s.catFilterChipActive]}
-                onPress={() => setCatFilter(f)}
-                activeOpacity={0.75}
-              >
-                <Text style={[s.catFilterText, catFilter === f && s.catFilterTextActive]}>
-                  {f === 'preset' ? 'Padrão' : 'Personalizar'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          {/* Título + filtro na mesma linha */}
+          <View style={s.catHeaderRow}>
+            <Text style={s.sectionTitle}>CATEGORIA</Text>
+            <View style={s.catFilterInline}>
+              {['preset', 'custom'].map((f, i) => (
+                <React.Fragment key={f}>
+                  {i > 0 && <View style={s.catFilterDivider} />}
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCatFilter(f);
+                      if (f === 'preset' && selectedCategoryRef.current?.startsWith('custom_')) {
+                        preselectedCardY.current = null; selectedCategoryRef.current = null; setShowLabel(false); setShowArrow(false); showLabelRef.current = false; showArrowRef.current = false; setSelectedCategory(null);
+                      } else if (f === 'custom' && selectedCategoryRef.current && !selectedCategoryRef.current.startsWith('custom_')) {
+                        preselectedCardY.current = null; selectedCategoryRef.current = null; setShowLabel(false); setShowArrow(false); showLabelRef.current = false; showArrowRef.current = false; setSelectedCategory(null);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                    hitSlop={HIT_SLOP}
+                  >
+                    <Text style={[s.catFilterInlineText, catFilter === f && s.catFilterInlineTextActive]}>
+                      {f === 'preset' ? 'Padrão' : 'Personalizar'}
+                    </Text>
+                  </TouchableOpacity>
+                </React.Fragment>
+              ))}
+            </View>
           </View>
 
           {/* 2-column tile grid — padrão */}
@@ -473,7 +490,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
               <View style={s.colsWrap}>
                 <View style={s.col}>
                   {left.map(item => (
-                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); } }}>
+                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scrollRef.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
                       <CategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
@@ -487,7 +504,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
                 </View>
                 <View style={s.col}>
                   {right.map(item => (
-                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); } }}>
+                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scrollRef.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
                       <CategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
@@ -618,11 +635,15 @@ export const AddDeckScreen = ({ route, navigation }) => {
                       await saveCustomCategories([...existing, newCat]);
                       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                       setCustomCategories(prev => [...prev, newCat]);
+                      selectedCategoryRef.current = newId;
+                      preselectedCardY.current = null;
+                      pendingScrollToCard.current = true;
                       setSelectedCategory(newId);
                       setCustomCatExpanded(false);
                       setCustomCatName('');
                       setCustomCatIcon(null);
                       setCatFilter('custom');
+                      // posição do card novo ainda não existe — onLayout vai atualizar e chamar updateVisibility
                     }}
                     activeOpacity={0.8}
                   >
@@ -634,7 +655,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
               <View style={s.colsWrap}>
                 <View style={s.col}>
                   {left.map(item => (
-                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); } }}>
+                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scrollRef.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
                       <CustomCategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
@@ -648,7 +669,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
                 </View>
                 <View style={s.col}>
                   {right.map(item => (
-                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); } }}>
+                    <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scrollRef.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
                       <CustomCategoryTile
                         item={item}
                         selected={selectedCategory === item.id}
@@ -666,15 +687,6 @@ export const AddDeckScreen = ({ route, navigation }) => {
           })()}
         </View>
 
-
-        {/* ── Salvar deck ──────────────────────────────────────── */}
-        <TouchableOpacity
-          style={[s.saveBtn, !name.trim() && s.saveBtnOff]}
-          onPress={() => { Keyboard.dismiss(); handleSave(); }}
-          activeOpacity={0.85}
-        >
-          <Text style={s.saveBtnText}>Salvar deck</Text>
-        </TouchableOpacity>
 
         <View style={{ height: insets.bottom + 28 }} />
       </Pressable>
@@ -719,7 +731,7 @@ const s = StyleSheet.create({
   scrollContent: { paddingHorizontal: 16, paddingTop: 24 },
 
   // ── Section
-  section: { marginBottom: 24 },
+  section: { marginBottom: 10 },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -740,11 +752,19 @@ const s = StyleSheet.create({
   },
 
   // ── Name input
+  inputAreaWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  inputUnderlineWrap: {
+    flex: 1,
+  },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 4,
-    height: 54,
+    paddingBottom: 6,
   },
   inputLine: {
     height: 1.5,
@@ -832,30 +852,31 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // filter chips
-  catFilterRow: {
+  // filtro inline (sem pill)
+  catHeaderRow: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 12,
   },
-  catFilterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+  catFilterInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  catFilterChipActive: {
-    backgroundColor: 'rgba(93,214,44,0.1)',
-    borderColor: 'rgba(93,214,44,0.4)',
+  catFilterDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: theme.primary,
+    opacity: 0.6,
   },
-  catFilterText: {
-    color: theme.textSecondary,
-    fontSize: 12,
-    fontFamily: theme.fontFamily.uiSemiBold,
+  catFilterInlineText: {
+    color: theme.textMuted,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
-  catFilterTextActive: { color: theme.primary },
+  catFilterInlineTextActive: { color: theme.primary },
 
   // checkmark badge
   catTileCheck: {
@@ -886,24 +907,28 @@ const s = StyleSheet.create({
     zIndex: 10,
   },
 
+  labelReservedArea: {
+    height: 26,
+    marginTop: 2,
+    overflow: 'visible',
+  },
   selectedCatLabel: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    marginTop: 8,
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 20,
+    borderRadius: 22,
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: 'rgba(93,214,44,0.45)',
   },
   selectedCatLabelText: {
     color: theme.primary,
-    fontSize: 11,
-    fontFamily: theme.fontFamily.uiMedium,
-    maxWidth: 160,
+    fontSize: 12,
+    fontWeight: '600',
+    maxWidth: 140,
   },
 
   // ── Create custom category trigger
@@ -930,6 +955,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     padding: 16,
+    marginBottom: 12,
   },
   panelHeader: {
     flexDirection: 'row',
@@ -1060,26 +1086,21 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // ── Save deck
-  saveBtn: {
+  // ── Save deck circle button
+  saveBtnCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: theme.primary,
-    borderRadius: 16,
-    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  saveBtnOff: { opacity: 0.4, shadowOpacity: 0 },
-  saveBtnText: {
-    color: '#0F0F0F',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
+  saveBtnOff: { opacity: 0.35, shadowOpacity: 0 },
 });
 
 export default AddDeckScreen;
