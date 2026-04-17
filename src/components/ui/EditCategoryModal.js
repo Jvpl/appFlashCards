@@ -33,7 +33,6 @@ import {
   getCustomCategories, saveCustomCategories, getDeckCatId,
 } from '../../config/categories';
 import { getAppData, saveAppData, getUsedCategoryIds, saveUsedCategoryIds } from '../../services/storage';
-import { NativeKeyboardAvoidingContainer } from '../../native/NativeKeyboardAvoidingContainer';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -84,21 +83,12 @@ export function EditCategoryModal({
   const [activeCatIds, setActiveCatIds] = useState(new Set());
   // sheetReady: false até onShow disparar — sheet fica com opacity:0 para não piscar
   const [sheetReady, setSheetReady] = useState(false);
-  const pageScrollRef = useRef(null);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const exitAnim = useRef(null);
   const isDismissing = useRef(false);
 
-  // Reanimated shared values para o sheet — shadow tree sincronizado via JSI.
-  // entryTranslateY: animação de entrada/saída do sheet
-  // kbTranslateY: movimento do teclado frame a frame via onKeyboardSettle
-  // TouchTargetHelper usa child.matrix para hit-test → sempre correto.
   const entryTranslateY = useSharedValue(500);
-  const kbTranslateY = useSharedValue(0);
-  // Dois transforms separados: entryTranslateY via withTiming (JS thread),
-  // kbTranslateY aplicado direto na UI thread pelo Reanimated sem passar pelo JS.
   const sheetAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: entryTranslateY.value + kbTranslateY.value }],
+    transform: [{ translateY: entryTranslateY.value }],
   }));
 
   // Carrega IDs de todas as categorias que já têm decks ao abrir
@@ -112,33 +102,22 @@ export function EditCategoryModal({
     });
   }, [visible]);
 
+  // Pré-preenche o input se categoria atual é personalizada
   useEffect(() => {
     if (visible && categoryId?.startsWith('custom_')) {
       const cat = customCategoriesAvailable.find(c => c.id === categoryId);
       if (cat) {
         setCustomName(cat.name || '');
         setCustomIcon(cat.icon || null);
-        setPage(1);
-        setTimeout(() => pageScrollRef.current?.scrollTo({ x: SW, animated: false }), 0);
       }
     }
   }, [visible, categoryId, customCategoriesAvailable]);
 
-  // Recebe altura do teclado frame a frame do Kotlin (onProgress).
-  // withTiming(duration:0) = instantâneo mas via JSI — shadow tree atualizado corretamente.
-  // Ignora eventos durante o fechamento para não interferir na animação de saída.
-  const handleKeyboardSettle = useCallback((e) => {
-    if (isDismissing.current) return;
-    const h = e.nativeEvent?.height ?? 0;
-    kbTranslateY.value = withTiming(-h, { duration: 0 });
-  }, [kbTranslateY]);
-
   const handleShow = useCallback(() => {
     setSheetReady(true);
-    kbTranslateY.value = 0;
     entryTranslateY.value = withTiming(0, { duration: 320 });
     Animated.timing(overlayOpacity, { toValue: 1, duration: 280, useNativeDriver: true }).start();
-  }, [entryTranslateY, kbTranslateY]);
+  }, [entryTranslateY]);
 
   useEffect(() => {
     if (visible) {
@@ -160,26 +139,22 @@ export function EditCategoryModal({
     if (isDismissing.current) return;
     isDismissing.current = true;
     Keyboard.dismiss();
-    // Congela kbTranslateY para o teclado descendo não interferir na animação de saída
-    kbTranslateY.value = kbTranslateY.value;
     entryTranslateY.value = withTiming(500, { duration: 260 });
     Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => {
       if (finished) {
-        // Mantém em 500 (fora da tela) — não volta para 0 para não piscar
-        kbTranslateY.value = 0;
         isDismissing.current = false;
         setSheetReady(false);
         reset();
         onDismiss();
       }
     });
-  }, [entryTranslateY, kbTranslateY, reset, onDismiss]);
+  }, [entryTranslateY, reset, onDismiss]);
 
   const handleSave = useCallback(async () => {
     if (saving) return;
     setSaving(true);
     const DEFAULT_ICON = 'folder-outline';
-    if (selectedId && page !== 1) {
+    if (selectedId && !customName.trim()) {
       const allData = await getAppData();
       await saveAppData(allData.map(d =>
         getDeckCatId(d) === categoryId ? { ...d, category: selectedId } : d
@@ -205,7 +180,7 @@ export function EditCategoryModal({
         // Fecha sem salvar — não há mudança real
         entryTranslateY.value = withTiming(500, { duration: 260 });
         Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => {
-          if (finished) { kbTranslateY.value = 0; reset(); onDismiss(); }
+          if (finished) { reset(); onDismiss(); }
         });
         return;
       }
@@ -246,24 +221,28 @@ export function EditCategoryModal({
     }
     entryTranslateY.value = withTiming(500, { duration: 260 });
     Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => {
-      if (finished) {
-        // Mantém em 500 — não volta para 0 para não piscar antes do Modal sumir
-        kbTranslateY.value = 0;
-        reset();
-        onSaved?.();
-      }
+      if (finished) { reset(); onSaved?.(); }
     });
-  }, [selectedId, customName, customIcon, categoryId, page, entryTranslateY, kbTranslateY, reset, onSaved]);
+  }, [selectedId, customName, customIcon, categoryId, entryTranslateY, reset, onSaved]);
 
-  const canSave = (!!selectedId || (page === 1 && !!customName.trim())) && !saving;
+  const canSave = (!!selectedId || !!customName.trim()) && !saving;
 
-  // Aba Padrão: exclui a categoria atual e qualquer categoria que já tem decks
-  const listItems = presetCategoriesAvailable.filter(c =>
+  // Listas disponíveis por filtro
+  const listItemsPreset = presetCategoriesAvailable.filter(c =>
     c.id !== categoryId && !activeCatIds.has(c.id)
   );
+  const listItemsCustom = customCategoriesAvailable.filter(c =>
+    c.id !== categoryId && !activeCatIds.has(c.id)
+  );
+  const listItems = page === 0 ? listItemsPreset : listItemsCustom;
+
   const currentCatIonIcon = categoryId?.startsWith('custom_')
     ? (customCategoriesAvailable.find(c => c.id === categoryId)?.icon || null)
     : null;
+
+  // Bloqueio mútuo: input com texto bloqueia lista; lista com seleção bloqueia input
+  const inputLocked = !!selectedId;
+  const listLocked = customName.trim().length > 0;
 
   return (
     <Modal
@@ -274,15 +253,12 @@ export function EditCategoryModal({
       onRequestClose={handleDismiss}
       statusBarTranslucent
     >
-      {/* Container mínimo só para capturar onKeyboardSettle — sem filhos pesados */}
-      <NativeKeyboardAvoidingContainer style={StyleSheet.absoluteFillObject} pointerEvents="none" onKeyboardSettle={handleKeyboardSettle} />
-
-      {/* Overlay — fecha ao tocar fora do sheet */}
+      {/* Overlay */}
       <TouchableWithoutFeedback onPress={handleDismiss}>
         <Animated.View style={[StyleSheet.absoluteFillObject, s.overlayBg, { opacity: overlayOpacity }]} />
       </TouchableWithoutFeedback>
 
-      {/* Sheet animado via Reanimated */}
+      {/* Sheet */}
       <Reanimated.View
         style={[s.sheetWrap, sheetAnimStyle, !sheetReady && { opacity: 0 }]}
         onStartShouldSetResponder={() => true}
@@ -290,182 +266,177 @@ export function EditCategoryModal({
         onResponderRelease={() => {}}
       >
         <View style={s.sheet}>
-              {/* Handle */}
-              <View style={s.handle} />
+          <View style={s.handle} />
 
-              {/* Cabeçalho compacto */}
-              <View style={s.currentRow}>
-                <View style={s.currentIconWrap}>
-                  <CategoryIconGlow categoryId={categoryId} ionIcon={currentCatIonIcon} size={20} />
-                </View>
-                <Text style={s.currentName} numberOfLines={1}>{categoryName}</Text>
-              </View>
+          {/* ── Header: categoria atual ── */}
+          <View style={s.currentRow}>
+            <View style={s.currentIconWrap}>
+              <CategoryIconGlow categoryId={categoryId} ionIcon={currentCatIonIcon} size={20} />
+            </View>
+            <Text style={s.currentName} numberOfLines={1}>{categoryName}</Text>
+          </View>
 
-              <View style={s.divider} />
+          <View style={s.divider} />
 
-              {/* Tabs */}
-              <View style={s.tabRow}>
-                <View style={s.tabGroup}>
-                  <TouchableOpacity
-                    style={[s.tab, page === 0 && s.tabActive]}
-                    onPress={() => { setPage(0); pageScrollRef.current?.scrollTo({ x: 0, animated: true }); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.tabText, page === 0 && s.tabTextActive]}>Padrão</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.tab, page === 1 && s.tabActive]}
-                    onPress={() => { setPage(1); setSelectedId(null); pageScrollRef.current?.scrollTo({ x: SW, animated: true }); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.tabText, page === 1 && s.tabTextActive]}>Personalizar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Pager */}
-              <ScrollView
-                ref={pageScrollRef}
-                horizontal
-                pagingEnabled
-                scrollEnabled={false}
-                showsHorizontalScrollIndicator={false}
-                style={s.pager}
-                keyboardShouldPersistTaps="always"
+          {/* ── Input + picker de ícone ── */}
+          <View style={s.inputSection}>
+            <View style={s.inputRow}>
+              <TouchableOpacity
+                style={[s.iconPreview, customIcon && customIcon !== '__picker__' && s.iconPreviewActive, inputLocked && s.lockedOpacity]}
+                onPress={() => { if (inputLocked) return; setCustomIcon(p => p === '__picker__' ? null : '__picker__'); }}
+                activeOpacity={inputLocked ? 1 : 0.75}
               >
-                {/* Página 0: lista de categorias */}
-                <View style={[s.page, { width: SW }]}>
-                  {listItems.length === 0 ? (
-                    <View style={s.empty}>
-                      <Ionicons name="checkmark-circle-outline" size={18} color={theme.textMuted} />
-                      <Text style={s.emptyText}>Nenhuma outra categoria padrão disponível.</Text>
-                    </View>
-                  ) : (
-                    <ScrollView
-                      showsVerticalScrollIndicator={false}
-                      keyboardShouldPersistTaps="always"
-                      style={s.listScroll}
-                      contentContainerStyle={s.listContent}
-                    >
-                      {listItems.map((cat, index) => {
-                        const isSel = selectedId === cat.id;
-                        const isLast = index === listItems.length - 1;
-                        return (
-                          <TouchableOpacity
-                            key={cat.id}
-                            style={[s.listRow, isSel && s.listRowActive, isLast && { borderBottomWidth: 0 }]}
-                            onPress={() => setSelectedId(p => p === cat.id ? null : cat.id)}
-                            activeOpacity={0.75}
-                            delayPressIn={50}
-                          >
-                            <View style={[s.listIconWrap, isSel && s.listIconWrapActive]}>
-                              <CategoryIconGlow categoryId={cat.id} ionIcon={cat.isCustom ? (cat.icon || null) : null} size={20} />
-                            </View>
-                            <Text style={[s.listName, isSel && s.listNameActive]} numberOfLines={1}>
-                              {cat.name}
-                            </Text>
-                            {isSel
-                              ? <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
-                              : <Ionicons name="chevron-forward" size={15} color={theme.textMuted} />
-                            }
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  )}
-                </View>
-
-                {/* Página 1: criar/editar personalizada */}
-                <View style={[s.page, { width: SW }]}>
-                  <View style={s.customWrap}>
-                    <View style={s.inputRow}>
-                      <TouchableOpacity
-                        style={[s.iconPreview, customIcon && customIcon !== '__picker__' && s.iconPreviewActive]}
-                        onPress={() => setCustomIcon(p => p === '__picker__' ? null : '__picker__')}
-                        activeOpacity={0.75}
-                      >
-                        <Ionicons
-                          name={customIcon && customIcon !== '__picker__' ? customIcon : 'folder-outline'}
-                          size={20}
-                          color={customIcon && customIcon !== '__picker__' ? theme.primary : theme.textMuted}
-                        />
-                      </TouchableOpacity>
-                      <View style={s.inputWrap}>
-                        <TextInput
-                          style={s.input}
-                          value={customName}
-                          onChangeText={t => { setCustomName(t); setSelectedId(null); }}
-                          placeholder="Nome da categoria"
-                          placeholderTextColor={theme.textMuted}
-                          maxLength={25}
-                          returnKeyType="done"
-                        />
-                        {customName.length > 0 && (
-                          <Text style={[s.charCount, customName.length >= 20 && s.charCountWarn]}>
-                            {customName.length}/25
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    {customIcon === '__picker__' && (
-                      <View style={s.pickerWrap}>
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={s.groupTabsContent}
-                          style={s.groupTabsScroll}
-                        >
-                          {ICON_GROUPS.map((g, i) => (
-                            <TouchableOpacity
-                              key={g.label}
-                              style={[s.groupTab, iconGroup === i && s.groupTabActive]}
-                              onPress={() => setIconGroup(i)}
-                              activeOpacity={0.75}
-                            >
-                              <Text style={[s.groupTabText, iconGroup === i && s.groupTabTextActive]}>
-                                {g.label}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </ScrollView>
-                        <View style={s.iconGrid}>
-                          {ICON_GROUPS[iconGroup].icons.map(ic => (
-                            <TouchableOpacity
-                              key={ic}
-                              style={[s.iconOpt, customIcon === ic && s.iconOptActive]}
-                              onPress={() => setCustomIcon(ic)}
-                              activeOpacity={0.75}
-                            >
-                              <Ionicons
-                                name={ic}
-                                size={18}
-                                color={customIcon === ic ? theme.primary : theme.textSecondary}
-                              />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-                    )}
-                    {/* Área vazia — consome toque para não fechar teclado */}
-                    <TouchableWithoutFeedback onPress={() => {}}>
-                      <View style={{ flex: 1 }} />
-                    </TouchableWithoutFeedback>
-                  </View>
-                </View>
-              </ScrollView>
-
-              {/* Botão Salvar */}
-              <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
-                <Pressable
-                  style={[s.saveBtn, !canSave && s.saveBtnDisabled]}
-                  onPressIn={canSave ? handleSave : undefined}
-                >
-                  <Text style={[s.saveBtnText, !canSave && s.saveBtnTextDisabled]}>
-                    Salvar
+                <Ionicons
+                  name={customIcon && customIcon !== '__picker__' ? customIcon : 'folder-outline'}
+                  size={20}
+                  color={customIcon && customIcon !== '__picker__' ? theme.primary : theme.textMuted}
+                />
+              </TouchableOpacity>
+              <View style={[s.inputWrap, inputLocked && s.lockedOpacity]}>
+                <TextInput
+                  style={s.input}
+                  value={customName}
+                  onChangeText={t => setCustomName(t)}
+                  placeholder="Nome da categoria"
+                  placeholderTextColor={theme.textMuted}
+                  maxLength={25}
+                  returnKeyType="done"
+                  editable={!inputLocked}
+                  onSubmitEditing={canSave ? handleSave : undefined}
+                />
+                {customName.length > 0 && (
+                  <Text style={[s.charCount, customName.length >= 20 && s.charCountWarn]}>
+                    {customName.length}/25
                   </Text>
-                </Pressable>
+                )}
               </View>
             </View>
+
+            {/* Picker de ícones — toggle, só quando input não está bloqueado */}
+            {!inputLocked && customIcon === '__picker__' && (
+              <View style={s.pickerWrap}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={s.groupTabsContent}
+                  style={s.groupTabsScroll}
+                  keyboardShouldPersistTaps="always"
+                >
+                  {ICON_GROUPS.map((g, i) => (
+                    <TouchableOpacity
+                      key={g.label}
+                      style={[s.groupTab, iconGroup === i && s.groupTabActive]}
+                      onPress={() => setIconGroup(i)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[s.groupTabText, iconGroup === i && s.groupTabTextActive]}>
+                        {g.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <ScrollView
+                  keyboardShouldPersistTaps="always"
+                  scrollEnabled={false}
+                  contentContainerStyle={s.iconGrid}
+                >
+                  {ICON_GROUPS[iconGroup].icons.map(ic => (
+                    <TouchableOpacity
+                      key={ic}
+                      style={[s.iconOpt, customIcon === ic && s.iconOptActive]}
+                      onPress={() => setCustomIcon(ic)}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons
+                        name={ic}
+                        size={18}
+                        color={customIcon === ic ? theme.primary : theme.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+
+          <View style={s.divider} />
+
+          {/* ── Filtro Padrão / Personalizar ── */}
+          <View style={s.tabRow}>
+            <TouchableOpacity
+              style={[s.tab, page === 0 && s.tabActive]}
+              onPress={() => { setPage(0); setSelectedId(null); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.tabText, page === 0 && s.tabTextActive]}>Padrão</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.tab, page === 1 && s.tabActive]}
+              onPress={() => { setPage(1); setSelectedId(null); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.tabText, page === 1 && s.tabTextActive]}>Personalizadas</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Lista de categorias disponíveis ── */}
+          <View style={[s.listWrap, listLocked && s.lockedOpacity]}>
+            {listItems.length === 0 ? (
+              <View style={s.empty}>
+                <Ionicons name="checkmark-circle-outline" size={18} color={theme.textMuted} />
+                <Text style={s.emptyText}>
+                  {page === 0
+                    ? 'Nenhuma outra categoria padrão disponível.'
+                    : 'Nenhuma categoria personalizada disponível.'}
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="always"
+                style={s.listScroll}
+                contentContainerStyle={s.listContent}
+              >
+                {listItems.map((cat, index) => {
+                  const isSel = selectedId === cat.id;
+                  const isLast = index === listItems.length - 1;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={[s.listRow, isSel && s.listRowActive, isLast && { borderBottomWidth: 0 }]}
+                      onPress={() => { if (listLocked) return; setSelectedId(p => p === cat.id ? null : cat.id); }}
+                      activeOpacity={listLocked ? 1 : 0.75}
+                      delayPressIn={50}
+                    >
+                      <View style={[s.listIconWrap, isSel && s.listIconWrapActive]}>
+                        <CategoryIconGlow categoryId={cat.id} ionIcon={cat.isCustom ? (cat.icon || null) : null} size={20} />
+                      </View>
+                      <Text style={[s.listName, isSel && s.listNameActive]} numberOfLines={1}>
+                        {cat.name}
+                      </Text>
+                      {isSel
+                        ? <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
+                        : <Ionicons name="chevron-forward" size={15} color={theme.textMuted} />
+                      }
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+
+          {/* ── Botão Salvar ── */}
+          <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
+            <Pressable
+              style={[s.saveBtn, !canSave && s.saveBtnDisabled]}
+              onPressIn={canSave ? handleSave : undefined}
+            >
+              <Text style={[s.saveBtnText, !canSave && s.saveBtnTextDisabled]}>
+                Salvar
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       </Reanimated.View>
 
       <CustomAlert
@@ -480,39 +451,23 @@ export function EditCategoryModal({
 }
 
 const s = StyleSheet.create({
-  overlayBg: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
+  overlayBg: { backgroundColor: 'rgba(0,0,0,0.6)' },
   sheetWrap: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: Math.round(SH * 0.5),
+    bottom: 0, left: 0, right: 0,
+    height: Math.round(SH * 0.78),
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
-  },
-  nativeContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '50%',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    overflow: 'hidden',
   },
   sheet: {
     flex: 1,
     backgroundColor: '#141414',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     overflow: 'hidden',
   },
   handle: {
@@ -521,9 +476,10 @@ const s = StyleSheet.create({
     alignSelf: 'center', marginTop: 8, marginBottom: 8,
   },
 
+  // Header
   currentRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 18, paddingBottom: 8, gap: 8,
+    paddingHorizontal: 18, paddingBottom: 10, gap: 8,
   },
   currentIconWrap: {
     width: 36, height: 36, borderRadius: 10,
@@ -536,20 +492,55 @@ const s = StyleSheet.create({
     fontSize: 13, fontFamily: theme.fontFamily.headingSemiBold,
     flex: 1,
   },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginBottom: 0 },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)' },
 
+  // Input
+  inputSection: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 12 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconPreview: {
+    width: 42, height: 42, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  iconPreviewActive: { borderColor: theme.primary },
+  lockedOpacity: { opacity: 0.35 },
+  inputWrap: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12, paddingHorizontal: 14, height: 42,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  input: {
+    flex: 1, color: theme.textPrimary,
+    fontSize: 14, fontFamily: theme.fontFamily.uiMedium, paddingVertical: 0,
+  },
+  charCount: { fontSize: 10, fontFamily: theme.fontFamily.uiBold, color: theme.textMuted },
+  charCountWarn: { color: theme.primary },
+  pickerWrap: { gap: 8, marginTop: 12 },
+  groupTabsScroll: { flexGrow: 0 },
+  groupTabsContent: { gap: 5, paddingBottom: 2 },
+  groupTab: {
+    paddingHorizontal: 11, paddingVertical: 4, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  groupTabActive: { borderColor: 'rgba(93,214,44,0.4)' },
+  groupTabText: { color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiSemiBold },
+  groupTabTextActive: { color: theme.primary },
+  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  iconOpt: {
+    width: 38, height: 38, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  iconOptActive: { borderColor: theme.primary, backgroundColor: 'rgba(93,214,44,0.08)' },
+
+  // Filtro
   tabRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18, paddingTop: 8, paddingBottom: 6,
-  },
-  tabGroup: { flexDirection: 'row', gap: 8, flex: 1 },
-  tabFilterGroup: { flexDirection: 'row', gap: 12 },
-  tabFilterText: {
-    color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium,
-  },
-  tabFilterTextActive: {
-    color: theme.primary, textDecorationLine: 'underline',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 18, paddingTop: 10, paddingBottom: 8,
   },
   tab: {
     paddingHorizontal: 14, paddingVertical: 6,
@@ -564,9 +555,8 @@ const s = StyleSheet.create({
   tabText: { color: theme.textMuted, fontSize: 12, fontFamily: theme.fontFamily.uiSemiBold },
   tabTextActive: { color: theme.primary },
 
-  pager: { flex: 1 },
-  page: { flex: 1, paddingHorizontal: 18 },
-
+  // Lista
+  listWrap: { flex: 1, paddingHorizontal: 18, paddingBottom: 4 },
   listScroll: { flex: 1 },
   listContent: {
     backgroundColor: 'rgba(255,255,255,0.02)',
@@ -589,7 +579,6 @@ const s = StyleSheet.create({
   listIconWrapActive: { borderColor: 'rgba(93,214,44,0.25)' },
   listName: { flex: 1, color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium },
   listNameActive: { color: theme.primary, fontFamily: theme.fontFamily.uiBold },
-
   empty: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 20, paddingHorizontal: 14,
@@ -598,48 +587,7 @@ const s = StyleSheet.create({
   },
   emptyText: { flex: 1, color: theme.textSecondary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium },
 
-  customWrap: { flex: 1 },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  iconPreview: {
-    width: 42, height: 42, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  iconPreviewActive: { borderColor: theme.primary },
-  inputWrap: {
-    flex: 1, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 12, paddingHorizontal: 14, height: 42,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-  },
-  input: {
-    flex: 1, color: theme.textPrimary,
-    fontSize: 14, fontFamily: theme.fontFamily.uiMedium, paddingVertical: 0,
-  },
-  charCount: { fontSize: 10, fontFamily: theme.fontFamily.uiBold, color: theme.textMuted },
-  charCountWarn: { color: theme.primary },
-
-  pickerWrap: { gap: 8 },
-  groupTabsScroll: { flexGrow: 0 },
-  groupTabsContent: { gap: 5, paddingBottom: 2 },
-  groupTab: {
-    paddingHorizontal: 11, paddingVertical: 4, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'transparent',
-  },
-  groupTabActive: { borderColor: 'rgba(93,214,44,0.4)' },
-  groupTabText: { color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiSemiBold },
-  groupTabTextActive: { color: theme.primary },
-  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  iconOpt: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: 'transparent',
-  },
-  iconOptActive: { borderColor: theme.primary, backgroundColor: 'rgba(93,214,44,0.08)' },
-
+  // Footer
   footer: {
     paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8,
     borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
