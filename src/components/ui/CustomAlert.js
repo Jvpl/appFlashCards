@@ -7,7 +7,7 @@ export const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
   if (!visible) return null;
 
   return (
-    <Modal transparent={true} visible={visible} animationType="fade" onRequestClose={onClose}>
+    <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, backgroundColor: 'transparent' }]}>
         <TouchableWithoutFeedback onPress={onClose}>
             <View style={styles.alertModalOverlay}>
                 <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
@@ -33,7 +33,7 @@ export const CustomAlert = ({ visible, title, message, buttons, onClose }) => {
                 </TouchableWithoutFeedback>
             </View>
         </TouchableWithoutFeedback>
-    </Modal>
+    </View>
   );
 };
 

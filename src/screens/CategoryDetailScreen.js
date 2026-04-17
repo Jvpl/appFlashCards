@@ -318,7 +318,6 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
   const subjectSortBtnRef = useRef(null);
   // Menu de opções da categoria (header)
   const [catMenuVisible, setCatMenuVisible] = useState(false);
-  const [editCatModalVisible, setEditCatModalVisible] = useState(false);
 
   // Animações de slide+fade para modais bottom-sheet
   const moveModalAnim = useSlideModal(moveModal?.visible, SH * 0.6);
@@ -1249,7 +1248,9 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
                     style={catm.item}
                     onPress={() => {
                       setCatMenuVisible(false);
-                      setTimeout(() => setEditCatModalVisible(true), 50);
+                      setTimeout(() => {
+                        setEditCatModal(p => ({ ...p, visible: true }));
+                      }, 50);
                     }}
                   >
                     <Ionicons name="create-outline" size={17} color={theme.textPrimary} />
@@ -1585,17 +1586,6 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
           </View>
       </BottomSheet>
 
-      {/* ── Modal Editar Categoria ── */}
-      <EditCategoryModal
-        visible={editCatModalVisible}
-        onDismiss={() => setEditCatModalVisible(false)}
-        onSaved={() => { setEditCatModalVisible(false); loadData(); }}
-        categoryId={categoryId}
-        categoryName={category?.name}
-        presetCategoriesAvailable={presetCategoriesAvailable}
-        customCategoriesAvailable={[]}
-      />
-
       {/* ── Modal Sort Decks ── */}
       <Modal
         transparent
@@ -1667,6 +1657,16 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <EditCategoryModal
+        visible={editCatModal.visible}
+        onDismiss={() => setEditCatModal(p => ({ ...p, visible: false }))}
+        onSaved={() => { setEditCatModal(p => ({ ...p, visible: false })); loadData(); }}
+        categoryId={categoryId}
+        categoryName={category?.name}
+        presetCategoriesAvailable={presetCategoriesAvailable}
+        customCategoriesAvailable={allCategories.filter(c => c.isCustom)}
+      />
 
       <CustomAlert
         visible={alertConfig.visible}

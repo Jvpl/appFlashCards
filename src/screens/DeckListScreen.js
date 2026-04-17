@@ -24,8 +24,9 @@ import { getProducts } from '../services/firebase';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { CONCURSO_CATEGORIES, getCatLabel, getCustomCategories, saveCustomCategories } from '../config/categories';
 import { CustomBottomModal } from '../components/ui/CustomBottomModal';
-import { CustomAlert } from '../components/ui/CustomAlert';
 import { EditCategoryModal } from '../components/ui/EditCategoryModal';
+import { CustomAlert } from '../components/ui/CustomAlert';
+
 import theme from '../styles/theme';
 import CategorySvgCard from '../components/home/CategorySvgCard';
 import DeckStackCard from '../components/home/DeckStackCard';
@@ -1804,19 +1805,7 @@ export const DeckListScreen = ({ navigation }) => {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* ── Modal de edição de categoria ── */}
-      <EditCategoryModal
-        visible={editCatModal.visible}
-        categoryId={editCatModal.item?.category?.id}
-        categoryName={editCatModal.item?.category?.name}
-        presetCategoriesAvailable={CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados')}
-        customCategoriesAvailable={customCats}
-        onDismiss={() => setEditCatModal({ visible: false, item: null })}
-        onSaved={async () => {
-          await loadData();
-          setEditCatModal({ visible: false, item: null });
-        }}
-      />
+
 
       {/* ── Sort de Matérias ── */}
       <Modal
@@ -2041,7 +2030,11 @@ export const DeckListScreen = ({ navigation }) => {
                     onPress={() => {
                       const item = categoryContextMenu.item;
                       setCategoryContextMenu(p => ({ ...p, visible: false }));
-                      if (item) setTimeout(() => setEditCatModal({ visible: true, item }), 50);
+                      if (item) {
+                        setTimeout(() => {
+                          setEditCatModal({ visible: true, item });
+                        }, 50);
+                      }
                     }}
                   >
                     <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
@@ -2065,6 +2058,16 @@ export const DeckListScreen = ({ navigation }) => {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <EditCategoryModal
+        visible={editCatModal.visible}
+        onDismiss={() => setEditCatModal({ visible: false, item: null })}
+        onSaved={() => { setEditCatModal({ visible: false, item: null }); loadData(); }}
+        categoryId={editCatModal.item?.category?.id}
+        categoryName={editCatModal.item?.category?.name}
+        presetCategoriesAvailable={CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados')}
+        customCategoriesAvailable={customCats}
+      />
 
       <CustomAlert
         visible={alertConfig.visible}
