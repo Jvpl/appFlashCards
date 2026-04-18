@@ -75,8 +75,8 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
   return (
     <View style={[{ flex: 1 }, style]}>
       {isLoading && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: '#2D3748', zIndex: 10 }}>
-          <ActivityIndicator size="small" color="#4FD1C5" />
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: '#202020', zIndex: 10 }}>
+          <ActivityIndicator size="small" color="#4CAF50" />
         </View>
       )}
       <WebView

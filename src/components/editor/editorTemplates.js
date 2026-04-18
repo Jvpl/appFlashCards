@@ -70,7 +70,7 @@ ${katexStyles}
     html, body { 
       height: 100%; 
       width: 100%;
-      background-color: #2D3748; /* Fundo DARK PREMIUM */
+      background-color: #202020;
       font-family: 'Roboto', sans-serif;
       color: #E2E8F0;
       overflow: hidden;
@@ -133,15 +133,15 @@ ${katexStyles}
       caret-color: transparent; /* Esconde o cursor piscando */
       padding: 4px 6px;
       border-radius: 6px;
-      background-color: rgba(66, 153, 225, 0.15);
-      border: 1px solid rgba(66, 153, 225, 0.3);
+      background-color: rgba(76, 175, 80, 0.12);
+      border: 1px solid rgba(76, 175, 80, 0.25);
       transition: all 0.2s ease;
       white-space: nowrap;
     }
     
     .math-atom:active {
       transform: scale(0.95);
-      background-color: rgba(66, 153, 225, 0.3);
+      background-color: rgba(76, 175, 80, 0.2);
     }
     
     /* FIX CRÍTICO: Ignora cliques internos do KaTeX para garantir detecção do atom */
@@ -198,27 +198,27 @@ ${katexStyles}
 
     /* DESTAQUE VISUAL QUANDO FÓRMULA É SELECIONADA */
     .math-atom::selection {
-      background-color: rgba(48, 105, 135, 0.8) !important; /* #306987 com transparência */
+      background-color: rgba(76, 175, 80, 0.5) !important; /* #306987 com transparência */
     }
     
     /* Destaca conteúdo interno da fórmula quando selecionada */
     .math-atom *::selection {
-      background-color: rgba(48, 105, 135, 0.8) !important;
+      background-color: rgba(76, 175, 80, 0.5) !important;
       color: #FFFFFF !important;
     }
     
     /* Quando a fórmula está dentro de uma seleção, destaca toda a caixa */
     #editor .math-atom.selected {
-      background-color: rgba(48, 105, 135, 0.6) !important;
-      border: 1px solid rgba(48, 105, 135, 1) !important; /* Mantém 1px para não deslocar conteúdo */
+      background-color: rgba(76, 175, 80, 0.3) !important;
+      border: 1px solid rgba(76, 175, 80, 0.7) !important; /* Mantém 1px para não deslocar conteúdo */
       box-shadow: 0 0 8px rgba(48, 105, 135, 0.5) !important;
     }
     
     /* Força o estilo mesmo durante animações/transições */
     .math-atom.selected,
     .math-atom.selected:active {
-      background-color: rgba(48, 105, 135, 0.6) !important;
-      border: 1px solid rgba(48, 105, 135, 1) !important; /* Mantém 1px para não deslocar conteúdo */
+      background-color: rgba(76, 175, 80, 0.3) !important;
+      border: 1px solid rgba(76, 175, 80, 0.7) !important; /* Mantém 1px para não deslocar conteúdo */
     }
   
       /* Sentinela Anti-Caps (Substitui .invisible-char) */

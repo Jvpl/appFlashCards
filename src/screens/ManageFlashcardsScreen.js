@@ -17,6 +17,7 @@ import { CollapsibleKeypad } from '../components/editor/CollapsibleKeypad';
 import { validateInput, getButtonStates } from '../utils/inputValidation';
 import styles from '../styles/globalStyles';
 import theme from '../styles/theme';
+import { Canvas, Circle, BlurMask } from '@shopify/react-native-skia';
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const { deckId, subjectId, preloadedCards, cardId } = route.params; // cardId opcional para modo edição
@@ -136,12 +137,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     const percentage = (count / max) * 100;
     const color = percentage >= 95 ? theme.danger : percentage >= 80 ? theme.warning : theme.textDisabled;
 
+    const slash = percentage >= 95 ? theme.danger : percentage >= 80 ? theme.warning : theme.primary;
     return (
-      <View style={{ alignSelf: 'flex-end', marginTop: 3, backgroundColor: theme.backgroundSecondary, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: percentage >= 95 ? '#EF444440' : percentage >= 80 ? '#F59E0B30' : theme.backgroundTertiary }}>
-        <Text style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color, fontVariant: ['tabular-nums'] }}>
-          {count}/{max}
-        </Text>
-      </View>
+      <Text style={{ fontSize: 13, fontFamily: theme.fontFamily.uiMedium, color, fontVariant: ['tabular-nums'] }}>
+        {count}<Text style={{ color: slash }}> / </Text>{max}
+      </Text>
     );
   };
 
@@ -554,25 +554,40 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
-            <View style={{ flex: 1 }}>
-              {/* Área clicável acima do primeiro input (Label) */}
+            <View style={{ flex: 1, paddingTop: 0, paddingBottom: 16 }}>
+              {/* Área clicável acima da caixa de pergunta */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                <View style={{ marginBottom: 2, width: '100%' }}>
-                  <Text style={styles.formLabel}>Frente</Text>
+                <View style={{ height: 25 }} />
+              </TouchableWithoutFeedback>
+
+              {/* PERGUNTA */}
+              <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={{ marginBottom: 8, marginTop: 4, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 12, height: 12 }}>
+                      <Canvas style={{ position: 'absolute', top: -5, left: -7, width: 26, height: 26 }}>
+                        <Circle cx={13} cy={13} r={6} color={theme.primary}>
+                          <BlurMask blur={5} style="outer" respectCTM={false} />
+                        </Circle>
+                        <Circle cx={13} cy={13} r={6} color={theme.primary} />
+                      </Canvas>
+                    </View>
+                    <Text style={[styles.formLabel, { marginBottom: 0, marginTop: 0, fontFamily: theme.fontFamily.uiSemiBold, fontSize: theme.fontSize.body, letterSpacing: 0.8 }]}>PERGUNTA</Text>
+                  </View>
+                  <EditorCharCounter count={questionCharCount} max={CHAR_LIMIT} />
                 </View>
               </TouchableWithoutFeedback>
 
-              <View style={styles.inputGroup}>
+              <View style={[styles.inputGroup, { flex: 0 }]}>
                 <View
                   renderToHardwareTextureAndroid={true}
                   style={{
-                    borderWidth: 2,
-                    borderColor: activeEditor === 'question' ? '#4db6ac' : '#444',
-                    borderRadius: 8,
+                    borderWidth: .9,
+                    borderColor: activeEditor === 'question' ? theme.primary : 'rgba(255,255,255,0.1)',
+                    borderRadius: 14,
                     height: 200,
                     padding: 4,
-                    marginBottom: 0,
-                    backgroundColor: theme.backgroundSecondary,
+                    backgroundColor: '#202020',
                     overflow: 'hidden'
                   }}
                 >
@@ -588,26 +603,41 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     />
                   </View>
                 </View>
-                <EditorCharCounter count={questionCharCount} max={CHAR_LIMIT} />
               </View>
 
+              {/* Área clicável entre caixas */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                <View style={{ marginBottom: 2, width: '100%', paddingTop: 6 }}>
-                  <Text style={styles.formLabel}>Verso</Text>
+                <View style={{ height: 48 }} />
+              </TouchableWithoutFeedback>
+
+              {/* RESPOSTA */}
+              <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={{ marginBottom: 8, marginTop: 0, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 12, height: 12 }}>
+                      <Canvas style={{ position: 'absolute', top: -5, left: -7, width: 26, height: 26 }}>
+                        <Circle cx={13} cy={13} r={6} color={theme.primary}>
+                          <BlurMask blur={5} style="outer" respectCTM={false} />
+                        </Circle>
+                        <Circle cx={13} cy={13} r={6} color={theme.primary} />
+                      </Canvas>
+                    </View>
+                    <Text style={[styles.formLabel, { marginBottom: 0, marginTop: 0, fontFamily: theme.fontFamily.uiSemiBold, fontSize: theme.fontSize.body, letterSpacing: 0.8 }]}>RESPOSTA</Text>
+                  </View>
+                  <EditorCharCounter count={answerCharCount} max={CHAR_LIMIT} />
                 </View>
               </TouchableWithoutFeedback>
 
-              <View style={styles.inputGroup}>
+              <View style={[styles.inputGroup, { flex: 0 }]}>
                 <View
                   renderToHardwareTextureAndroid={true}
                   style={{
-                    borderWidth: 2,
-                    borderColor: activeEditor === 'answer' ? '#4db6ac' : '#444',
-                    borderRadius: 8,
+                    borderWidth: .9,
+                    borderColor: activeEditor === 'answer' ? theme.primary : 'rgba(255,255,255,0.1)',
+                    borderRadius: 14,
                     height: 200,
                     padding: 4,
-                    marginBottom: 0,
-                    backgroundColor: theme.backgroundSecondary,
+                    backgroundColor: '#202020',
                     overflow: 'hidden'
                   }}
                 >
@@ -628,35 +658,32 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     />
                   </View>
                 </View>
-                <EditorCharCounter count={answerCharCount} max={CHAR_LIMIT} />
               </View>
 
               {/* Área extensiva clicável cobrindo o fundo e botões */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
                 <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 5, paddingBottom: 10 + (insets.bottom > 10 ? insets.bottom : 0) }]}>
                   <TouchableOpacity
-                    style={[styles.fxButton, isMathToolbarVisible && styles.fxButtonActive]}
+                    style={{ backgroundColor: isMathToolbarVisible ? theme.primary : theme.backgroundTertiary, borderRadius: 12, width: 64, height: 54, alignItems: 'center', justifyContent: 'center' }}
                     onPress={(e) => { e.stopPropagation(); toggleMathToolbar(); }}
                   >
-                    <Text style={styles.fxButtonText}>f(x)</Text>
+                    <Text style={{ color: theme.textPrimary, fontSize: theme.fontSize.md, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false, textAlignVertical: 'center' }}>f(x)</Text>
                   </TouchableOpacity>
 
                   <View style={styles.saveButtonContainer}>
                     <TouchableOpacity
-                      style={{
-                        backgroundColor: theme.primary,
-                        borderRadius: 4,
-                        paddingVertical: 8,
-                        paddingHorizontal: 16,
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
+                      style={{ backgroundColor: theme.primary, borderRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
                       onPress={(e) => { e.stopPropagation(); handleSave(); }}
                     >
-                      <Text style={{ color: theme.textPrimary, fontWeight: theme.fontWeight.bold, fontSize: theme.fontSize.body }}>SALVAR FLASHCARD</Text>
+                      <Text style={{ color: '#000', fontFamily: theme.fontFamily.uiBold, fontSize: theme.fontSize.body }}>Salvar card</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
+              </TouchableWithoutFeedback>
+
+              {/* Área clicável abaixo dos botões */}
+              <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={{ flex: 1 }} />
               </TouchableWithoutFeedback>
             </View>
           </ScrollView>

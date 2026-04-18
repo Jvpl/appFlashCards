@@ -34,7 +34,7 @@ const fadeTransitionSpec = {
 };
 
 const navScreenOptions = {
-    headerStyle: { backgroundColor: theme.backgroundElevated },
+    headerStyle: { backgroundColor: theme.background, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', elevation: 0 },
     headerTintColor: theme.textPrimary,
     headerTitleStyle: { fontWeight: theme.fontWeight.bold },
     // Substituindo Slide por Fade simples
