@@ -1,23 +1,10 @@
-/**
- * EditCategoryModal
- *
- * Modal de edição de categoria — ocupa no máximo 50% da tela.
- * Duas páginas via ScrollView horizontal paginado:
- *   Página 0 — Lista de categorias padrão (+ filtro para customizadas)
- *   Página 1 — Input de nome + picker de ícone (swipe direita)
- *
- * Altura fixa: não muda ao trocar de página.
- * Botão Salvar sempre visível abaixo das páginas.
- */
-
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal, Keyboard, Pressable,
-  ScrollView, FlatList, TextInput, Dimensions, TouchableWithoutFeedback,
-  Animated,
+  ScrollView, TextInput, Dimensions, TouchableWithoutFeedback,
 } from 'react-native';
 import Reanimated, {
-  useSharedValue, useAnimatedStyle, withTiming,
+  useSharedValue, useAnimatedStyle, withTiming, runOnJS,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +21,7 @@ import {
 } from '../../config/categories';
 import { getAppData, saveAppData, getUsedCategoryIds, saveUsedCategoryIds } from '../../services/storage';
 
-const { width: SW, height: SH } = Dimensions.get('window');
+const { height: SH } = Dimensions.get('window');
 
 const CATEGORY_SVG_ICONS = {
   administrativo: administrativoIcon,
@@ -83,13 +70,23 @@ export function EditCategoryModal({
   const [activeCatIds, setActiveCatIds] = useState(new Set());
   // sheetReady: false até onShow disparar — sheet fica com opacity:0 para não piscar
   const [sheetReady, setSheetReady] = useState(false);
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  // localVisible controla o Modal internamente — só vai a false após a animação de saída terminar
+  const [localVisible, setLocalVisible] = useState(false);
   const isDismissing = useRef(false);
 
   const entryTranslateY = useSharedValue(500);
+  const overlayOpacity = useSharedValue(0);
   const sheetAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: entryTranslateY.value }],
   }));
+  const overlayAnimStyle = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
+  }));
+
+  // Abre o modal local imediatamente quando visible=true
+  useEffect(() => {
+    if (visible) setLocalVisible(true);
+  }, [visible]);
 
   // Carrega IDs de todas as categorias que já têm decks ao abrir
   useEffect(() => {
@@ -101,22 +98,12 @@ export function EditCategoryModal({
     });
   }, [visible]);
 
-  // Pré-preenche o input se categoria atual é personalizada
-  useEffect(() => {
-    if (visible && categoryId?.startsWith('custom_')) {
-      const cat = customCategoriesAvailable.find(c => c.id === categoryId);
-      if (cat) {
-        setCustomName(cat.name || '');
-        setCustomIcon(cat.icon || null);
-      }
-    }
-  }, [visible, categoryId, customCategoriesAvailable]);
 
   const handleShow = useCallback(() => {
     setSheetReady(true);
     entryTranslateY.value = withTiming(0, { duration: 320 });
-    Animated.timing(overlayOpacity, { toValue: 1, duration: 280, useNativeDriver: true }).start();
-  }, [entryTranslateY]);
+    overlayOpacity.value = withTiming(1, { duration: 280 });
+  }, [entryTranslateY, overlayOpacity]);
 
   useEffect(() => {
     if (visible) {
@@ -134,95 +121,170 @@ export function EditCategoryModal({
     setSaving(false);
   }, []);
 
+  const finishDismiss = useCallback(() => {
+    isDismissing.current = false;
+    Keyboard.dismiss();
+    setLocalVisible(false);
+    setSheetReady(false);
+    // Adiamos reset+onDismiss para o próximo frame — evita jank do re-render do pai
+    requestAnimationFrame(() => {
+      reset();
+      onDismiss();
+    });
+  }, [reset, onDismiss]);
+
   const handleDismiss = useCallback(() => {
     if (isDismissing.current) return;
     isDismissing.current = true;
-    Keyboard.dismiss();
-    entryTranslateY.value = withTiming(500, { duration: 260 });
-    Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => {
-      if (finished) {
-        isDismissing.current = false;
-        setSheetReady(false);
-        reset();
-        onDismiss();
-      }
+    overlayOpacity.value = withTiming(0, { duration: 220 });
+    entryTranslateY.value = withTiming(SH + 100, { duration: 240 }, () => {
+      runOnJS(finishDismiss)();
     });
-  }, [entryTranslateY, reset, onDismiss]);
+  }, [entryTranslateY, overlayOpacity, finishDismiss]);
+
+  const finishSave = useCallback(() => {
+    setLocalVisible(false);
+    requestAnimationFrame(() => {
+      reset();
+      onSaved?.();
+    });
+  }, [reset, onSaved]);
+
+  const closeAndSave = useCallback(() => {
+    overlayOpacity.value = withTiming(0, { duration: 220 });
+    entryTranslateY.value = withTiming(SH + 100, { duration: 240 }, () => {
+      runOnJS(finishSave)();
+    });
+  }, [entryTranslateY, overlayOpacity, finishSave]);
 
   const handleSave = useCallback(async () => {
     if (saving) return;
     setSaving(true);
     const DEFAULT_ICON = 'folder-outline';
+
+    // ── Regra A: item da lista selecionado → troca direta ──
     if (selectedId && !customName.trim()) {
       const allData = await getAppData();
       await saveAppData(allData.map(d =>
         getDeckCatId(d) === categoryId ? { ...d, category: selectedId } : d
       ));
-      const customs = await getCustomCategories();
-      if (customs.find(c => c.id === categoryId)) {
-        await saveCustomCategories(customs.filter(c => c.id !== categoryId));
-      }
-      // Transfere o registro de "usado" do id antigo para o novo
       const usedIds = await getUsedCategoryIds();
       usedIds.add(selectedId);
       usedIds.delete(categoryId);
       await saveUsedCategoryIds(usedIds);
-    } else if (customName.trim()) {
-      const icon = customIcon && customIcon !== '__picker__' ? customIcon : DEFAULT_ICON;
-      const customs = await getCustomCategories();
+      closeAndSave();
+      return;
+    }
+
+    // ── Regras B, C, D, E, F: texto digitado ──
+    if (customName.trim()) {
       const nameTrimmed = customName.trim();
       const nameLower = nameTrimmed.toLowerCase();
+      const icon = customIcon && customIcon !== '__picker__' ? customIcon : DEFAULT_ICON;
+      const customs = await getCustomCategories();
+      const allData = await getAppData();
 
-      // Se o nome digitado é idêntico (case-sensitive) ao nome da categoria atual, não faz nada
+      // Sem mudança real
       if (nameTrimmed === categoryName) {
         setSaving(false);
-        // Fecha sem salvar — não há mudança real
-        entryTranslateY.value = withTiming(500, { duration: 260 });
-        Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => {
-          if (finished) { reset(); onDismiss(); }
-        });
+        handleDismiss();
         return;
       }
 
-      const duplicateInCustom = customs.find(c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId);
-      const duplicateInPreset = presetCategoriesAvailable.find(c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId);
-      if (duplicateInCustom || duplicateInPreset) {
+      // Regra E: nome digitado é categoria padrão disponível (não em uso)
+      const matchPresetAvailable = presetCategoriesAvailable.find(
+        c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId
+      );
+      if (matchPresetAvailable) {
+        await saveAppData(allData.map(d =>
+          getDeckCatId(d) === categoryId ? { ...d, category: matchPresetAvailable.id } : d
+        ));
+        const usedIds = await getUsedCategoryIds();
+        usedIds.add(matchPresetAvailable.id);
+        usedIds.delete(categoryId);
+        await saveUsedCategoryIds(usedIds);
+        closeAndSave();
+        return;
+      }
+
+      // Regra B: nome de categoria já em uso por outro deck → bloqueado
+      const inUsePreset = presetCategoriesAvailable
+        .filter(c => c.id !== categoryId)
+        .find(c => c.name?.trim().toLowerCase() === nameLower && activeCatIds.has(c.id));
+      const inUseCustom = customs
+        .filter(c => c.id !== categoryId)
+        .find(c => c.name?.trim().toLowerCase() === nameLower && activeCatIds.has(c.id));
+      if (inUsePreset || inUseCustom) {
         setSaving(false);
         setAlertConfig({
           visible: true,
-          title: 'Nome já existe',
-          message: `Já existe uma categoria chamada "${nameTrimmed}". Escolha um nome diferente.`,
+          title: 'Categoria em uso',
+          message: `A categoria "${nameTrimmed}" já está sendo usada por outro deck. Escolha um nome diferente.`,
           buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
         });
         return;
       }
-      const existing = customs.find(c => c.id === categoryId);
-      if (existing) {
+
+      // Regra C: nome de personalizada existente na biblioteca (disponível, sem uso)
+      const matchCustomAvailable = customs.find(
+        c => c.name?.trim().toLowerCase() === nameLower && c.id !== categoryId && !activeCatIds.has(c.id)
+      );
+      if (matchCustomAvailable) {
+        setSaving(false);
+        setAlertConfig({
+          visible: true,
+          title: 'Categoria já existe',
+          message: `"${nameTrimmed}" já existe na sua biblioteca. Quer trocar? Seus decks sairão de "${categoryName}" para "${matchCustomAvailable.name}".`,
+          buttons: [
+            {
+              text: 'Cancelar',
+              onPress: () => setAlertConfig(p => ({ ...p, visible: false })),
+            },
+            {
+              text: 'Trocar',
+              onPress: async () => {
+                setAlertConfig(p => ({ ...p, visible: false }));
+                setSaving(true);
+                await saveAppData(allData.map(d =>
+                  getDeckCatId(d) === categoryId ? { ...d, category: matchCustomAvailable.id } : d
+                ));
+                const usedIds = await getUsedCategoryIds();
+                usedIds.add(matchCustomAvailable.id);
+                usedIds.delete(categoryId);
+                await saveUsedCategoryIds(usedIds);
+                closeAndSave();
+              },
+            },
+          ],
+        });
+        return;
+      }
+
+      // Regra D: nome novo — não existe em lugar nenhum
+      const isCurrentCustom = categoryId?.startsWith('custom_');
+      if (isCurrentCustom) {
+        // Renomeia a categoria personalizada atual (mantém o id, atualiza nome e ícone)
         await saveCustomCategories(customs.map(c =>
           c.id === categoryId ? { ...c, name: nameTrimmed, icon } : c
         ));
       } else {
+        // Categoria atual é padrão → cria nova personalizada e migra os decks
         const newId = `custom_${Date.now()}`;
         await saveCustomCategories([...customs, {
           id: newId, name: nameTrimmed, icon,
           color: theme.primary, keywords: [], isCustom: true,
         }]);
-        const allData = await getAppData();
         await saveAppData(allData.map(d =>
           getDeckCatId(d) === categoryId ? { ...d, category: newId } : d
         ));
-        // Registra o novo id como usado e remove o id padrão antigo (se não tiver mais decks)
         const usedIds = await getUsedCategoryIds();
         usedIds.add(newId);
         usedIds.delete(categoryId);
         await saveUsedCategoryIds(usedIds);
       }
+      closeAndSave();
     }
-    entryTranslateY.value = withTiming(500, { duration: 260 });
-    Animated.timing(overlayOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => {
-      if (finished) { reset(); onSaved?.(); }
-    });
-  }, [selectedId, customName, customIcon, categoryId, entryTranslateY, reset, onSaved]);
+  }, [selectedId, customName, customIcon, categoryId, categoryName, presetCategoriesAvailable, activeCatIds, entryTranslateY, overlayOpacity, reset, onSaved, onDismiss, saving, closeAndSave]);
 
   const canSave = (!!selectedId || !!customName.trim()) && !saving;
 
@@ -247,14 +309,15 @@ export function EditCategoryModal({
     <Modal
       transparent
       animationType="none"
-      visible={visible}
+      visible={localVisible}
       onShow={handleShow}
       onRequestClose={handleDismiss}
       statusBarTranslucent
+      navigationBarTranslucent
     >
       {/* Overlay */}
       <TouchableWithoutFeedback onPress={handleDismiss}>
-        <Animated.View style={[StyleSheet.absoluteFillObject, s.overlayBg, { opacity: overlayOpacity }]} />
+        <Reanimated.View style={[StyleSheet.absoluteFillObject, s.overlayBg, overlayAnimStyle]} />
       </TouchableWithoutFeedback>
 
       {/* Sheet */}
