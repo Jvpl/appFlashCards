@@ -19,7 +19,7 @@ import {
 import {
   getCustomCategories, saveCustomCategories, getDeckCatId,
 } from '../../config/categories';
-import { getAppData, saveAppData, getUsedCategoryIds, saveUsedCategoryIds } from '../../services/storage';
+import { getAppData, saveAppData, replaceUsedCategoryId } from '../../services/storage';
 
 const { height: SH } = Dimensions.get('window');
 
@@ -168,10 +168,7 @@ export function EditCategoryModal({
       await saveAppData(allData.map(d =>
         getDeckCatId(d) === categoryId ? { ...d, category: selectedId } : d
       ));
-      const usedIds = await getUsedCategoryIds();
-      usedIds.add(selectedId);
-      usedIds.delete(categoryId);
-      await saveUsedCategoryIds(usedIds);
+      await replaceUsedCategoryId(categoryId, selectedId);
       closeAndSave();
       return;
     }
@@ -199,10 +196,7 @@ export function EditCategoryModal({
         await saveAppData(allData.map(d =>
           getDeckCatId(d) === categoryId ? { ...d, category: matchPresetAvailable.id } : d
         ));
-        const usedIds = await getUsedCategoryIds();
-        usedIds.add(matchPresetAvailable.id);
-        usedIds.delete(categoryId);
-        await saveUsedCategoryIds(usedIds);
+        await replaceUsedCategoryId(categoryId, matchPresetAvailable.id);
         closeAndSave();
         return;
       }
@@ -248,10 +242,7 @@ export function EditCategoryModal({
                 await saveAppData(allData.map(d =>
                   getDeckCatId(d) === categoryId ? { ...d, category: matchCustomAvailable.id } : d
                 ));
-                const usedIds = await getUsedCategoryIds();
-                usedIds.add(matchCustomAvailable.id);
-                usedIds.delete(categoryId);
-                await saveUsedCategoryIds(usedIds);
+                await replaceUsedCategoryId(categoryId, matchCustomAvailable.id);
                 closeAndSave();
               },
             },
@@ -277,10 +268,7 @@ export function EditCategoryModal({
         await saveAppData(allData.map(d =>
           getDeckCatId(d) === categoryId ? { ...d, category: newId } : d
         ));
-        const usedIds = await getUsedCategoryIds();
-        usedIds.add(newId);
-        usedIds.delete(categoryId);
-        await saveUsedCategoryIds(usedIds);
+        await replaceUsedCategoryId(categoryId, newId);
       }
       closeAndSave();
     }

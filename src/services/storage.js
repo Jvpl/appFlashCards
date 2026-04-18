@@ -214,6 +214,23 @@ export const saveUsedCategoryIds = async (ids) => {
   }
 };
 
+// Substitui oldId por newId mantendo a posição na ordem de inserção
+export const replaceUsedCategoryId = async (oldId, newId) => {
+  try {
+    const json = await AsyncStorage.getItem(USED_CATEGORIES_KEY);
+    const arr = json ? JSON.parse(json) : [];
+    const idx = arr.indexOf(oldId);
+    if (idx !== -1) {
+      arr[idx] = newId;
+    } else if (!arr.includes(newId)) {
+      arr.push(newId);
+    }
+    await AsyncStorage.setItem(USED_CATEGORIES_KEY, JSON.stringify(arr));
+  } catch (e) {
+    console.warn('Failed to replace used category id:', e);
+  }
+};
+
 
 export default {
   STORAGE_KEY,
