@@ -46,9 +46,9 @@ const CATEGORIES = [
 
 // ── Category tile ─────────────────────────────────────────────────
 
-const CategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0, onScrollToInput }) => (
+const CategoryTile = React.memo(({ item, selected, onPress, onBlurInput, deckCount = 0, onScrollToInput, showArrow }) => (
   <TouchableOpacity
-    onPress={() => { Keyboard.dismiss(); onBlurInput?.(); onPress(); }}
+    onPress={() => { onPress(); onBlurInput?.(); Keyboard.dismiss(); }}
     activeOpacity={0.75}
     style={s.catTile}
   >
@@ -60,7 +60,7 @@ const CategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0, onS
       </View>
     )}
     {/* Seta para cima — scroll até o input — aparece só quando input saiu da tela */}
-    {selected && onScrollToInput !== undefined && (
+    {selected && showArrow && (
       <TouchableOpacity style={s.catTileArrow} onPress={e => { e.stopPropagation(); onScrollToInput?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <Ionicons name="chevron-up" size={16} color={theme.primary} />
       </TouchableOpacity>
@@ -75,12 +75,12 @@ const CategoryTile = ({ item, selected, onPress, onBlurInput, deckCount = 0, onS
       <Text style={s.catTileBadgeText}>{String(deckCount).padStart(2, '0')}</Text>
     </View>
   </TouchableOpacity>
-);
+), (prev, next) => prev.selected === next.selected && prev.deckCount === next.deckCount && prev.showArrow === next.showArrow);
 
-const CustomCategoryTile = ({ item, selected, onPress, onLongPress, onBlurInput, deckCount = 0, onScrollToInput, deleteMode, deleteSelected }) => (
+const CustomCategoryTile = React.memo(({ item, selected, onPress, onLongPress, onBlurInput, deckCount = 0, onScrollToInput, showArrow, deleteMode, deleteSelected }) => (
   <TouchableOpacity
-    onPress={() => { Keyboard.dismiss(); onBlurInput?.(); onPress(); }}
-    onLongPress={() => { Keyboard.dismiss(); onLongPress?.(); }}
+    onPress={() => { onPress(); onBlurInput?.(); Keyboard.dismiss(); }}
+    onLongPress={() => { onLongPress?.(); Keyboard.dismiss(); }}
     delayLongPress={400}
     activeOpacity={0.75}
     style={s.catTile}
@@ -93,7 +93,7 @@ const CustomCategoryTile = ({ item, selected, onPress, onLongPress, onBlurInput,
         <Ionicons name="checkmark" size={10} color="#0F0F0F" />
       </View>
     )}
-    {selected && !deleteMode && onScrollToInput !== undefined && (
+    {selected && !deleteMode && showArrow && (
       <TouchableOpacity style={s.catTileArrow} onPress={e => { e.stopPropagation(); onScrollToInput?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <Ionicons name="chevron-up" size={16} color={theme.primary} />
       </TouchableOpacity>
@@ -114,6 +114,12 @@ const CustomCategoryTile = ({ item, selected, onPress, onLongPress, onBlurInput,
       <Text style={s.catTileBadgeText}>{String(deckCount).padStart(2, '0')}</Text>
     </View>
   </TouchableOpacity>
+), (prev, next) =>
+  prev.selected === next.selected &&
+  prev.deleteMode === next.deleteMode &&
+  prev.deleteSelected === next.deleteSelected &&
+  prev.deckCount === next.deckCount &&
+  prev.showArrow === next.showArrow
 );
 
 // ── Main screen ───────────────────────────────────────────────────
@@ -217,6 +223,11 @@ export const AddDeckScreen = ({ route, navigation }) => {
     const nextArrow = !!(sel && inputBottom > 0 && sy > inputBottom);
 
     if (nextArrow !== showArrowRef.current) { showArrowRef.current = nextArrow; setShowArrow(nextArrow); }
+  }, []);
+
+  // Referência estável para scroll ao input — usa ref para não quebrar memo dos tiles
+  const scrollToInput = useCallback(() => {
+    if (showArrowRef.current) scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, []);
 
   // Mantém refs sincronizados com state para o listener beforeRemove
@@ -502,11 +513,11 @@ export const AddDeckScreen = ({ route, navigation }) => {
           </View>
 
           {/* 2-column tile grid — padrão */}
-          {catFilter === 'preset' && (() => {
+          {(() => {
             const left = CATEGORIES.filter((_, i) => i % 2 === 0);
             const right = CATEGORIES.filter((_, i) => i % 2 !== 0);
             return (
-              <View style={s.colsWrap}>
+              <View style={[s.colsWrap, catFilter !== 'preset' && { display: 'none' }]}>
                 <View style={s.col}>
                   {left.map(item => (
                     <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scrollRef.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
@@ -516,7 +527,8 @@ export const AddDeckScreen = ({ route, navigation }) => {
                         onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
-                        onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
+                        showArrow={showArrow}
+                        onScrollToInput={scrollToInput}
                       />
                     </View>
                   ))}
@@ -530,7 +542,8 @@ export const AddDeckScreen = ({ route, navigation }) => {
                         onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
-                        onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
+                        showArrow={showArrow}
+                        onScrollToInput={scrollToInput}
                       />
                     </View>
                   ))}
@@ -540,11 +553,11 @@ export const AddDeckScreen = ({ route, navigation }) => {
           })()}
 
           {/* 2-column tile grid — customizadas */}
-          {catFilter === 'custom' && (() => {
+          {(() => {
             const left = customCategories.filter((_, i) => i % 2 === 0);
             const right = customCategories.filter((_, i) => i % 2 !== 0);
             return (
-              <>
+              <View style={catFilter !== 'custom' ? { display: 'none' } : undefined}>
               {/* Botão criar nova categoria — fixo no topo da aba Personalizar */}
               {!customCatExpanded ? (
                 <TouchableOpacity
@@ -697,7 +710,8 @@ export const AddDeckScreen = ({ route, navigation }) => {
                         onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
-                        onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
+                        showArrow={showArrow}
+                        onScrollToInput={scrollToInput}
                         deleteMode={deleteMode}
                         deleteSelected={deleteSelected.has(item.id)}
                       />
@@ -720,7 +734,8 @@ export const AddDeckScreen = ({ route, navigation }) => {
                         onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }}
                         onBlurInput={() => inputRef.current?.blur()}
                         deckCount={deckCountMap[item.id] || 0}
-                        onScrollToInput={showArrow ? () => scrollRef.current?.scrollTo({ y: 0, animated: true }) : undefined}
+                        showArrow={showArrow}
+                        onScrollToInput={scrollToInput}
                         deleteMode={deleteMode}
                         deleteSelected={deleteSelected.has(item.id)}
                       />
@@ -728,7 +743,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
                   ))}
                 </View>
               </View>
-              </>
+              </View>
             );
           })()}
         </View>

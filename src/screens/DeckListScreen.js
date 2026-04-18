@@ -541,6 +541,26 @@ export const DeckListScreen = ({ navigation }) => {
     }
   }, []);
 
+  // Atualização leve após editar categoria — sem recarregar produtos/purchased
+  const refreshAfterCategoryEdit = useCallback(async () => {
+    try {
+      const [userDecks, customs, stored] = await Promise.all([
+        getAppData(),
+        getCustomCategories(),
+        getUsedCategoryIds(),
+      ]);
+      _cachedDecks = [...userDecks, ..._cachedDecks.filter(d => d.isPurchased)];
+      unstable_batchedUpdates(() => {
+        setDecks(_cachedDecks);
+        setCustomCats(customs);
+        setUsedCategoryIds(new Set(stored));
+        setUsedCategoryOrder([...stored]);
+      });
+    } catch (e) {
+      loadData(); // fallback
+    }
+  }, [loadData]);
+
   const loadSecondaryData = useCallback(async () => {
     const [ids, continueData, dismissed] = await Promise.all([
       getRecentDeckIds(),
@@ -2062,7 +2082,7 @@ export const DeckListScreen = ({ navigation }) => {
       <EditCategoryModal
         visible={editCatModal.visible}
         onDismiss={() => setEditCatModal({ visible: false, item: null })}
-        onSaved={() => { setEditCatModal({ visible: false, item: null }); loadData(); }}
+        onSaved={() => { setEditCatModal({ visible: false, item: null }); refreshAfterCategoryEdit(); }}
         categoryId={editCatModal.item?.category?.id}
         categoryName={editCatModal.item?.category?.name}
         presetCategoriesAvailable={CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados')}
