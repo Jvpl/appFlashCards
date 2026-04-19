@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Button, Vibration } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Button, Vibration, ToastAndroid } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,7 +21,7 @@ import theme from '../styles/theme';
 import { Canvas, Circle, BlurMask } from '@shopify/react-native-skia';
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, preloadedCards, cardId } = route.params; // cardId opcional para modo edição
+  const { deckId, subjectId, preloadedCards, cardId, subjectName } = route.params; // cardId opcional para modo edição
   const insets = useSafeAreaInsets();
 
   const questionEditorRef = useRef(null);
@@ -46,6 +47,23 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const [questionCharCount, setQuestionCharCount] = useState(0);
   const [answerCharCount, setAnswerCharCount] = useState(0);
   const CHAR_LIMIT = 800;
+
+  // QoL: contador de cards da matéria
+  const [subjectCardCount, setSubjectCardCount] = useState(0);
+  // QoL: nome da matéria buscado dos dados (fallback ao param)
+  const [resolvedSubjectName, setResolvedSubjectName] = useState(subjectName || '');
+  // QoL: toast de card salvo (melhoria 1 — salvar+ficar)
+  const [saveToastVisible, setSaveToastVisible] = useState(false);
+  const saveToastTimer = useRef(null);
+  // QoL: clear/undo por campo
+  const [questionUndoMode, setQuestionUndoMode] = useState(false);
+  const [answerUndoMode, setAnswerUndoMode] = useState(false);
+  const questionUndoTimer = useRef(null);
+  const answerUndoTimer = useRef(null);
+  const questionUndoSnapshot = useRef('');
+  const answerUndoSnapshot = useRef('');
+  // QoL: clipboard
+  const [clipboardText, setClipboardText] = useState('');
 
   // Estados para teclado colapsável do modal
   const [showLettersPanel, setShowLettersPanel] = useState(false);
@@ -135,12 +153,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Componente: Contador de caracteres do editor (texto livre)
   const EditorCharCounter = ({ count, max }) => {
     const percentage = (count / max) * 100;
-    const color = percentage >= 95 ? theme.danger : percentage >= 80 ? theme.warning : theme.textDisabled;
-
+    const color = percentage >= 95 ? theme.danger : percentage >= 80 ? theme.warning : theme.textSecondary;
     const slash = percentage >= 95 ? theme.danger : percentage >= 80 ? theme.warning : theme.primary;
     return (
-      <Text style={{ fontSize: 13, fontFamily: theme.fontFamily.uiMedium, color, fontVariant: ['tabular-nums'] }}>
-        {count}<Text style={{ color: slash }}> / </Text>{max}
+      <Text style={{ fontSize: 13, fontFamily: theme.fontFamily.uiSemiBold, color, fontVariant: ['tabular-nums'] }}>
+        {count}<Text style={{ color: slash, fontFamily: theme.fontFamily.uiMedium }}> / </Text>{max}
       </Text>
     );
   };
@@ -213,6 +230,54 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     }
   }, [isEditMode, cardId, deckId, subjectId, draftKey]);
 
+  // Busca nome da matéria e contador de cards
+  useEffect(() => {
+    const fetchSubjectInfo = async () => {
+      try {
+        const allData = await getAppData();
+        const deck = allData.find(d => d.id === deckId);
+        if (deck) {
+          const subject = deck.subjects.find(s => s.id === subjectId);
+          if (subject) {
+            if (!subjectName) setResolvedSubjectName(subject.name || '');
+            setSubjectCardCount(subject.flashcards?.length || 0);
+          }
+        }
+      } catch (_) { }
+    };
+    fetchSubjectInfo();
+  }, [deckId, subjectId]);
+
+  // Checa clipboard ao montar e ao focar na tela
+  useEffect(() => {
+    const checkClipboard = async () => {
+      try {
+        const hasString = await Clipboard.hasStringAsync();
+        if (hasString) {
+          const text = await Clipboard.getStringAsync();
+          setClipboardText(text || '');
+        } else {
+          setClipboardText('');
+        }
+      } catch (_) {
+        setClipboardText('');
+      }
+    };
+    checkClipboard();
+    // Recheca quando a tela recebe foco (usuário pode ter copiado algo)
+    const unsubscribe = navigation.addListener('focus', checkClipboard);
+    return unsubscribe;
+  }, [navigation]);
+
+  // Cleanup de timers ao desmontar a tela
+  useEffect(() => {
+    return () => {
+      clearTimeout(saveToastTimer.current);
+      clearTimeout(questionUndoTimer.current);
+      clearTimeout(answerUndoTimer.current);
+    };
+  }, []);
+
   // Listener para detectar quando o teclado abre/fecha
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
@@ -229,6 +294,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       () => {
         keyboardVisibleRef.current = false;
         setKeyboardHeight(0);
+        // Recheca clipboard quando teclado fecha (usuário pode ter copiado algo do editor)
+        Clipboard.hasStringAsync().then(has => {
+          if (has) Clipboard.getStringAsync().then(t => { if (t !== clipboardText) setClipboardText(t || ''); });
+          else if (clipboardText) setClipboardText('');
+        }).catch(() => { });
         if (pendingToolbarOpen.current) {
           // Transição teclado→toolbar: mantém posição do scroll (evita salto visual)
           pendingToolbarOpen.current = false;
@@ -447,30 +517,30 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     setEditModalVisible(true);
   };
 
-  const handleSave = async () => {
-    // Pega o valor fresco direto do global drafts (já que o ref.getHtml() é assíncrono/null)
-    const key = draftKey;
-    const currentQuestionHtml = global.flashcardDrafts?.[key]?.question || "";
-    const currentAnswerHtml = global.flashcardDrafts?.[key]?.answer || "";
+  // Trim de HTML: remove espaços/quebras no início e fim do conteúdo do editor
+  const trimHtml = (html) => {
+    if (!html) return html;
+    return html
+      .replace(/^(\s|<br\s*\/?>|&nbsp;)+/i, '')
+      .replace(/(\s|<br\s*\/?>|&nbsp;)+$/i, '')
+      .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>');
+  };
 
-    // Validação Segura: Verifica se tem conteúdo real (ignorando tags vazias ou só espaços)
-    // Remove tags HTML básicas para checar se tem texto real
+  const validateAndGetContent = () => {
+    const key = draftKey;
+    const rawQ = global.flashcardDrafts?.[key]?.question || "";
+    const rawA = global.flashcardDrafts?.[key]?.answer || "";
+    const currentQuestionHtml = trimHtml(rawQ);
+    const currentAnswerHtml = trimHtml(rawA);
     const cleanQ = currentQuestionHtml.replace(/<[^>]*>/g, '').trim();
     const cleanA = currentAnswerHtml.replace(/<[^>]*>/g, '').trim();
-
-    // Verifica também se tem imagens ou fórmulas (que podem não ter texto puro)
     const hasMediaQ = currentQuestionHtml.includes('<img') || currentQuestionHtml.includes('math-atom');
     const hasMediaA = currentAnswerHtml.includes('<img') || currentAnswerHtml.includes('math-atom');
+    if ((!cleanQ && !hasMediaQ) || (!cleanA && !hasMediaA)) return null;
+    return { currentQuestionHtml, currentAnswerHtml };
+  };
 
-    if ((!cleanQ && !hasMediaQ) || (!cleanA && !hasMediaA)) {
-      setAlertConfig({
-        visible: true,
-        title: 'Atenção',
-        message: 'Por favor, preencha a pergunta e a resposta.',
-        buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-      });
-      return;
-    }
+  const persistSave = async (questionHtml, answerHtml) => {
     const allData = await getAppData();
     const newData = allData.map(deck => {
       if (deck.id === deckId) {
@@ -479,25 +549,23 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           subjects: deck.subjects.map(subject => {
             if (subject.id === subjectId) {
               if (isEditMode && cardId) {
-                // Modo edição: Atualiza card existente
                 return {
                   ...subject,
                   flashcards: subject.flashcards.map(card =>
                     card.id === cardId
-                      ? { ...card, question: currentQuestionHtml, answer: currentAnswerHtml }
+                      ? { ...card, question: questionHtml, answer: answerHtml }
                       : card
                   ),
                 };
               } else {
-                // Modo criação: Adiciona novo card
                 return {
                   ...subject,
                   flashcards: [
                     ...subject.flashcards,
                     {
                       id: Date.now().toString(),
-                      question: currentQuestionHtml,
-                      answer: currentAnswerHtml,
+                      question: questionHtml,
+                      answer: answerHtml,
                       level: 0, points: 0, lastReview: null, nextReview: null,
                     },
                   ],
@@ -511,9 +579,115 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       return deck;
     });
     await saveAppData(newData);
-    clearDraft(); // Limpa o rascunho ao salvar com sucesso
+    return newData;
+  };
+
+  const showEmptyAlert = () => setAlertConfig({
+    visible: true,
+    title: 'Atenção',
+    message: 'Por favor, preencha a pergunta e a resposta.',
+    buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+  });
+
+  const handleSave = async () => {
+    const content = validateAndGetContent();
+    if (!content) { showEmptyAlert(); return; }
+    await persistSave(content.currentQuestionHtml, content.currentAnswerHtml);
+    clearDraft();
     navigation.goBack();
   };
+
+  const handleSaveAndContinue = async () => {
+    const content = validateAndGetContent();
+    if (!content) { showEmptyAlert(); return; }
+    const newData = await persistSave(content.currentQuestionHtml, content.currentAnswerHtml);
+    clearDraft();
+
+    // Atualiza contador
+    const updatedDeck = newData?.find(d => d.id === deckId);
+    const updatedSubject = updatedDeck?.subjects?.find(s => s.id === subjectId);
+    if (updatedSubject) setSubjectCardCount(updatedSubject.flashcards?.length || 0);
+
+    // Limpa os editores
+    questionEditorRef.current?.clear();
+    answerEditorRef.current?.clear();
+    setQuestionCharCount(0);
+    setAnswerCharCount(0);
+
+    // Reinicia o draft vazio para o próximo card
+    if (!global.flashcardDrafts) global.flashcardDrafts = {};
+    global.flashcardDrafts[draftKey] = { question: '', answer: '' };
+
+    // Mostra toast
+    if (Platform.OS === 'android') {
+      ToastAndroid.show('Card salvo!', ToastAndroid.SHORT);
+    } else {
+      setSaveToastVisible(true);
+      clearTimeout(saveToastTimer.current);
+      saveToastTimer.current = setTimeout(() => setSaveToastVisible(false), 2000);
+    }
+  };
+
+  const getFieldRefs = (field) => field === 'question'
+    ? { editorRef: questionEditorRef, undoSnapshot: questionUndoSnapshot, undoTimer: questionUndoTimer, setCharCount: setQuestionCharCount, setUndoMode: setQuestionUndoMode }
+    : { editorRef: answerEditorRef, undoSnapshot: answerUndoSnapshot, undoTimer: answerUndoTimer, setCharCount: setAnswerCharCount, setUndoMode: setAnswerUndoMode };
+
+  const handleClearField = (field) => {
+    if (!global.flashcardDrafts?.[draftKey]) return;
+    const { editorRef, undoSnapshot, undoTimer, setCharCount, setUndoMode } = getFieldRefs(field);
+    undoSnapshot.current = global.flashcardDrafts[draftKey][field] || '';
+    global.flashcardDrafts[draftKey][field] = '';
+    editorRef.current?.clear();
+    setCharCount(0);
+    setUndoMode(true);
+    clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => { setUndoMode(false); undoSnapshot.current = ''; }, 4000);
+  };
+
+  const handleUndoClear = (field) => {
+    if (!global.flashcardDrafts?.[draftKey]) return;
+    const { editorRef, undoSnapshot, undoTimer, setUndoMode } = getFieldRefs(field);
+    const snap = undoSnapshot.current;
+    global.flashcardDrafts[draftKey][field] = snap;
+    editorRef.current?.setContent(snap);
+    clearTimeout(undoTimer.current);
+    setUndoMode(false);
+    undoSnapshot.current = '';
+  };
+
+  const handlePasteClipboard = (field) => {
+    if (!clipboardText) return;
+    if (!global.flashcardDrafts) global.flashcardDrafts = {};
+    if (!global.flashcardDrafts[draftKey]) global.flashcardDrafts[draftKey] = { question: '', answer: '' };
+    const { editorRef } = getFieldRefs(field);
+    const escaped = clipboardText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    const current = global.flashcardDrafts[draftKey][field] || '';
+    const newContent = current ? current + ' ' + escaped : escaped;
+    global.flashcardDrafts[draftKey][field] = newContent;
+    editorRef.current?.setContent(newContent);
+  };
+
+  const FieldActions = ({ field, charCount, undoMode }) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      {clipboardText.length > 0 && (
+        <TouchableOpacity onPress={() => handlePasteClipboard(field)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(93,214,44,0.4)', backgroundColor: 'transparent' }}>
+          <Ionicons name="clipboard-outline" size={11} color={theme.primary} />
+          <Text style={{ fontSize: theme.fontSize.xs, fontFamily: theme.fontFamily.uiSemiBold, color: theme.primary }}>Colar</Text>
+        </TouchableOpacity>
+      )}
+      {(charCount > 0 || undoMode) && (
+        <TouchableOpacity onPress={() => undoMode ? handleUndoClear(field) : handleClearField(field)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: undoMode ? 'rgba(210,153,34,0.4)' : 'rgba(248,81,73,0.4)', backgroundColor: 'transparent' }}>
+          <Ionicons name={undoMode ? 'arrow-undo-outline' : 'trash-outline'} size={11} color={undoMode ? theme.warning : theme.danger} />
+          <Text style={{ fontSize: theme.fontSize.xs, fontFamily: theme.fontFamily.uiSemiBold, color: undoMode ? theme.warning : theme.danger }}>
+            {undoMode ? 'Desfazer' : 'Limpar'}
+          </Text>
+        </TouchableOpacity>
+      )}
+      <EditorCharCounter count={charCount} max={CHAR_LIMIT} />
+    </View>
+  );
 
   return (
     <View style={styles.baseContainer}>
@@ -534,6 +708,22 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
+          {!isEditMode && (
+            <View style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: 'transparent', borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary }}>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, opacity: 0.75 }}>
+                <Ionicons name="folder" size={15} color={theme.primary} />
+                <Text style={{ fontSize: theme.fontSize.caption, fontFamily: theme.fontFamily.uiBold, color: theme.textPrimary, lineHeight: theme.fontSize.caption }} numberOfLines={1}>
+                  {resolvedSubjectName || ''}
+                </Text>
+                <View style={{ width: 1.5, height: 16, backgroundColor: theme.primary }} />
+                <Ionicons name="layers" size={15} color={theme.primary} />
+                <Text style={{ fontSize: theme.fontSize.caption, fontFamily: theme.fontFamily.uiBold, color: theme.textPrimary, lineHeight: theme.fontSize.caption }}>
+                  card nº{subjectCardCount + 1}
+                </Text>
+              </View>
+            </View>
+          )}
           <ScrollView
             ref={scrollViewRef}
             style={styles.formContainerNoPadding}
@@ -557,8 +747,9 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
             <View style={{ flex: 1, paddingTop: 0, paddingBottom: 16 }}>
               {/* Área clicável acima da caixa de pergunta */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                <View style={{ height: 25 }} />
+                <View style={{ height: 12 }} />
               </TouchableWithoutFeedback>
+
 
               {/* PERGUNTA */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
@@ -574,7 +765,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     </View>
                     <Text style={[styles.formLabel, { marginBottom: 0, marginTop: 0, fontFamily: theme.fontFamily.uiSemiBold, fontSize: theme.fontSize.body, letterSpacing: 0.8 }]}>PERGUNTA</Text>
                   </View>
-                  <EditorCharCounter count={questionCharCount} max={CHAR_LIMIT} />
+                  <FieldActions field="question" charCount={questionCharCount} undoMode={questionUndoMode} />
                 </View>
               </TouchableWithoutFeedback>
 
@@ -607,7 +798,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
               {/* Área clicável entre caixas */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                <View style={{ height: 48 }} />
+                <View style={{ height: 28 }} />
               </TouchableWithoutFeedback>
 
               {/* RESPOSTA */}
@@ -624,7 +815,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     </View>
                     <Text style={[styles.formLabel, { marginBottom: 0, marginTop: 0, fontFamily: theme.fontFamily.uiSemiBold, fontSize: theme.fontSize.body, letterSpacing: 0.8 }]}>RESPOSTA</Text>
                   </View>
-                  <EditorCharCounter count={answerCharCount} max={CHAR_LIMIT} />
+                  <FieldActions field="answer" charCount={answerCharCount} undoMode={answerUndoMode} />
                 </View>
               </TouchableWithoutFeedback>
 
@@ -660,6 +851,13 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                 </View>
               </View>
 
+              {/* Toast de card salvo (iOS) */}
+              {saveToastVisible && (
+                <View style={{ position: 'absolute', bottom: 80, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, zIndex: 999 }}>
+                  <Text style={{ color: '#fff', fontFamily: theme.fontFamily.uiMedium, fontSize: 13 }}>Card salvo!</Text>
+                </View>
+              )}
+
               {/* Área extensiva clicável cobrindo o fundo e botões */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
                 <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 5, paddingBottom: 10 + (insets.bottom > 10 ? insets.bottom : 0) }]}>
@@ -670,13 +868,29 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     <Text style={{ color: theme.textPrimary, fontSize: theme.fontSize.md, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false, textAlignVertical: 'center' }}>f(x)</Text>
                   </TouchableOpacity>
 
-                  <View style={styles.saveButtonContainer}>
+                  <View style={[styles.saveButtonContainer, { flexDirection: 'row', gap: 0 }]}>
+                    {/* Botão principal: salva e continua */}
                     <TouchableOpacity
-                      style={{ backgroundColor: theme.primary, borderRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
-                      onPress={(e) => { e.stopPropagation(); handleSave(); }}
+                      style={{ flex: 1, backgroundColor: theme.primary, borderTopLeftRadius: 12, borderBottomLeftRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
+                      onPress={(e) => { e.stopPropagation(); isEditMode ? handleSave() : handleSaveAndContinue(); }}
                     >
-                      <Text style={{ color: '#000', fontFamily: theme.fontFamily.uiBold, fontSize: theme.fontSize.body }}>Salvar card</Text>
+                      <Text style={{ color: '#000', fontFamily: theme.fontFamily.uiBold, fontSize: theme.fontSize.body }}>
+                        {isEditMode ? 'Salvar edição' : 'Salvar card'}
+                      </Text>
                     </TouchableOpacity>
+                    {/* Separador */}
+                    {!isEditMode && (
+                      <View style={{ width: 1, backgroundColor: 'rgba(0,0,0,0.2)' }} />
+                    )}
+                    {/* Botão seta: salva e sai (apenas no modo criação) */}
+                    {!isEditMode && (
+                      <TouchableOpacity
+                        style={{ width: 44, backgroundColor: theme.primary, borderTopRightRadius: 12, borderBottomRightRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
+                        onPress={(e) => { e.stopPropagation(); handleSave(); }}
+                      >
+                        <Ionicons name="chevron-forward" size={20} color="#000" />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               </TouchableWithoutFeedback>

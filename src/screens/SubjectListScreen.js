@@ -220,7 +220,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
   }, [navigation, deckId]);
 
   const handleManageCards = useCallback((subject) => {
-    navigation.navigate('ManageFlashcards', { deckId, subjectId: subject.id, preloadedCards: subject.flashcards });
+    navigation.navigate('ManageFlashcards', { deckId, subjectId: subject.id, preloadedCards: subject.flashcards, subjectName: subject.name });
   }, [navigation, deckId]);
 
   // ── Delete deck ───────────────────────────────────────────────────

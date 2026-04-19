@@ -28,6 +28,22 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
       const escaped = symbol.replace(/\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
       webviewRef.current?.injectJavaScript("window.insertSymbol('" + escaped + "'); true;");
     },
+    clear: () => webviewRef.current?.injectJavaScript("window.setHtml(''); true;"),
+    setContent: (html) => {
+      const escaped = JSON.stringify(html || '');
+      webviewRef.current?.injectJavaScript(`
+        window.setHtml(${escaped});
+        (function() {
+          var range = document.createRange();
+          var sel = window.getSelection();
+          range.selectNodeContents(editor);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        })();
+        true;
+      `);
+    },
     updateFormula: (id, latex) => {
       // Escapa backslashes primeiro (\ → \\), depois aspas simples
       const escaped = latex.replace(/\\/g, '\\\\').replace(/'/g, "\\'");

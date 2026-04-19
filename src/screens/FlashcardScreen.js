@@ -372,7 +372,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={fcs.headerBtn}
-                onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards })}
+                onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards, subjectName })}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ionicons name="add" size={24} color={theme.primary} />
@@ -438,7 +438,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
           <TouchableOpacity
             style={fcs.emptyBtn}
             activeOpacity={0.85}
-            onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: [] })}
+            onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: [], subjectName })}
           >
             <Ionicons name="add" size={20} color="#0F0F0F" style={{ marginRight: 8 }} />
             <Text style={fcs.emptyBtnTxt}>Criar primeiro flashcard</Text>
