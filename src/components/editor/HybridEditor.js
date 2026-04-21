@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { editorHtml } from './editorTemplates';
 
-export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentChange, onEditMath, onCharCount, maxChars, style }, ref) => {
+export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentChange, onEditMath, onCharCount, onFormatState, maxChars, style }, ref) => {
   const webviewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -49,6 +49,9 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
       const escaped = latex.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       webviewRef.current?.injectJavaScript("window.updateFormula('" + id + "', '" + escaped + "'); true;");
     },
+    toggleBold: () => webviewRef.current?.injectJavaScript("window.toggleBold(); true;"),
+    toggleItalic: () => webviewRef.current?.injectJavaScript("window.toggleItalic(); true;"),
+    toggleMark: () => webviewRef.current?.injectJavaScript("window.toggleMark(); true;"),
     deleteMath: (id) => {
       webviewRef.current?.injectJavaScript(`
         (function() {
@@ -116,6 +119,7 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
             if (data.type === 'CONTENT_CHANGE' && onContentChange) onContentChange(data.html);
             if (data.type === 'FOCUS' && onFocus) onFocus();
             if (data.type === 'CHAR_COUNT' && onCharCount) onCharCount(data.count, data.max);
+            if (data.type === 'FORMAT_STATE' && onFormatState) onFormatState(data.bold, data.italic, data.mark);
           } catch (e) {
             // Silently ignore JSON parse errors
           }

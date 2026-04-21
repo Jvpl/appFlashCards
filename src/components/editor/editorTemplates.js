@@ -298,7 +298,11 @@ ${katexStyles}
 
   function sendToApp(type, data) {
     if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type, ...data }));
+      var payload = data;
+      if (type === 'CONTENT_CHANGE' && payload.html) {
+        payload = { html: payload.html.replace(/\u200B/g, '') };
+      }
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type, ...payload }));
     }
   }
 
@@ -1479,6 +1483,159 @@ window.insertFormula = function(latex, id, source) {
   }
   window.blurEditor = function() { editor.blur(); }
   window.focusEditor = function() { editor.focus(); }
+
+  // ── Formatação: Bold, Italic, Mark ──────────────────────────────
+  // Aplica/remove tag (STRONG, EM, MARK) na seleção atual.
+  // Após aplicar, move o cursor para FORA do elemento para não contaminar
+  // texto digitado em seguida.
+  function getDestaqueEl(node) {
+    var cur = node && node.nodeType === 3 ? node.parentNode : node;
+    while (cur && cur !== editor) {
+      if (cur.classList && cur.classList.contains('destaque')) return cur;
+      cur = cur.parentNode;
+    }
+    return null;
+  }
+
+  function toggleInlineTag(tagName, styleProps, className) {
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    var range = sel.getRangeAt(0);
+    var collapsed = sel.isCollapsed;
+    var node = range.commonAncestorContainer;
+
+    // Para SPAN.destaque usa helper especial
+    var existing = null;
+    if (className === 'destaque') {
+      existing = getDestaqueEl(node);
+    } else {
+      var cur = node.nodeType === 3 ? node.parentNode : node;
+      while (cur && cur !== editor) {
+        if (cur.tagName === tagName) { existing = cur; break; }
+        cur = cur.parentNode;
+      }
+    }
+
+    if (existing) {
+      // Remove: desembrulha o conteúdo
+      var parent = existing.parentNode;
+      var frag = document.createDocumentFragment();
+      var lastChild = null;
+      while (existing.firstChild) { lastChild = existing.firstChild; frag.appendChild(lastChild); }
+      parent.replaceChild(frag, existing);
+      if (lastChild) {
+        var r = document.createRange();
+        r.setStartAfter(lastChild);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    } else if (!collapsed) {
+      var el = document.createElement(tagName);
+      if (className) el.className = className;
+      if (styleProps) Object.keys(styleProps).forEach(function(k) { el.style[k] = styleProps[k]; });
+      try { range.surroundContents(el); }
+      catch(e) { var ext = range.extractContents(); el.appendChild(ext); range.insertNode(el); }
+
+      // Insere nó de texto REAL após o elemento e posiciona cursor lá
+      var anchor = document.createTextNode('\u200B');
+      if (el.nextSibling) {
+        el.parentNode.insertBefore(anchor, el.nextSibling);
+      } else {
+        el.parentNode.appendChild(anchor);
+      }
+      var r2 = document.createRange();
+      r2.setStart(anchor, anchor.length);
+      r2.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r2);
+    }
+
+    sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+    notifyCharCount();
+    window.notifyFormatState();
+  }
+
+  window.toggleBold = function() {
+    editor.focus();
+    document.execCommand('bold');
+    window.notifyFormatState();
+  };
+
+  window.toggleItalic = function() {
+    editor.focus();
+    document.execCommand('italic');
+    window.notifyFormatState();
+  };
+
+  window.toggleMark = function() {
+    editor.focus();
+    toggleInlineTag('SPAN', { backgroundColor: '#5DD62C', color: '#000', borderRadius: '2px', padding: '0 2px' }, 'destaque');
+  };
+
+  window.notifyFormatState = function() {
+    var sel = window.getSelection();
+    var hasSelection = sel && sel.rangeCount > 0 && !sel.isCollapsed;
+    var markActive = hasSelection && !!getDestaqueEl(sel.getRangeAt(0).commonAncestorContainer);
+    sendToApp('FORMAT_STATE', {
+      bold:   document.queryCommandState('bold'),
+      italic: document.queryCommandState('italic'),
+      mark:   markActive
+    });
+  };
+
+  editor.addEventListener('keyup', function() {
+    window.notifyFormatState();
+  });
+
+  editor.addEventListener('touchend', function() {
+    setTimeout(window.notifyFormatState, 80);
+  });
+
+  // Remove spans.destaque que ficaram vazios (ex: após apagar conteúdo)
+  function cleanEmptyDestaques() {
+    editor.querySelectorAll('span.destaque').forEach(function(el) {
+      if (el.textContent.replace(/\u200B/g, '').length === 0) {
+        var parent = el.parentNode;
+        while (el.firstChild) parent.insertBefore(el.firstChild, el);
+        parent.removeChild(el);
+      }
+    });
+  }
+
+  // Intercepta digitação dentro de span.destaque — expulsa para fora
+  editor.addEventListener('beforeinput', function(e) {
+    if (e.inputType !== 'insertText') return;
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return;
+    var node = sel.getRangeAt(0).startContainer;
+    var destaque = getDestaqueEl(node);
+    if (!destaque || destaque.textContent.replace(/\u200B/g, '').length === 0) return;
+    e.preventDefault();
+    var data = e.data || '';
+    var after = destaque.nextSibling;
+    if (!after || after.nodeType !== 3) {
+      after = document.createTextNode('');
+      if (destaque.nextSibling) destaque.parentNode.insertBefore(after, destaque.nextSibling);
+      else destaque.parentNode.appendChild(after);
+    }
+    after.textContent = data + after.textContent;
+    var r = document.createRange();
+    r.setStart(after, data.length);
+    r.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+    notifyCharCount();
+  });
+
+  editor.addEventListener('input', function(e) {
+    if (e.inputType && e.inputType.indexOf('delete') !== -1) {
+      cleanEmptyDestaques();
+    }
+    sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
+    notifyCharCount();
+  });
 </script>
 </body>
 </html>

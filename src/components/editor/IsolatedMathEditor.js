@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { HybridEditor } from './HybridEditor';
 
-export const IsolatedMathEditor = React.memo(({ editorRef, initialValue, onFocusCallback, onEditMath, onContentChange, onCharCount, maxChars }) => {
+export const IsolatedMathEditor = React.memo(({ editorRef, initialValue, onFocusCallback, onEditMath, onContentChange, onCharCount, onFormatState, maxChars }) => {
   return (
     <HybridEditor
       ref={editorRef}
@@ -11,6 +11,7 @@ export const IsolatedMathEditor = React.memo(({ editorRef, initialValue, onFocus
       onContentChange={onContentChange}
       onEditMath={onEditMath}
       onCharCount={onCharCount}
+      onFormatState={onFormatState}
       maxChars={maxChars}
       style={{ flex: 1 }}
     />

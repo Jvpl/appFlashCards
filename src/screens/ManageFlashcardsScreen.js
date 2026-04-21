@@ -64,6 +64,13 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const answerUndoSnapshot = useRef('');
   // QoL: clipboard
   const [clipboardText, setClipboardText] = useState('');
+  const [questionCopied, setQuestionCopied] = useState(false);
+  const [answerCopied, setAnswerCopied] = useState(false);
+  const questionCopiedTimer = useRef(null);
+  const answerCopiedTimer = useRef(null);
+  // Estados de formatação (bold/italic/mark) por campo
+  const [questionFormat, setQuestionFormat] = useState({ bold: false, italic: false, mark: false });
+  const [answerFormat, setAnswerFormat] = useState({ bold: false, italic: false, mark: false });
 
   // Estados para teclado colapsável do modal
   const [showLettersPanel, setShowLettersPanel] = useState(false);
@@ -629,8 +636,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   };
 
   const getFieldRefs = (field) => field === 'question'
-    ? { editorRef: questionEditorRef, undoSnapshot: questionUndoSnapshot, undoTimer: questionUndoTimer, setCharCount: setQuestionCharCount, setUndoMode: setQuestionUndoMode }
-    : { editorRef: answerEditorRef, undoSnapshot: answerUndoSnapshot, undoTimer: answerUndoTimer, setCharCount: setAnswerCharCount, setUndoMode: setAnswerUndoMode };
+    ? { editorRef: questionEditorRef, undoSnapshot: questionUndoSnapshot, undoTimer: questionUndoTimer, setCharCount: setQuestionCharCount, setUndoMode: setQuestionUndoMode, setCopied: setQuestionCopied, copiedTimer: questionCopiedTimer }
+    : { editorRef: answerEditorRef, undoSnapshot: answerUndoSnapshot, undoTimer: answerUndoTimer, setCharCount: setAnswerCharCount, setUndoMode: setAnswerUndoMode, setCopied: setAnswerCopied, copiedTimer: answerCopiedTimer };
 
   const handleClearField = (field) => {
     if (!global.flashcardDrafts?.[draftKey]) return;
@@ -655,6 +662,18 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     undoSnapshot.current = '';
   };
 
+  const handleCopyField = async (field) => {
+    const content = global.flashcardDrafts?.[draftKey]?.[field] || '';
+    if (!content) return;
+    const plain = content.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+    await Clipboard.setStringAsync(plain);
+    setClipboardText(plain);
+    const { setCopied, copiedTimer } = getFieldRefs(field);
+    setCopied(true);
+    clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 2000);
+  };
+
   const handlePasteClipboard = (field) => {
     if (!clipboardText) return;
     if (!global.flashcardDrafts) global.flashcardDrafts = {};
@@ -667,27 +686,56 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     editorRef.current?.setContent(newContent);
   };
 
-  const FieldActions = ({ field, charCount, undoMode }) => (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      {clipboardText.length > 0 && (
-        <TouchableOpacity onPress={() => handlePasteClipboard(field)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(93,214,44,0.4)', backgroundColor: 'transparent' }}>
-          <Ionicons name="clipboard-outline" size={11} color={theme.primary} />
-          <Text style={{ fontSize: theme.fontSize.xs, fontFamily: theme.fontFamily.uiSemiBold, color: theme.primary }}>Colar</Text>
+  const FieldToolbar = ({ field, charCount, undoMode, copied, format }) => {
+    const fieldContent = global.flashcardDrafts?.[draftKey]?.[field] || '';
+    const fieldPlain = fieldContent.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+    const { editorRef } = getFieldRefs(field);
+    const hasContent = charCount > 0 || undoMode;
+    const canPaste = clipboardText.length > 0 && clipboardText !== fieldPlain;
+
+    const iconColor = (active, activeColor, inactiveColor = theme.textMuted) => active ? activeColor : inactiveColor;
+    const opacity = (enabled) => enabled ? 1 : 0.3;
+
+    const sep = <View style={{ width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.1)' }} />;
+
+    return (
+      <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 4 }}>
+        {/* Colar */}
+        <TouchableOpacity onPress={() => canPaste && handlePasteClipboard(field)} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(canPaste), padding: 4 }}>
+          <Ionicons name="clipboard-outline" size={18} color={theme.primary} />
         </TouchableOpacity>
-      )}
-      {(charCount > 0 || undoMode) && (
-        <TouchableOpacity onPress={() => undoMode ? handleUndoClear(field) : handleClearField(field)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: undoMode ? 'rgba(210,153,34,0.4)' : 'rgba(248,81,73,0.4)', backgroundColor: 'transparent' }}>
-          <Ionicons name={undoMode ? 'arrow-undo-outline' : 'trash-outline'} size={11} color={undoMode ? theme.warning : theme.danger} />
-          <Text style={{ fontSize: theme.fontSize.xs, fontFamily: theme.fontFamily.uiSemiBold, color: undoMode ? theme.warning : theme.danger }}>
-            {undoMode ? 'Desfazer' : 'Limpar'}
-          </Text>
+        {sep}
+        {/* Copiar */}
+        <TouchableOpacity onPress={() => charCount > 0 && handleCopyField(field)} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(charCount > 0), padding: 4 }}>
+          <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={copied ? theme.primary : theme.textSecondary} />
         </TouchableOpacity>
-      )}
-      <EditorCharCounter count={charCount} max={CHAR_LIMIT} />
-    </View>
-  );
+        {sep}
+        {/* Limpar / Desfazer */}
+        <TouchableOpacity onPress={() => hasContent && (undoMode ? handleUndoClear(field) : handleClearField(field))} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(hasContent), padding: 4 }}>
+          <Ionicons name={undoMode ? 'arrow-undo-outline' : 'trash-outline'} size={18} color={undoMode ? theme.warning : theme.danger} />
+        </TouchableOpacity>
+        {sep}
+        {/* Negrito */}
+        <TouchableOpacity onPress={() => charCount > 0 && editorRef.current?.toggleBold()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(charCount > 0), padding: 4 }}>
+          <Text style={{ fontSize: 15, fontFamily: theme.fontFamily.uiBold, color: iconColor(format?.bold, theme.primary, theme.textSecondary), lineHeight: 18 }}>B</Text>
+        </TouchableOpacity>
+        {sep}
+        {/* Itálico */}
+        <TouchableOpacity onPress={() => charCount > 0 && editorRef.current?.toggleItalic()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(charCount > 0), padding: 4 }}>
+          <Text style={{ fontSize: 15, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '700', color: iconColor(format?.italic, theme.primary, theme.textSecondary), lineHeight: 18 }}>I</Text>
+        </TouchableOpacity>
+        {sep}
+        {/* Marca-texto */}
+        <TouchableOpacity onPress={() => charCount > 0 && editorRef.current?.toggleMark()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(charCount > 0), padding: 4 }}>
+          <Ionicons name="brush-outline" size={18} color={iconColor(format?.mark, theme.primary, theme.textSecondary)} />
+        </TouchableOpacity>
+        {/* Contador direita */}
+        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+          <EditorCharCounter count={charCount} max={CHAR_LIMIT} />
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.baseContainer}>
@@ -765,7 +813,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     </View>
                     <Text style={[styles.formLabel, { marginBottom: 0, marginTop: 0, fontFamily: theme.fontFamily.uiSemiBold, fontSize: theme.fontSize.body, letterSpacing: 0.8 }]}>PERGUNTA</Text>
                   </View>
-                  <FieldActions field="question" charCount={questionCharCount} undoMode={questionUndoMode} />
                 </View>
               </TouchableWithoutFeedback>
 
@@ -790,9 +837,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       onFocusCallback={() => setActiveEditor('question')}
                       onEditMath={handleEditMath}
                       onCharCount={(count) => setQuestionCharCount(count)}
+                      onFormatState={(bold, italic, mark) => setQuestionFormat({ bold, italic, mark })}
                       maxChars={CHAR_LIMIT}
                     />
                   </View>
+                  <FieldToolbar field="question" charCount={questionCharCount} undoMode={questionUndoMode} copied={questionCopied} format={questionFormat} />
                 </View>
               </View>
 
@@ -815,7 +864,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     </View>
                     <Text style={[styles.formLabel, { marginBottom: 0, marginTop: 0, fontFamily: theme.fontFamily.uiSemiBold, fontSize: theme.fontSize.body, letterSpacing: 0.8 }]}>RESPOSTA</Text>
                   </View>
-                  <FieldActions field="answer" charCount={answerCharCount} undoMode={answerUndoMode} />
                 </View>
               </TouchableWithoutFeedback>
 
@@ -845,9 +893,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       }}
                       onEditMath={handleEditMath}
                       onCharCount={(count) => setAnswerCharCount(count)}
+                      onFormatState={(bold, italic, mark) => setAnswerFormat({ bold, italic, mark })}
                       maxChars={CHAR_LIMIT}
                     />
                   </View>
+                  <FieldToolbar field="answer" charCount={answerCharCount} undoMode={answerUndoMode} copied={answerCopied} format={answerFormat} />
                 </View>
               </View>
 
