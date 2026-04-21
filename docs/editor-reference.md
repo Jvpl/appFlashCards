@@ -14,7 +14,7 @@
 | `src/components/editor/IsolatedMathEditor.js` | `React.memo(() => true)` ao redor do HybridEditor. Nunca re-renderiza — toda comunicação é via `injectJavaScript`. |
 | `src/components/editor/FormulaBuilderModal.js` | Modal avançado de construção de fórmulas. 100% React Native, sem WebView própria (usa `previewHtml` para preview). |
 | `src/components/editor/UnifiedFormulaModal.js` | Modal alternativo (legado/experimental). Usa `FormulaEngine`. Atualmente não é o modal principal. |
-| `src/components/editor/MathToolbar.js` | Toolbar de símbolos matemáticos usada dentro do FormulaBuilderModal. |
+| `src/components/editor/MathToolbar.js` | Bottom sheet animado com 6 botões de fórmulas + botão "Modo Avançado". Abre via `toggleMathToolbar()`. |
 | `src/screens/ManageFlashcardsScreen.js` | Tela principal de criação/edição de flashcards. Orquestra tudo. |
 | `src/utils/FormulaEngine.js` | Engine de estado para o UnifiedFormulaModal (não usado no fluxo principal). |
 
@@ -194,7 +194,7 @@ Quando o usuário clica em um dos botões da toolbar inline (fração, raiz, etc
 1. `HybridEditor.insertFrac()` etc. chama `window.insertFormula('\frac{\Box}{\Box}')`
 2. Como a fórmula contém `\Box`, o WebView dispara `EDIT_MATH` automaticamente
 3. `ManageFlashcardsScreen` recebe `EDIT_MATH` com `source='simple'`
-4. Abre o `FormulaBuilderModal` com `initialFormula` preenchido
+4. `handleEditMath` parseia o latex com regex e abre **modal inline simples** (editModalVisible) com campos v1/v2/v3 pré-preenchidos (não o FormulaBuilderModal)
 
 ---
 
@@ -262,7 +262,95 @@ logₐ → \log_{}{}
 
 ---
 
-## 9. Integração no ManageFlashcardsScreen
+## 9. Handlers de Copy/Cut/Paste na WebView
+
+### Copy Handler
+```js
+editor.addEventListener('copy', (e) => {
+  e.stopPropagation(); // CRÍTICO: impede KaTeX Copy-Tex de sobrescrever clipboard
+  // 1. Clona seleção em div temporária
+  // 2. Remove todos .sentinela-anti-caps do clone
+  // 3. Converte cada .math-atom → textNode '$latex$'
+  // 4. Extrai textContent, remove \u3164 residual
+  // 5. e.clipboardData.setData('text/plain', text)
+  // 6. e.preventDefault()
+});
+```
+
+### Cut Handler
+Idêntico ao copy, mais:
+- `range.deleteContents()` remove o conteúdo do DOM
+- Limpa nós de texto vazios e sentinelas órfãs (sem math-atom antes) do editor
+- Dispara `CONTENT_CHANGE` + `CHAR_COUNT`
+
+### Paste Handler
+```js
+editor.addEventListener('paste', (e) => {
+  e.preventDefault();
+  // Aceita apenas text/plain — nenhum HTML externo entra no DOM
+  var text = clipboardData.getData('text/plain');
+  text = text.replace(/\u3164/g, ''); // Remove sentinela que vazou via KaTeX Copy-Tex
+  // Trunca para caber no limite restante (MAX_CHARS - currentCount)
+  // Insere textNode na posição do cursor
+  // Chama detectAndConvertFormula() para converter $latex$ colados
+  // Dispara CONTENT_CHANGE + CHAR_COUNT
+});
+```
+
+### detectAndConvertFormula()
+Chamado após paste (e também após `compositionend` e `input` events):
+1. Percorre tree walker até 20 iterações (suporta múltiplas fórmulas numa pasta)
+2. A cada iteração: encontra o próximo nó de texto com padrão `$...$`
+3. Extrai `latex` entre os `$`
+4. Cria `span.math-atom` com `data-id='math_<timestamp>_<i>'`
+5. Renderiza KaTeX no span (on error: mostra `$latex$` como texto)
+6. Remove `.strut` do KaTeX renderizado
+7. Substitui o textNode por: `[texto antes][math-atom][sentinela][espaço?][texto depois]`
+8. Após todas as iterações, posiciona cursor após a última fórmula inserida (via setTimeout 10ms)
+9. Chama `checkPlaceholder()`
+
+### Auto-heal de sentinelas no paste
+Após paste, um listener verifica se toda `.math-atom` tem uma sentinela imediatamente após — adiciona sentinela se faltar (previne corrupção de fórmulas copiadas de fontes externas).
+
+---
+
+## 10. Sistema de Rascunho (Draft)
+
+### Armazenamento
+```js
+global.flashcardDrafts[draftKey] = { question: string, answer: string }
+// draftKey = `${deckId}-${subjectId}` (criação)
+// draftKey = `${deckId}-${subjectId}-${cardId}` (edição)
+```
+
+### updateDraft(type, content)
+Chamada a cada `CONTENT_CHANGE` do WebView:
+```js
+// Limpeza inteligente: salva "" se conteúdo for só HTML vazio
+const cleanContent = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+const hasMedia = content.includes('<img') || content.includes('math-atom');
+const valueToSave = (!cleanContent && !hasMedia) ? "" : content;
+```
+Garante que o placeholder reaparece quando o campo fica vazio mesmo com `<br>` residuais.
+
+### trimHtml(html)
+Aplicado antes de salvar:
+```js
+html
+  .replace(/^(\s|<br\s*\/?>|&nbsp;)+/i, '')  // remove início vazio
+  .replace(/(\s|<br\s*\/?>|&nbsp;)+$/i, '')  // remove fim vazio
+  .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>') // colapsa 3+ <br> → 2
+```
+
+### Modo edição
+No mount, carrega card do banco e preenche `global.flashcardDrafts[draftKey]` com conteúdo existente. `IsolatedMathEditor` recebe `initialValue={global.flashcardDrafts[draftKey].question}` diretamente.
+
+### clearDraft()
+Chamada após save bem-sucedido: `delete global.flashcardDrafts[key]`
+
+---
+
+## 11. Integração no ManageFlashcardsScreen
 
 ### Estados relevantes
 ```js
@@ -273,6 +361,21 @@ const [builderVisible, setBuilderVisible] // FormulaBuilderModal aberto?
 const [questionFormat, setQuestionFormat] // { bold, italic, mark }
 const [answerFormat, setAnswerFormat]     // { bold, italic, mark }
 ```
+
+### handleEditMath(id, latex, source)
+Recebido de `EDIT_MATH` do WebView:
+- Se `source === 'builder'`: abre `FormulaBuilderModal` com `initialFormula=latex`
+- Caso contrário (source='simple'): parseia latex com regexes e abre modal inline simples
+  ```js
+  // Regexes por tipo:
+  \left(\frac{}{})^{} → /\\left\(\\frac\{(.+?)\}\{(.+?)\}\\right\)\^\{(.+?)\}/
+  \frac{}{}           → /\\frac\{(.+?)\}\{(.+?)\}/
+  \sqrt[]{} / \sqrt{} → /\\sqrt\[(.+?)\]\{(.+?)\}/ ou /\\sqrt\{(.+?)\}/
+  \log_{}{} (v1=base, v2=arg)
+  ^{} / _ {}          → separate patterns
+  \left|x\right|      → /\\left\|(.+?)\\right\|/
+  // \Box limpo para '' antes de exibir
+  ```
 
 ### Fluxo EDIT_MATH
 ```
@@ -293,19 +396,55 @@ FormulaBuilderModal.onConfirm(latex)
   → setEditingMath(null)
 ```
 
+### calculateFormulaWeight (espelho RN)
+Função duplicada em `ManageFlashcardsScreen.js` para pre-checar peso antes de inserção. Usada ao editar fórmula existente (compara peso novo vs antigo para verificar se cabe no limite).
+
 ### FieldToolbar (toolbar dentro da caixa de texto)
 Componente interno com botões:
-- **Colar**: `Clipboard.getString()` → `editorRef.setContent()`
-- **Copiar**: extrai texto puro do HTML salvo
-- **Limpar / Desfazer**: limpa o campo ou restaura rascunho anterior
+- **Colar** (`handlePasteClipboard`): lê `clipboardText` → escapa HTML → appenda ao draft → `editorRef.setContent()`
+- **Copiar** (`handleCopyField`): extrai texto puro do HTML do draft via regex; copia para clipboard; feedback 2s
+- **Limpar** (`handleClearField`): salva snapshot em `undoSnapshot.current` → limpa draft + editor → ativa modo undo (4s)
+- **Desfazer** (`handleUndoClear`): restaura draft + editor do snapshot; desativa modo undo
 - **B**: `editorRef.toggleBold()`
 - **I**: `editorRef.toggleItalic()`
 - **brush**: `editorRef.toggleMark()`
-- **contador**: exibe `charCount/maxChars`
+- **contador**: exibe `charCount/maxChars` via `EditorCharCounter`
+
+### Gerenciamento de teclado
+```js
+// keyboardDidShow:
+mathToolbarRef.current?.forceClose() // fecha toolbar quando teclado abre
+
+// keyboardDidHide:
+if (pendingToolbarOpen.current) {
+  pendingToolbarOpen.current = false;
+  mathToolbarRef.current?.toggle(); // abre toolbar após teclado fechar
+} else {
+  scrollViewRef.current?.scrollTo({ y: 0 }); // scroll topo se não há toolbar pendente
+}
+```
+
+### toggleMathToolbar()
+```js
+if (!isMathToolbarVisible) {
+  if (keyboardVisibleRef.current) {
+    // Teclado aberto: blur + Keyboard.dismiss() + agenda toolbar
+    pendingToolbarOpen.current = true;
+    questionEditorRef.current?.blur();
+    answerEditorRef.current?.blur();
+    Keyboard.dismiss();
+  } else {
+    mathToolbarRef.current?.toggle(); // abre direto
+  }
+} else {
+  mathToolbarRef.current?.toggle(); // fecha
+}
+```
+Padrão `pendingToolbarOpen` evita conflito teclado/toolbar no Android.
 
 ---
 
-## 10. Problemas Conhecidos (motivo da migração)
+## 12. Problemas Conhecidos (motivo da migração)
 
 ### Bold/Italic — instabilidade no Android
 - `execCommand('bold')` quebra ao pressionar espaço (Android IME trata espaço como separador de palavra)
@@ -318,7 +457,7 @@ Não existe solução confiável para bold/italic typing mode em contenteditable
 
 ---
 
-## 11. Plano de Migração para TipTap
+## 13. Plano de Migração para TipTap
 
 ### O que muda
 - `editorTemplates.js`: reescrito usando TipTap core + extensões Bold + Italic + Highlight + extensão customizada MathAtom
@@ -358,4 +497,4 @@ Não existe solução confiável para bold/italic typing mode em contenteditable
 
 ---
 
-*Documento gerado em 2026-04-21 como checkpoint pré-migração TipTap.*
+*Documento gerado em 2026-04-21, atualizado em 2026-04-20. Checkpoint pré-migração TipTap.*
