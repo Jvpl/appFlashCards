@@ -3,24 +3,49 @@ const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'editorTemplates.new.js'), 'utf8');
 
-// Extract katexStyles and katexScript JSON strings (already valid, no further unescaping needed)
-function extractJsonString(src, varName) {
+// Extract a JS string (JSON double-quoted or template literal backtick)
+function extractStringConst(src, varName) {
   const marker = `const ${varName} = `;
   const idx = src.indexOf(marker);
   if (idx === -1) throw new Error(`${varName} not found`);
   const start = idx + marker.length;
-  if (src[start] !== '"') throw new Error(`${varName} is not a JSON string`);
-  let i = start + 1;
-  while (i < src.length) {
-    if (src[i] === '\\') { i += 2; continue; }
-    if (src[i] === '"') break;
-    i++;
+  if (src[start] === '"') {
+    // JSON string
+    let i = start + 1;
+    while (i < src.length) {
+      if (src[i] === '\\') { i += 2; continue; }
+      if (src[i] === '"') break;
+      i++;
+    }
+    return JSON.parse(src.substring(start, i + 1));
+  } else if (src[start] === '`') {
+    // Template literal — unescape manually
+    let i = start + 1;
+    let result = '';
+    while (i < src.length) {
+      if (src[i] === '\\') {
+        const next = src[i + 1];
+        if (next === '\\') { result += '\\'; i += 2; }
+        else if (next === '`') { result += '`'; i += 2; }
+        else if (next === '$') { result += '$'; i += 2; }
+        else if (next === 'n') { result += '\n'; i += 2; }
+        else if (next === 'r') { result += '\r'; i += 2; }
+        else if (next === 't') { result += '\t'; i += 2; }
+        else { result += src[i]; i++; }
+      } else if (src[i] === '`') {
+        break;
+      } else {
+        result += src[i]; i++;
+      }
+    }
+    return result;
+  } else {
+    throw new Error(`${varName} is neither JSON string nor template literal`);
   }
-  return JSON.parse(src.substring(start, i + 1));
 }
 
-const katexStyles = extractJsonString(src, 'katexStyles');
-const katexScript = extractJsonString(src, 'katexScript');
+const katexStyles = extractStringConst(src, 'katexStyles');
+const katexScript = extractStringConst(src, 'katexScript');
 
 // Extract editorHtml template literal raw content
 const startMarker = 'const editorHtml = `';

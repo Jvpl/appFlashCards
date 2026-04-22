@@ -662,10 +662,45 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     undoSnapshot.current = '';
   };
 
+  const htmlToPlainWithLatex = (html) => {
+    // Encontra cada math-atom e pula todo o seu conteúdo (com spans aninhados do KaTeX)
+    let result = '';
+    let i = 0;
+    while (i < html.length) {
+      const mathStart = html.indexOf('<span', i);
+      if (mathStart === -1) { result += html.slice(i); break; }
+      // Verifica se este span é um math-atom com data-latex
+      const tagEnd = html.indexOf('>', mathStart);
+      if (tagEnd === -1) { result += html.slice(i); break; }
+      const tag = html.slice(mathStart, tagEnd + 1);
+      const latexMatch = tag.match(/data-latex="([^"]*)"/);
+      const isMathAtom = tag.includes('math-atom') && latexMatch;
+      if (!isMathAtom) {
+        result += html.slice(i, tagEnd + 1);
+        i = tagEnd + 1;
+        continue;
+      }
+      // É um math-atom — adiciona $latex$ e pula até o </span> de fechamento correto
+      result += '$' + latexMatch[1] + '$';
+      // Conta profundidade de spans para achar o fechamento correto
+      let depth = 1;
+      let j = tagEnd + 1;
+      while (j < html.length && depth > 0) {
+        if (html.startsWith('<span', j)) { depth++; j += 5; }
+        else if (html.startsWith('</span>', j)) { depth--; if (depth > 0) j += 7; else j += 7; }
+        else j++;
+      }
+      i = j;
+    }
+    // Remove tags restantes (sentinela etc)
+    result = result.replace(/<[^>]+>/g, '');
+    return result.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/ㅤ/g, '').trim();
+  };
+
   const handleCopyField = async (field) => {
     const content = global.flashcardDrafts?.[draftKey]?.[field] || '';
     if (!content) return;
-    const plain = content.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+    const plain = htmlToPlainWithLatex(content);
     await Clipboard.setStringAsync(plain);
     setClipboardText(plain);
     const { setCopied, copiedTimer } = getFieldRefs(field);
@@ -676,14 +711,9 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
   const handlePasteClipboard = (field) => {
     if (!clipboardText) return;
-    if (!global.flashcardDrafts) global.flashcardDrafts = {};
-    if (!global.flashcardDrafts[draftKey]) global.flashcardDrafts[draftKey] = { question: '', answer: '' };
     const { editorRef } = getFieldRefs(field);
-    const escaped = clipboardText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-    const current = global.flashcardDrafts[draftKey][field] || '';
-    const newContent = current ? current + ' ' + escaped : escaped;
-    global.flashcardDrafts[draftKey][field] = newContent;
-    editorRef.current?.setContent(newContent);
+    // Delega ao WebView que já sabe parsear $latex$ e renderizar fórmulas
+    editorRef.current?.pasteText(clipboardText);
   };
 
   const FieldToolbar = ({ field, charCount, undoMode, copied, format }) => {
@@ -838,6 +868,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       onEditMath={handleEditMath}
                       onCharCount={(count) => setQuestionCharCount(count)}
                       onFormatState={(bold, italic, mark) => setQuestionFormat({ bold, italic, mark })}
+                      onCutText={(text) => { setClipboardText(text); Clipboard.setStringAsync(text); }}
                       maxChars={CHAR_LIMIT}
                     />
                   </View>
@@ -894,6 +925,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       onEditMath={handleEditMath}
                       onCharCount={(count) => setAnswerCharCount(count)}
                       onFormatState={(bold, italic, mark) => setAnswerFormat({ bold, italic, mark })}
+                      onCutText={(text) => { setClipboardText(text); Clipboard.setStringAsync(text); }}
                       maxChars={CHAR_LIMIT}
                     />
                   </View>

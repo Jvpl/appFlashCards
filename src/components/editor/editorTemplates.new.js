@@ -34,7 +34,7 @@ ${katexScript}
   </script>
 
   <!-- KaTeX Copy-Tex Extension (Offline) -->
-  <script>!function(e,t){if("object"==typeof exports&&"object"==typeof module)module.exports=t();else if("function"==typeof define&&define.amd)define([],t);else{var n=t();for(var r in n)("object"==typeof exports?exports:e)[r]=n[r]}}("undefined"!=typeof self?self:this,(function(){return function(){"use strict";var e={},t={inline:["$","$"],display:["$$","$$"]};var n=function(e,n){void 0===n&&(n=t);for(var r=e.querySelectorAll(".katex-mathml + .katex-html"),a=0;a<r.length;a++){var o=r[a];o.remove?o.remove():o.parentNode&&o.parentNode.removeChild(o)}for(var i=e.querySelectorAll(".katex-mathml"),l=0;l<i.length;l++){var f=i[l],c=f.querySelector("annotation");c&&(f.replaceWith?f.replaceWith(c):f.parentNode&&f.parentNode.replaceChild(c,f),c.innerHTML=n.inline[0]+c.innerHTML+n.inline[1])}for(var d=e.querySelectorAll(".katex-display annotation"),s=0;s<d.length;s++){var p=d[s];p.innerHTML=n.display[0]+p.innerHTML.substr(n.inline[0].length,p.innerHTML.length-n.inline[0].length-n.inline[1].length)+n.display[1]}return e};function r(e){var t=e instanceof Element?e:e.parentElement;return t&&t.closest(".katex")}return document.addEventListener("copy",(function(e){var t=window.getSelection();if(!t.isCollapsed&&e.clipboardData){var a=e.clipboardData,o=t.getRangeAt(0),i=r(o.startContainer);i&&o.setStartBefore(i);var l=r(o.endContainer);l&&o.setEndAfter(l);var f=o.cloneContents();if(f.querySelector(".katex-mathml")){var c=Array.prototype.map.call(f.childNodes,(function(e){return e instanceof Text?e.textContent:e.outerHTML})).join("");a.setData("text/html",c),a.setData("text/plain",n(f).textContent),e.preventDefault()}}})),e=e.default}()}));</script>
+  <script></script>
 
   <!-- TipTap Bundle (Bold, Italic, Highlight, History) -->
   <script>var TipTapBundle = (() => {
@@ -19211,9 +19211,18 @@ img.ProseMirror-separator {
         'spellcheck': 'true',
         'autocapitalize': 'none',
       },
+      handlePaste: function(view, event) {
+        var clipboardData = event.clipboardData || window.clipboardData;
+        if (!clipboardData) return false;
+        var html = clipboardData.getData('text/html') || '';
+        var text = clipboardData.getData('text/plain') || '';
+        return handlePasteData(html, text);
+      },
     },
     onFocus: function() { sendToApp('FOCUS', {}); },
     onUpdate: function() {
+      // Detecta $latex$ inserido via teclado Android e converte para fórmula
+      detectAndConvertLatexInDoc();
       var html = getFullHtml();
       sendToApp('CONTENT_CHANGE', { html: html });
       notifyCharCount();
@@ -19387,18 +19396,141 @@ img.ProseMirror-separator {
         else return;
       }
     }
-    atom.setAttribute('data-latex', latexToRender);
-    atom.style.backgroundColor = '';
-    try { katex.render(latexToRender, atom, { throwOnError: false }); } catch(e) {}
-    atom.querySelectorAll('.strut').forEach(function(s) { s.remove(); });
+    // Renderiza o KaTeX no span temporário para obter o html atualizado
+    var tmpSpan = document.createElement('span');
+    try { katex.render(latexToRender, tmpSpan, { throwOnError: false }); } catch(e) { tmpSpan.textContent = latexToRender; }
+    tmpSpan.querySelectorAll('.strut').forEach(function(s) { s.remove(); });
+    var newHtml = tmpSpan.innerHTML;
+    // Atualiza via transação TipTap para manter o state sincronizado
+    var state = tiptapEditor.state;
+    var found = null;
+    state.doc.descendants(function(node, pos) {
+      if (node.type.name === 'mathAtom' && node.attrs.id === id) {
+        found = { node: node, pos: pos };
+        return false;
+      }
+    });
+    if (found) {
+      var tr = state.tr.setNodeMarkup(found.pos, null, Object.assign({}, found.node.attrs, { latex: latexToRender, html: newHtml }));
+      tiptapEditor.view.dispatch(tr);
+    } else {
+      // Fallback: atualiza DOM diretamente
+      atom.setAttribute('data-latex', latexToRender);
+      try { katex.render(latexToRender, atom, { throwOnError: false }); } catch(e) {}
+      atom.querySelectorAll('.strut').forEach(function(s) { s.remove(); });
+    }
     sendToApp('CONTENT_CHANGE', { html: getFullHtml() });
     notifyCharCount();
+  };
+
+  window.pasteText = function(text) {
+    handlePasteData('', text);
   };
 
   window.insertSymbol = function(s) {
     try { if (countEquivalentChars() + s.length > MAX_CHARS) return; } catch(e) {}
     tiptapEditor.chain().focus().insertContent(s).run();
   };
+
+  var _convertingLatex = false;
+  function detectAndConvertLatexInDoc() {
+    if (_convertingLatex) return;
+    var state = tiptapEditor.state;
+    // Procura text node com $...$ completo
+    var found = null;
+    state.doc.descendants(function(node, pos) {
+      if (found) return false;
+      if (!node.isText) return;
+      var txt = node.text;
+      var d1 = txt.indexOf('$');
+      if (d1 === -1) return;
+      var d2 = txt.indexOf('$', d1 + 1);
+      if (d2 === -1) return;
+      var latex = txt.slice(d1 + 1, d2).trim();
+      if (!latex) return;
+      found = { pos: pos, node: node, d1: d1, d2: d2, latex: latex };
+    });
+    if (!found) return;
+    _convertingLatex = true;
+    var span = document.createElement('span');
+    try { katex.render(found.latex, span, { throwOnError: false }); } catch(e) { span.textContent = found.latex; }
+    span.querySelectorAll('.strut').forEach(function(s) { s.remove(); });
+    var newId = 'math_' + Date.now();
+    var schema = tiptapEditor.state.schema;
+    var mathNode = schema.nodeFromJSON({ type: 'mathAtom', attrs: { id: newId, latex: found.latex, source: 'simple', html: span.innerHTML } });
+    var sentinelaNode = schema.nodeFromJSON({ type: 'sentinela' });
+    var before = found.node.text.slice(0, found.d1);
+    var after = found.node.text.slice(found.d2 + 1);
+    var tr = tiptapEditor.state.tr;
+    var basePos = found.pos;
+    // Apaga o text node inteiro e reconstrói: before + mathAtom + sentinela + ' ' + after
+    tr = tr.delete(basePos, basePos + found.node.nodeSize);
+    // Insere de trás para frente para preservar basePos
+    if (after) tr = tr.insert(basePos, schema.text(after));
+    tr = tr.insert(basePos, schema.text(' '));
+    tr = tr.insert(basePos, sentinelaNode);
+    tr = tr.insert(basePos, mathNode);
+    if (before) tr = tr.insert(basePos, schema.text(before));
+    // Posiciona cursor após o ' ' (before + math + sentinela + ' ')
+    var spacePos = basePos + (before ? before.length : 0) + mathNode.nodeSize + sentinelaNode.nodeSize + 1;
+    var TextSelection = tiptapEditor.state.selection.constructor;
+    try {
+      var $pos = tr.doc.resolve(spacePos);
+      tr = tr.setSelection(TextSelection.near($pos));
+    } catch(e) {}
+    tiptapEditor.view.dispatch(tr);
+    _convertingLatex = false;
+    // Verifica se ainda tem mais $...$ para converter
+    detectAndConvertLatexInDoc();
+  }
+
+  function handlePasteData(html, text) {
+    // Recover $latex$ from HTML when copied from our own editor via Android native menu
+    if (html && html.includes('data-latex')) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      tmp.querySelectorAll('.sentinela-anti-caps').forEach(function(el) { el.remove(); });
+      tmp.querySelectorAll('.math-atom').forEach(function(atom) {
+        var latex = atom.getAttribute('data-latex');
+        if (latex) atom.parentNode.replaceChild(document.createTextNode('$' + latex + '$'), atom);
+      });
+      text = (tmp.textContent || '').replace(/ㅤ/g, '').trim();
+    }
+    if (!text) return false;
+    try {
+      var currentCount = countEquivalentChars();
+      var remaining = MAX_CHARS - currentCount;
+      if (remaining <= 0) return true;
+      if (text.length > remaining) text = text.substring(0, remaining);
+    } catch(e2) {}
+    var parts = [];
+    var i = 0;
+    while (i < text.length) {
+      var d1 = text.indexOf('$', i);
+      if (d1 === -1) { parts.push({ type: 'text', text: text.slice(i) }); break; }
+      if (d1 > i) parts.push({ type: 'text', text: text.slice(i, d1) });
+      var d2 = text.indexOf('$', d1 + 1);
+      if (d2 === -1) { parts.push({ type: 'text', text: text.slice(d1) }); break; }
+      var latex = text.slice(d1 + 1, d2).trim();
+      if (latex) {
+        var span = document.createElement('span');
+        try { katex.render(latex, span, { throwOnError: false }); } catch(err) { span.textContent = latex; }
+        span.querySelectorAll('.strut').forEach(function(s) { s.remove(); });
+        var newId = 'math_' + Date.now() + '_' + parts.length;
+        parts.push({ type: 'mathAtom', attrs: { id: newId, latex: latex, source: 'simple', html: span.innerHTML } });
+        parts.push({ type: 'sentinela' });
+        parts.push({ type: 'text', text: ' ' });
+      } else {
+        parts.push({ type: 'text', text: '$$' });
+      }
+      i = d2 + 1;
+    }
+    if (parts.length === 0) return false;
+    tiptapEditor.chain().focus().deleteSelection().insertContent(parts).run();
+    sendToApp('CONTENT_CHANGE', { html: getFullHtml() });
+    notifyCharCount(); updatePlaceholder();
+    return true;
+  }
 
   function attachEventListeners() {
   document.addEventListener('click', function(e) {
@@ -19474,35 +19606,30 @@ img.ProseMirror-separator {
 
   proseMirrorEl.addEventListener('beforeinput', function(e) {
     if (e.inputType !== 'deleteContentBackward') return;
-    var sel = window.getSelection();
-    if (!sel || !sel.rangeCount) return;
-    var range = sel.getRangeAt(0);
-    var curr = range.startContainer;
-    var offset = range.startOffset;
-    if (curr.nodeType === 3 && offset > 0) return;
-    var probe = null, nodesToDelete = [], atomFound = null;
-    if (curr.nodeType === 3 && offset === 0) probe = curr.previousSibling;
-    else if (curr === proseMirrorEl) probe = curr.childNodes[offset - 1];
-    else if (curr.nodeType === 3) probe = curr.previousSibling;
-    while (probe) {
-      if (probe.nodeType === 1 && probe.classList.contains('math-atom')) { atomFound = probe; break; }
-      var isInvis = probe.nodeType === 1 && probe.classList.contains('sentinela-anti-caps');
-      var isEmpty = probe.nodeType === 3 && probe.textContent.trim() === '';
-      var isZWS = probe.nodeType === 3 && probe.textContent === '​';
-      if (isInvis || isEmpty || isZWS) { nodesToDelete.push(probe); probe = probe.previousSibling; continue; }
-      if (probe.nodeType === 3 && probe.textContent === ' ') break;
-      break;
+    // Usa ProseMirror para encontrar mathAtom imediatamente antes do cursor
+    var state = tiptapEditor.state;
+    var cursorPos = state.selection.from;
+    var doc = state.doc;
+    var mathPos = null, mathSize = null;
+    doc.nodesBetween(0, cursorPos, function(node, pos) {
+      if (node.type.name === 'mathAtom') { mathPos = pos; mathSize = node.nodeSize; }
+    });
+    if (mathPos === null) return;
+    // Verifica que entre o fim do math e o cursor só há sentinela/espaço/ZWS
+    var between = '';
+    doc.nodesBetween(mathPos + mathSize, cursorPos, function(node) {
+      if (node.isText) between += node.text.replace(/​/g, '').replace(/ /g, '');
+    });
+    if (between.length > 0) return;
+    e.preventDefault();
+    var tr = state.tr.delete(mathPos, cursorPos);
+    var resolvedPos = tr.doc.resolve(mathPos);
+    if (resolvedPos.parent.content.size === 0) {
+      tr = tr.insertText('​', mathPos);
     }
-    if (atomFound) {
-      e.preventDefault();
-      nodesToDelete.forEach(function(n) { n.remove(); });
-      atomFound.remove();
-      var prevSibling = atomFound.previousSibling;
-      var hasContentBefore = prevSibling && ((prevSibling.nodeType === 3 && prevSibling.textContent.length > 0) || prevSibling.nodeType === 1);
-      if (!hasContentBefore) document.execCommand('insertText', false, '​');
-      sendToApp('CONTENT_CHANGE', { html: getFullHtml() });
-      notifyCharCount(); updatePlaceholder();
-    }
+    tiptapEditor.view.dispatch(tr);
+    sendToApp('CONTENT_CHANGE', { html: getFullHtml() });
+    notifyCharCount(); updatePlaceholder();
   });
 
   proseMirrorEl.addEventListener('beforeinput', function(e) {
@@ -19526,160 +19653,98 @@ img.ProseMirror-separator {
     } catch(e2) {}
   });
 
-  proseMirrorEl.addEventListener('copy', function(e) {
-    e.stopPropagation();
-    var sel = window.getSelection();
-    if (!sel.rangeCount) return;
-    var range = sel.getRangeAt(0);
-    var div = document.createElement('div');
-    div.appendChild(range.cloneContents());
-    div.querySelectorAll('.sentinela-anti-caps').forEach(function(el) { el.remove(); });
-    div.querySelectorAll('.math-atom').forEach(function(atom) {
-      var latex = atom.getAttribute('data-latex');
-      if (latex) atom.parentNode.replaceChild(document.createTextNode('$' + latex + '$'), atom);
-    });
-    var text = (div.textContent || '').replace(/ㅤ/g, '');
-    if (e.clipboardData) { e.clipboardData.setData('text/plain', text); e.preventDefault(); }
-  });
-
-  proseMirrorEl.addEventListener('cut', function(e) {
-    e.stopPropagation();
-    var sel = window.getSelection();
-    if (!sel.rangeCount) return;
-    var range = sel.getRangeAt(0);
-    var div = document.createElement('div');
-    div.appendChild(range.cloneContents());
-    div.querySelectorAll('.sentinela-anti-caps').forEach(function(el) { el.remove(); });
-    div.querySelectorAll('.math-atom').forEach(function(atom) {
-      var latex = atom.getAttribute('data-latex');
-      if (latex) atom.parentNode.replaceChild(document.createTextNode('$' + latex + '$'), atom);
-    });
-    var text = (div.textContent || '').replace(/ㅤ/g, '');
-    if (e.clipboardData) { e.clipboardData.setData('text/plain', text); e.preventDefault(); }
-    range.deleteContents();
-    var nodesToRemove = [];
-    proseMirrorEl.childNodes.forEach(function(node) {
-      if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) nodesToRemove.push(node);
-      if (node.nodeType === Node.ELEMENT_NODE && node.classList && node.classList.contains('sentinela-anti-caps')) {
-        var prev = node.previousSibling;
-        if (!(prev && prev.nodeType === 1 && prev.classList && prev.classList.contains('math-atom'))) nodesToRemove.push(node);
+  function getSelectedTextFromTiptap() {
+    var state = tiptapEditor.state;
+    var sel = state.selection;
+    var text = '';
+    state.doc.nodesBetween(sel.from, sel.to, function(node) {
+      if (node.type.name === 'mathAtom') {
+        text += '$' + (node.attrs.latex || '') + '$';
+      } else if (node.type.name !== 'sentinela' && node.isText) {
+        text += node.text;
       }
     });
-    nodesToRemove.forEach(function(n) { n.remove(); });
-    sendToApp('CONTENT_CHANGE', { html: getFullHtml() });
-    notifyCharCount(); updatePlaceholder();
-  });
+    return text;
+  }
+
+  document.addEventListener('copy', function(e) {
+    e.stopImmediatePropagation();
+    var tiptapText = getSelectedTextFromTiptap();
+    // Colapsa seleção para o fim após copiar
+    var selTo = tiptapEditor.state.selection.to;
+    var selEmpty = tiptapEditor.state.selection.empty;
+    setTimeout(function() {
+      if (!selEmpty) {
+        tiptapEditor.commands.setTextSelection(selTo);
+      }
+    }, 0);
+    // Fallback: seleção nativa via long-press em math-atom
+    if (!tiptapText) {
+      var sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        var container = sel.getRangeAt(0).commonAncestorContainer;
+        var atom = (container.nodeType === 1 ? container : container.parentElement);
+        atom = atom && atom.closest ? atom.closest('.math-atom') : null;
+        if (atom) {
+          var latex = atom.getAttribute('data-latex');
+          if (latex) tiptapText = '$' + latex + '$';
+        }
+        // Se seleção abrange múltiplos nós, serializar o fragmento
+        if (!tiptapText && sel.toString()) {
+          tiptapText = sel.toString();
+        }
+      }
+    }
+    if (!tiptapText) return;
+    if (e.clipboardData) {
+      e.clipboardData.setData('text/plain', tiptapText);
+      e.clipboardData.setData('text/html', '');
+      e.preventDefault();
+    }
+  }, true);
 
   proseMirrorEl.addEventListener('paste', function(e) {
-    e.preventDefault();
     var clipboardData = e.clipboardData || window.clipboardData;
     if (!clipboardData) return;
-    var text = clipboardData.getData('text/plain') || clipboardData.getData('text') || '';
+    var html = clipboardData.getData('text/html') || '';
+    var text = clipboardData.getData('text/plain') || '';
+    // Só intercepta via DOM se o handlePaste do TipTap não vai ser chamado
+    // (quando html tem data-latex mas não $ no texto — Android nativo sem copy-tex)
+    if (html.includes('data-latex') && !text.includes('$')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      handlePasteData(html, text);
+    }
+  }, true);
+
+  document.addEventListener('cut', function(e) {
+    e.stopImmediatePropagation();
+    var text = getSelectedTextFromTiptap();
     if (!text) return;
-    text = text.replace(/ㅤ/g, '');
-    var sel = window.getSelection();
-    if (!sel || !sel.rangeCount) { tiptapEditor.commands.focus(); sel = window.getSelection(); if (!sel || !sel.rangeCount) return; }
-    var range = sel.getRangeAt(0);
-    range.deleteContents();
-    try {
-      var currentCount = countEquivalentChars();
-      var remaining = MAX_CHARS - currentCount;
-      if (remaining <= 0) return;
-      if (text.length > remaining) text = text.substring(0, remaining);
-    } catch(e2) {}
-    var textNode = document.createTextNode(text);
-    range.insertNode(textNode);
-    range.setStartAfter(textNode); range.setEndAfter(textNode);
-    sel.removeAllRanges(); sel.addRange(range);
-    detectAndConvertFormula();
+    e.preventDefault();
+    if (e.clipboardData) { e.clipboardData.setData('text/plain', text); e.clipboardData.setData('text/html', ''); }
+    // Notifica RN para atualizar clipboardText
+    sendToApp('CUT_TEXT', { text: text });
+    tiptapEditor.chain().focus().deleteSelection().run();
+    // Verifica se o que sobrou é só espaço/sentinela e limpa via TipTap
+    var afterState = tiptapEditor.state;
+    var hasRealContent = false;
+    afterState.doc.descendants(function(node) {
+      if (node.type.name === 'mathAtom') { hasRealContent = true; return false; }
+      if (node.isText && node.text.replace(/[ㅤ​ ]/g, '').length > 0) { hasRealContent = true; return false; }
+    });
+    if (!hasRealContent) {
+      tiptapEditor.commands.clearContent(false);
+    }
     sendToApp('CONTENT_CHANGE', { html: getFullHtml() });
     notifyCharCount(); updatePlaceholder();
-  });
+  }, true);
 
-  proseMirrorEl.addEventListener('paste', function(e) {
-    setTimeout(function() {
-      if (!proseMirrorEl) return;
-      proseMirrorEl.querySelectorAll('.math-atom').forEach(function(atom) {
-        var next = atom.nextSibling;
-        if (!next || (next.nodeType === 1 && next.className !== 'sentinela-anti-caps') || (next.nodeType === 3 && next.textContent !== ' ')) {
-          if (next && next.nodeType === 1 && next.className === 'sentinela-anti-caps') return;
-          var s = criarSentinela();
-          if (next) atom.parentNode.insertBefore(s, next);
-          else atom.parentNode.appendChild(s);
-        }
-      });
-    }, 50);
-  });
-
-  function detectAndConvertFormula() {
-    if (!proseMirrorEl) return;
-    var maxIterations = 20, converted = 0, lastSentinela = null, lastSpaceNode = null;
-    for (var iteration = 0; iteration < maxIterations; iteration++) {
-      var walker = document.createTreeWalker(proseMirrorEl, NodeFilter.SHOW_TEXT, null, false);
-      var textNode = null, node;
-      while (node = walker.nextNode()) {
-        if (node.parentNode && node.parentNode.classList && node.parentNode.classList.contains('math-atom')) continue;
-        if (node.parentNode && node.parentNode.classList && node.parentNode.classList.contains('sentinela-anti-caps')) continue;
-        var txt = node.textContent;
-        var first = txt.indexOf('$');
-        if (first !== -1) {
-          var second = txt.indexOf('$', first + 1);
-          if (second !== -1 && txt.substring(first + 1, second).trim()) { textNode = node; break; }
-        }
-      }
-      if (!textNode) break;
-      var content = textNode.textContent;
-      var firstDollar = content.indexOf('$'), secondDollar = content.indexOf('$', firstDollar + 1);
-      var latex = content.substring(firstDollar + 1, secondDollar).trim();
-      var before = content.substring(0, firstDollar), afterContent = content.substring(secondDollar + 1);
-      var parent = textNode.parentNode;
-      var newId = 'math_' + Date.now() + '_' + iteration;
-      var span = document.createElement('span');
-      span.className = 'math-atom'; span.contentEditable = 'false';
-      span.setAttribute('data-id', newId); span.setAttribute('data-latex', latex);
-      try { katex.render(latex, span, { throwOnError: false }); }
-      catch(err) { span.textContent = '$' + latex + '$'; }
-      span.querySelectorAll('.strut').forEach(function(s) { s.remove(); });
-      var needsSpace = !afterContent || !afterContent.startsWith(' ');
-      var sentinela = criarSentinela();
-      var frag = document.createDocumentFragment();
-      if (before) frag.appendChild(document.createTextNode(before));
-      frag.appendChild(span); frag.appendChild(sentinela);
-      var spaceAfter = null;
-      if (needsSpace) { spaceAfter = document.createTextNode(' '); frag.appendChild(spaceAfter); }
-      if (afterContent) frag.appendChild(document.createTextNode(afterContent));
-      parent.replaceChild(frag, textNode);
-      lastSentinela = sentinela; lastSpaceNode = spaceAfter; converted++;
-    }
-    if (converted > 0 && lastSentinela) {
-      setTimeout(function() {
-        try {
-          var sel = window.getSelection(), range = document.createRange();
-          var target = lastSpaceNode || lastSentinela.nextSibling;
-          if (target && target.nodeType === Node.TEXT_NODE && target.parentNode) {
-            range.setStart(target, target.textContent.length); range.setEnd(target, target.textContent.length);
-          } else if (lastSentinela.parentNode) {
-            range.setStartAfter(lastSentinela); range.setEndAfter(lastSentinela);
-          } else {
-            range.selectNodeContents(proseMirrorEl); range.collapse(false);
-          }
-          sel.removeAllRanges(); sel.addRange(range);
-        } catch(e) {}
-      }, 10);
-    }
-    updatePlaceholder();
-  }
 
   var isComposing = false;
   proseMirrorEl.addEventListener('compositionstart', function() { isComposing = true; });
-  proseMirrorEl.addEventListener('compositionend', function() {
-    isComposing = false;
-    setTimeout(detectAndConvertFormula, 50);
-  });
-  proseMirrorEl.addEventListener('input', function(e) {
-    if (e.inputType && e.inputType.startsWith('delete')) return;
-    if (!isComposing && e.inputType !== 'insertCompositionText') setTimeout(detectAndConvertFormula, 50);
-  });
+  proseMirrorEl.addEventListener('compositionend', function() { isComposing = false; });
+  proseMirrorEl.addEventListener('input', function(e) {});
 
   proseMirrorEl.addEventListener('beforeinput', function(e) {
     if (e.inputType !== 'insertText') return;
