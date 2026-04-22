@@ -34,12 +34,15 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
       webviewRef.current?.injectJavaScript(`
         window.setHtml(${escaped});
         (function() {
-          var range = document.createRange();
-          var sel = window.getSelection();
-          range.selectNodeContents(editor);
-          range.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(range);
+          var el = document.querySelector('.ProseMirror') || document.getElementById('editor');
+          if (el) {
+            var range = document.createRange();
+            var sel = window.getSelection();
+            range.selectNodeContents(el);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
         })();
         true;
       `);
@@ -55,31 +58,24 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
     deleteMath: (id) => {
       webviewRef.current?.injectJavaScript(`
         (function() {
-           const atom = document.querySelector('.math-atom[data-id="${id}"]');
+           var atom = document.querySelector('.math-atom[data-id="${id}"]');
            if (atom) {
-              // Remove sentinela + espaço após fórmula
-              let next = atom.nextSibling;
-              
-              // Remove sentinela (ou invisible-char legado) se houver
+              var next = atom.nextSibling;
               if (next && next.classList && (next.classList.contains('sentinela-anti-caps') || next.classList.contains('invisible-char'))) {
-                const temp = next.nextSibling;
+                var temp = next.nextSibling;
                 next.remove();
                 next = temp;
               }
-              
-              // Remove espaço se houver
               if (next && next.nodeType === 3 && next.textContent.trim() === '') {
                 next.remove();
               }
-              
               atom.remove();
            }
-           checkPlaceholder();
-           // FIX: Notifica o app que o conteúdo mudou após a remoção!
-           // Isso garante que o rascunho (draft) seja atualizado e a fórmula não volte.
+           if (typeof updatePlaceholder === 'function') updatePlaceholder();
            if (window.sendToApp) {
-               window.sendToApp('CONTENT_CHANGE', { html: editor.innerHTML });
-               notifyCharCount();
+               var el = document.querySelector('.ProseMirror') || document.getElementById('editor');
+               window.sendToApp('CONTENT_CHANGE', { html: el ? el.innerHTML : '' });
+               if (typeof notifyCharCount === 'function') notifyCharCount();
            }
         })();
         true;
@@ -112,6 +108,14 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
         cacheMode="LOAD_CACHE_ELSE_NETWORK"
         renderToHardwareTextureAndroid={true}
         onLoadEnd={() => setIsLoading(false)}
+        onError={(e) => console.log('[WebView error]', e.nativeEvent)}
+        onHttpError={(e) => console.log('[WebView HTTP error]', e.nativeEvent)}
+        injectedJavaScriptBeforeContentLoaded={`
+          window.onerror = function(msg, src, line, col, err) {
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type:'JS_ERROR', msg:msg, src:src, line:line, col:col}));
+          };
+          true;
+        `}
         onMessage={(event) => {
           try {
             const data = JSON.parse(event.nativeEvent.data);
@@ -120,6 +124,7 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
             if (data.type === 'FOCUS' && onFocus) onFocus();
             if (data.type === 'CHAR_COUNT' && onCharCount) onCharCount(data.count, data.max);
             if (data.type === 'FORMAT_STATE' && onFormatState) onFormatState(data.bold, data.italic, data.mark);
+            if (data.type === 'JS_ERROR') console.log('[WebView JS error]', data.msg, 'line:', data.line, 'col:', data.col);
           } catch (e) {
             // Silently ignore JSON parse errors
           }
