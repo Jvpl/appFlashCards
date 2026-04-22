@@ -66,6 +66,10 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const [clipboardText, setClipboardText] = useState('');
   const [questionCopied, setQuestionCopied] = useState(false);
   const [answerCopied, setAnswerCopied] = useState(false);
+  const [questionPasted, setQuestionPasted] = useState(false);
+  const [answerPasted, setAnswerPasted] = useState(false);
+  const [questionPasteCooldown, setQuestionPasteCooldown] = useState(false);
+  const [answerPasteCooldown, setAnswerPasteCooldown] = useState(false);
   const questionCopiedTimer = useRef(null);
   const answerCopiedTimer = useRef(null);
   // Estados de formatação (bold/italic/mark) por campo
@@ -636,8 +640,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   };
 
   const getFieldRefs = (field) => field === 'question'
-    ? { editorRef: questionEditorRef, undoSnapshot: questionUndoSnapshot, undoTimer: questionUndoTimer, setCharCount: setQuestionCharCount, setUndoMode: setQuestionUndoMode, setCopied: setQuestionCopied, copiedTimer: questionCopiedTimer }
-    : { editorRef: answerEditorRef, undoSnapshot: answerUndoSnapshot, undoTimer: answerUndoTimer, setCharCount: setAnswerCharCount, setUndoMode: setAnswerUndoMode, setCopied: setAnswerCopied, copiedTimer: answerCopiedTimer };
+    ? { editorRef: questionEditorRef, undoSnapshot: questionUndoSnapshot, undoTimer: questionUndoTimer, setCharCount: setQuestionCharCount, setUndoMode: setQuestionUndoMode, setCopied: setQuestionCopied, copiedTimer: questionCopiedTimer, setPasted: setQuestionPasted, setPasteCooldown: setQuestionPasteCooldown }
+    : { editorRef: answerEditorRef, undoSnapshot: answerUndoSnapshot, undoTimer: answerUndoTimer, setCharCount: setAnswerCharCount, setUndoMode: setAnswerUndoMode, setCopied: setAnswerCopied, copiedTimer: answerCopiedTimer, setPasted: setAnswerPasted, setPasteCooldown: setAnswerPasteCooldown };
 
   const handleClearField = (field) => {
     if (!global.flashcardDrafts?.[draftKey]) return;
@@ -709,30 +713,39 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     copiedTimer.current = setTimeout(() => setCopied(false), 2000);
   };
 
+  const pasteTimers = { question: null, answer: null };
+  const pasteCooldownTimers = { question: null, answer: null };
   const handlePasteClipboard = (field) => {
     if (!clipboardText) return;
-    const { editorRef } = getFieldRefs(field);
-    // Delega ao WebView que já sabe parsear $latex$ e renderizar fórmulas
+    const { editorRef, setPasted, setPasteCooldown } = getFieldRefs(field);
     editorRef.current?.pasteText(clipboardText);
+    setPasted(true);
+    setPasteCooldown(true);
+    clearTimeout(pasteTimers[field]);
+    clearTimeout(pasteCooldownTimers[field]);
+    pasteTimers[field] = setTimeout(() => setPasted(false), 600);
+    pasteCooldownTimers[field] = setTimeout(() => setPasteCooldown(false), 800);
   };
 
-  const FieldToolbar = ({ field, charCount, undoMode, copied, format }) => {
+  const FieldToolbar = ({ field, charCount, undoMode, copied, pasted, format }) => {
     const fieldContent = global.flashcardDrafts?.[draftKey]?.[field] || '';
     const fieldPlain = fieldContent.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
     const { editorRef } = getFieldRefs(field);
     const hasContent = charCount > 0 || undoMode;
-    const canPaste = clipboardText.length > 0 && clipboardText !== fieldPlain;
+    const pasteCooldown = field === 'question' ? questionPasteCooldown : answerPasteCooldown;
+    const canPaste = clipboardText.length > 0 && !pasteCooldown;
 
     const iconColor = (active, activeColor, inactiveColor = theme.textMuted) => active ? activeColor : inactiveColor;
     const opacity = (enabled) => enabled ? 1 : 0.3;
 
-    const sep = <View style={{ width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.1)' }} />;
+    const sep = <View style={{ width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.1)', marginHorizontal: 4 }} />;
 
     return (
-      <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.07)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 4 }}>
+        <View style={{ position: 'absolute', top: 0, left: 8, right: 8, height: 1, backgroundColor: 'rgba(255,255,255,0.07)' }} />
         {/* Colar */}
-        <TouchableOpacity onPress={() => canPaste && handlePasteClipboard(field)} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(canPaste), padding: 4 }}>
-          <Ionicons name="clipboard-outline" size={18} color={theme.primary} />
+        <TouchableOpacity onPress={() => canPaste && handlePasteClipboard(field)} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: clipboardText.length > 0 ? 1 : 0.3, padding: 4 }}>
+          <Ionicons name="clipboard-outline" size={18} color={pasted ? theme.primary : theme.textSecondary} />
         </TouchableOpacity>
         {sep}
         {/* Copiar */}
@@ -873,7 +886,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       maxChars={CHAR_LIMIT}
                     />
                   </View>
-                  <FieldToolbar field="question" charCount={questionCharCount} undoMode={questionUndoMode} copied={questionCopied} format={questionFormat} />
+                  <FieldToolbar field="question" charCount={questionCharCount} undoMode={questionUndoMode} copied={questionCopied} pasted={questionPasted} format={questionFormat} />
                 </View>
               </View>
 
@@ -931,7 +944,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       maxChars={CHAR_LIMIT}
                     />
                   </View>
-                  <FieldToolbar field="answer" charCount={answerCharCount} undoMode={answerUndoMode} copied={answerCopied} format={answerFormat} />
+                  <FieldToolbar field="answer" charCount={answerCharCount} undoMode={answerUndoMode} copied={answerCopied} pasted={answerPasted} format={answerFormat} />
                 </View>
               </View>
 

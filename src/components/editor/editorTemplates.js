@@ -19323,15 +19323,16 @@ img.ProseMirror-separator {
     applyFormatWithSelectionAwareness(function() {
       var state = tiptapEditor.state;
       var sel = state.selection;
+      // Sem seleção: usa toggleHighlight nativo (gerencia storedMark automaticamente)
+      if (sel.empty) { tiptapEditor.chain().focus().toggleHighlight().run(); return; }
       var highlightMark = state.schema.marks.highlight;
       if (!highlightMark) { tiptapEditor.chain().focus().toggleHighlight().run(); return; }
-      // Verifica se já tem highlight na seleção
+      // Com seleção: aplica/remove apenas em nós de texto, pulando mathAtoms
       var hasHighlight = false;
       state.doc.nodesBetween(sel.from, sel.to, function(node) {
         if (node.isText && highlightMark.isInSet(node.marks)) hasHighlight = true;
       });
       var tr = state.tr;
-      // Aplica/remove highlight apenas em nós de texto, pulando mathAtoms
       state.doc.nodesBetween(sel.from, sel.to, function(node, pos) {
         if (node.type.name === 'mathAtom' || node.type.name === 'sentinela') return false;
         if (!node.isText) return;
