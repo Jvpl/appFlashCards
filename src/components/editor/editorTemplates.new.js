@@ -19143,8 +19143,8 @@ img.ProseMirror-separator {
       vertical-align: middle;
       margin: 0 2px;
       cursor: pointer;
-      user-select: all;
-      -webkit-user-select: all;
+      user-select: none;
+      -webkit-user-select: none;
       caret-color: transparent;
       padding: 4px 6px;
       border-radius: 6px;
@@ -19177,6 +19177,10 @@ img.ProseMirror-separator {
       color: #000;
       border-radius: 2px;
       padding: 0 2px;
+    }
+    .math-atom.in-highlight {
+      border: 1px solid rgba(93, 214, 44, 0.9) !important;
+      background-color: rgba(93, 214, 44, 0.15) !important;
     }
   </style>
 </head>
@@ -19223,6 +19227,7 @@ img.ProseMirror-separator {
     onUpdate: function() {
       // Detecta $latex$ inserido via teclado Android e converte para fórmula
       detectAndConvertLatexInDoc();
+      updateMathHighlightBorder();
       var html = getFullHtml();
       sendToApp('CONTENT_CHANGE', { html: html });
       notifyCharCount();
@@ -19230,6 +19235,7 @@ img.ProseMirror-separator {
     },
     onCreate: function() {
       proseMirrorEl = document.querySelector('.ProseMirror');
+      updateMathHighlightBorder();
       if (proseMirrorEl) {
         proseMirrorEl.setAttribute('autocapitalize', 'none');
         proseMirrorEl.setAttribute('autocorrect', 'off');
@@ -19268,6 +19274,23 @@ img.ProseMirror-separator {
     return proseMirrorEl.innerHTML;
   }
 
+  function updateMathHighlightBorder() {
+    if (!proseMirrorEl) return;
+    proseMirrorEl.querySelectorAll('.math-atom').forEach(function(atom) {
+      var prev = atom.previousSibling;
+      var next = atom.nextSibling;
+      // Pula sentinela para verificar o próximo/anterior real
+      if (next && next.classList && next.classList.contains('sentinela-anti-caps')) next = next.nextSibling;
+      var prevHighlight = prev && ((prev.nodeName === 'MARK' && prev.classList.contains('destaque')) || (prev.nodeType === 3 && prev.previousSibling && prev.previousSibling.nodeName === 'MARK'));
+      var nextHighlight = next && ((next.nodeName === 'MARK' && next.classList.contains('destaque')) || (next.nodeType === 3 && next.nextSibling && next.nextSibling.nodeName === 'MARK'));
+      if (prevHighlight || nextHighlight) {
+        atom.classList.add('in-highlight');
+      } else {
+        atom.classList.remove('in-highlight');
+      }
+    });
+  }
+
   function notifyFormatState() {
     sendToApp('FORMAT_STATE', {
       bold: tiptapEditor.isActive('bold'),
@@ -19296,7 +19319,34 @@ img.ProseMirror-separator {
   }
   window.toggleBold = function() { applyFormatWithSelectionAwareness(function() { tiptapEditor.chain().focus().toggleBold().run(); }); };
   window.toggleItalic = function() { applyFormatWithSelectionAwareness(function() { tiptapEditor.chain().focus().toggleItalic().run(); }); };
-  window.toggleMark = function() { applyFormatWithSelectionAwareness(function() { tiptapEditor.chain().focus().toggleHighlight().run(); }); };
+  window.toggleMark = function() {
+    applyFormatWithSelectionAwareness(function() {
+      var state = tiptapEditor.state;
+      var sel = state.selection;
+      var highlightMark = state.schema.marks.highlight;
+      if (!highlightMark) { tiptapEditor.chain().focus().toggleHighlight().run(); return; }
+      // Verifica se já tem highlight na seleção
+      var hasHighlight = false;
+      state.doc.nodesBetween(sel.from, sel.to, function(node) {
+        if (node.isText && highlightMark.isInSet(node.marks)) hasHighlight = true;
+      });
+      var tr = state.tr;
+      // Aplica/remove highlight apenas em nós de texto, pulando mathAtoms
+      state.doc.nodesBetween(sel.from, sel.to, function(node, pos) {
+        if (node.type.name === 'mathAtom' || node.type.name === 'sentinela') return false;
+        if (!node.isText) return;
+        var from = Math.max(pos, sel.from);
+        var to = Math.min(pos + node.nodeSize, sel.to);
+        if (from >= to) return;
+        if (hasHighlight) {
+          tr = tr.removeMark(from, to, highlightMark);
+        } else {
+          tr = tr.addMark(from, to, highlightMark.create({ color: null }));
+        }
+      });
+      tiptapEditor.view.dispatch(tr);
+    });
+  };
   window.focusEditor = function() { tiptapEditor.commands.focus(); };
   window.blurEditor = function() { tiptapEditor.commands.blur(); };
 
@@ -19483,11 +19533,13 @@ img.ProseMirror-separator {
     tr = tr.delete(basePos, basePos + found.node.nodeSize);
     // Insere de trás para frente para preservar basePos
     if (after) tr = tr.insert(basePos, schema.text(after));
-    tr = tr.insert(basePos, schema.text(' '));
+    // Só insere espaço se 'after' não começa com espaço (evita duplo espaço)
+    var insertedSpace = !after || after[0] !== ' ';
+    if (insertedSpace) tr = tr.insert(basePos, schema.text(' '));
     tr = tr.insert(basePos, sentinelaNode);
     tr = tr.insert(basePos, mathNode);
     if (before) tr = tr.insert(basePos, schema.text(before));
-    // Posiciona cursor após o ' ' (before + math + sentinela + ' ')
+    // Posiciona cursor após o espaço (sempre +1, seja espaço inserido ou já em 'after')
     var spacePos = basePos + (before ? before.length : 0) + mathNode.nodeSize + sentinelaNode.nodeSize + 1;
     var TextSelection = tiptapEditor.state.selection.constructor;
     try {
