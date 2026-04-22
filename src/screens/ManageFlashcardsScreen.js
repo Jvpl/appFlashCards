@@ -746,17 +746,17 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         </TouchableOpacity>
         {sep}
         {/* Negrito */}
-        <TouchableOpacity onPress={() => charCount > 0 && editorRef.current?.toggleBold()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(charCount > 0), padding: 4 }}>
+        <TouchableOpacity onPress={() => editorRef.current?.toggleBold()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ padding: 4 }}>
           <Text style={{ fontSize: 15, fontFamily: theme.fontFamily.uiBold, color: iconColor(format?.bold, theme.primary, theme.textSecondary), lineHeight: 18 }}>B</Text>
         </TouchableOpacity>
         {sep}
         {/* Itálico */}
-        <TouchableOpacity onPress={() => charCount > 0 && editorRef.current?.toggleItalic()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(charCount > 0), padding: 4 }}>
+        <TouchableOpacity onPress={() => editorRef.current?.toggleItalic()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ padding: 4 }}>
           <Text style={{ fontSize: 15, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '700', color: iconColor(format?.italic, theme.primary, theme.textSecondary), lineHeight: 18 }}>I</Text>
         </TouchableOpacity>
         {sep}
         {/* Marca-texto */}
-        <TouchableOpacity onPress={() => charCount > 0 && editorRef.current?.toggleMark()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(charCount > 0), padding: 4 }}>
+        <TouchableOpacity onPress={() => editorRef.current?.toggleMark()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ padding: 4 }}>
           <Ionicons name="brush-outline" size={18} color={iconColor(format?.mark, theme.primary, theme.textSecondary)} />
         </TouchableOpacity>
         {/* Contador direita */}

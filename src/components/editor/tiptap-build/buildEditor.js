@@ -274,9 +274,25 @@ function buildEditorHtml(tiptap, copyTex) {
 
   tiptapEditor.on('selectionUpdate', function() { notifyFormatState(); });
 
-  window.toggleBold = function() { tiptapEditor.chain().focus().toggleBold().run(); notifyFormatState(); };
-  window.toggleItalic = function() { tiptapEditor.chain().focus().toggleItalic().run(); notifyFormatState(); };
-  window.toggleMark = function() { tiptapEditor.chain().focus().toggleHighlight().run(); notifyFormatState(); };
+  function applyFormatWithSelectionAwareness(toggleCmd) {
+    var hadSelection = !tiptapEditor.state.selection.empty;
+    var selEnd = tiptapEditor.state.selection.to;
+    toggleCmd();
+    if (hadSelection) {
+      // Colapsa cursor para fim da seleção e limpa storedMarks
+      var tr = tiptapEditor.state.tr;
+      var $pos = tr.doc.resolve(selEnd);
+      var TextSelection = tiptapEditor.state.selection.constructor;
+      tr = tr.setSelection(TextSelection.near($pos)).setStoredMarks([]);
+      tiptapEditor.view.dispatch(tr);
+      notifyFormatState();
+    } else {
+      notifyFormatState();
+    }
+  }
+  window.toggleBold = function() { applyFormatWithSelectionAwareness(function() { tiptapEditor.chain().focus().toggleBold().run(); }); };
+  window.toggleItalic = function() { applyFormatWithSelectionAwareness(function() { tiptapEditor.chain().focus().toggleItalic().run(); }); };
+  window.toggleMark = function() { applyFormatWithSelectionAwareness(function() { tiptapEditor.chain().focus().toggleHighlight().run(); }); };
   window.focusEditor = function() { tiptapEditor.commands.focus(); };
   window.blurEditor = function() { tiptapEditor.commands.blur(); };
 
