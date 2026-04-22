@@ -728,11 +728,14 @@ function buildEditorHtml(tiptap, copyTex) {
     var state = tiptapEditor.state;
     var sel = state.selection;
     var text = '';
-    state.doc.nodesBetween(sel.from, sel.to, function(node) {
+    state.doc.nodesBetween(sel.from, sel.to, function(node, pos) {
       if (node.type.name === 'mathAtom') {
         text += '$' + (node.attrs.latex || '') + '$';
       } else if (node.type.name !== 'sentinela' && node.isText) {
-        text += node.text;
+        // Fatia apenas a parte do nó que está dentro da seleção
+        var start = Math.max(sel.from - pos, 0);
+        var end = Math.min(sel.to - pos, node.text.length);
+        if (end > start) text += node.text.slice(start, end);
       }
     });
     return text;

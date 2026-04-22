@@ -680,8 +680,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         i = tagEnd + 1;
         continue;
       }
-      // É um math-atom — adiciona $latex$ e pula até o </span> de fechamento correto
-      result += '$' + latexMatch[1] + '$';
+      // É um math-atom — adiciona texto antes + $latex$ e pula até o </span> de fechamento correto
+      result += html.slice(i, mathStart) + '$' + latexMatch[1] + '$';
       // Conta profundidade de spans para achar o fechamento correto
       let depth = 1;
       let j = tagEnd + 1;
