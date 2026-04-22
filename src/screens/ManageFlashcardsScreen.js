@@ -869,6 +869,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       onCharCount={(count) => setQuestionCharCount(count)}
                       onFormatState={(bold, italic, mark) => setQuestionFormat({ bold, italic, mark })}
                       onCutText={(text) => { setClipboardText(text); Clipboard.setStringAsync(text); }}
+                      onCopyText={(text) => { setClipboardText(text); }}
                       maxChars={CHAR_LIMIT}
                     />
                   </View>
@@ -926,6 +927,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       onCharCount={(count) => setAnswerCharCount(count)}
                       onFormatState={(bold, italic, mark) => setAnswerFormat({ bold, italic, mark })}
                       onCutText={(text) => { setClipboardText(text); Clipboard.setStringAsync(text); }}
+                      onCopyText={(text) => { setClipboardText(text); }}
                       maxChars={CHAR_LIMIT}
                     />
                   </View>

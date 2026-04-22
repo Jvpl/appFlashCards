@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { editorHtml } from './editorTemplates';
 
-export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentChange, onEditMath, onCharCount, onFormatState, onCutText, maxChars, style }, ref) => {
+export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentChange, onEditMath, onCharCount, onFormatState, onCutText, onCopyText, maxChars, style }, ref) => {
   const webviewRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -129,6 +129,7 @@ export const HybridEditor = React.forwardRef(({ initialHtml, onFocus, onContentC
             if (data.type === 'CHAR_COUNT' && onCharCount) onCharCount(data.count, data.max);
             if (data.type === 'FORMAT_STATE' && onFormatState) onFormatState(data.bold, data.italic, data.mark);
             if (data.type === 'CUT_TEXT' && onCutText) onCutText(data.text);
+            if (data.type === 'COPY_TEXT' && onCopyText) onCopyText(data.text);
             if (data.type === 'JS_ERROR') console.log('[WebView JS error]', data.msg, 'line:', data.line, 'col:', data.col);
           } catch (e) {
             // Silently ignore JSON parse errors

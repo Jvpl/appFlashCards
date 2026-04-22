@@ -19499,7 +19499,7 @@ img.ProseMirror-separator {
   };
 
   var _convertingLatex = false;
-  function detectAndConvertLatexInDoc() {
+  function detectAndConvertLatexInDoc(isRecursive) {
     if (_convertingLatex) return;
     var state = tiptapEditor.state;
     // Procura text node com $...$ completo
@@ -19516,7 +19516,18 @@ img.ProseMirror-separator {
       if (!latex) return;
       found = { pos: pos, node: node, d1: d1, d2: d2, latex: latex };
     });
-    if (!found) return;
+    if (!found) {
+      // Não há mais $...$ — posiciona cursor no fim do documento
+      if (isRecursive) {
+        var TextSelection = tiptapEditor.state.selection.constructor;
+        var endPos = tiptapEditor.state.doc.content.size;
+        try {
+          var $end = tiptapEditor.state.tr.doc.resolve(endPos);
+          tiptapEditor.view.dispatch(tiptapEditor.state.tr.setSelection(TextSelection.near($end, -1)));
+        } catch(e) {}
+      }
+      return;
+    }
     _convertingLatex = true;
     var span = document.createElement('span');
     try { katex.render(found.latex, span, { throwOnError: false }); } catch(e) { span.textContent = found.latex; }
@@ -19539,17 +19550,11 @@ img.ProseMirror-separator {
     tr = tr.insert(basePos, sentinelaNode);
     tr = tr.insert(basePos, mathNode);
     if (before) tr = tr.insert(basePos, schema.text(before));
-    // Posiciona cursor após o espaço (sempre +1, seja espaço inserido ou já em 'after')
-    var spacePos = basePos + (before ? before.length : 0) + mathNode.nodeSize + sentinelaNode.nodeSize + 1;
-    var TextSelection = tiptapEditor.state.selection.constructor;
-    try {
-      var $pos = tr.doc.resolve(spacePos);
-      tr = tr.setSelection(TextSelection.near($pos));
-    } catch(e) {}
+    // Não posiciona cursor aqui — será feito após todas as conversões
     tiptapEditor.view.dispatch(tr);
     _convertingLatex = false;
     // Verifica se ainda tem mais $...$ para converter
-    detectAndConvertLatexInDoc();
+    detectAndConvertLatexInDoc(true);
   }
 
   function handlePasteData(html, text) {
@@ -19587,7 +19592,9 @@ img.ProseMirror-separator {
         var newId = 'math_' + Date.now() + '_' + parts.length;
         parts.push({ type: 'mathAtom', attrs: { id: newId, latex: latex, source: 'simple', html: span.innerHTML } });
         parts.push({ type: 'sentinela' });
-        parts.push({ type: 'text', text: ' ' });
+        // Só insere espaço separador se o próximo char não é já um espaço
+        var nextChar = text[d2 + 1];
+        if (!nextChar || nextChar !== ' ') parts.push({ type: 'text', text: ' ' });
       } else {
         parts.push({ type: 'text', text: '$$' });
       }
@@ -19764,6 +19771,7 @@ img.ProseMirror-separator {
       }
     }
     if (!tiptapText) return;
+    sendToApp('COPY_TEXT', { text: tiptapText });
     if (e.clipboardData) {
       e.clipboardData.setData('text/plain', tiptapText);
       e.clipboardData.setData('text/html', '');
