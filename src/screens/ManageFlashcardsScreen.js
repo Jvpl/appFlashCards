@@ -1014,7 +1014,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         onInsert={handleInsertMath}
         onOpen={() => {
           setMathToolbarVisible(true);
-          mathToolbarPad.value = insets.bottom > 30 ? 234 : 277;
+          const pad = insets.bottom > 30 ? 234 : 277;
+          mathToolbarPad.value = pad;
+          if (activeEditorRef.current === 'answer' && answerContainerY.value > 0) {
+            scrollViewRef.current?.scrollTo({ y: answerContainerY.value - 40, animated: true });
+          }
         }}
         onClose={() => {
           setMathToolbarVisible(false);
