@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Button, Vibration, ToastAndroid } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -959,8 +960,9 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
                 <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 5, paddingBottom: 10 + (insets.bottom > 10 ? insets.bottom : 0) }]}>
                   <TouchableOpacity
-                    style={{ backgroundColor: isMathToolbarVisible ? theme.primary : theme.backgroundTertiary, borderRadius: 12, width: 64, height: 54, alignItems: 'center', justifyContent: 'center' }}
-                    onPress={(e) => { e.stopPropagation(); toggleMathToolbar(); }}
+                    style={{ backgroundColor: theme.backgroundTertiary, borderRadius: 12, width: 64, height: 54, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: isMathToolbarVisible ? theme.primary : 'transparent' }}
+                    activeOpacity={0.7}
+                    onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleMathToolbar(); }}
                   >
                     <Text style={{ color: theme.textPrimary, fontSize: theme.fontSize.md, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false, textAlignVertical: 'center' }}>f(x)</Text>
                   </TouchableOpacity>
@@ -969,7 +971,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     {/* Botão principal: salva e continua */}
                     <TouchableOpacity
                       style={{ flex: 1, backgroundColor: theme.primary, borderTopLeftRadius: 12, borderBottomLeftRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
-                      onPress={(e) => { e.stopPropagation(); isEditMode ? handleSave() : handleSaveAndContinue(); }}
+                      activeOpacity={0.7}
+                      onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); isEditMode ? handleSave() : handleSaveAndContinue(); }}
                     >
                       <Text style={{ color: '#000', fontFamily: theme.fontFamily.uiBold, fontSize: theme.fontSize.body }}>
                         {isEditMode ? 'Salvar edição' : 'Salvar card'}
@@ -983,7 +986,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     {!isEditMode && (
                       <TouchableOpacity
                         style={{ width: 44, backgroundColor: theme.primary, borderTopRightRadius: 12, borderBottomRightRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
-                        onPress={(e) => { e.stopPropagation(); handleSave(); }}
+                        activeOpacity={0.7}
+                        onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleSave(); }}
                       >
                         <Ionicons name="chevron-forward" size={20} color="#000" />
                       </TouchableOpacity>
