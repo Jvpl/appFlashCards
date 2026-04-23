@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Button, Vibration, ToastAndroid } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Vibration, ToastAndroid } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -102,6 +102,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const shakeStyle2 = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeAnim2.value }]
   }));
+
 
   // ========== HELPER FUNCTIONS (importados de shared) ==========
   // validateInput e getButtonStates agora vêm de src/utils/inputValidation.js
@@ -795,11 +796,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           </View>
         </View>
       ) : (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
+        <View style={{ flex: 1 }}>
           {!isEditMode && (
             <View style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: 'transparent', borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary }}>
 
@@ -824,15 +821,11 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
               styles.scrollContentContainer,
               {
                 paddingTop: 8,
-                paddingBottom: keyboardHeight > 0
-                  ? Math.max(10, keyboardHeight - (insets.bottom > 30 ? 95 : 84))
-                  : isMathToolbarVisible
-                    ? (insets.bottom > 30 ? 234 : 277)
-                    : 10,
-                flexGrow: 1
+                paddingBottom: isMathToolbarVisible ? (insets.bottom > 30 ? 234 : 277) : 10,
+                flexGrow: 1,
               }
             ]}
-            scrollEnabled={keyboardHeight > 0 || isMathToolbarVisible}
+            scrollEnabled={isMathToolbarVisible}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
@@ -985,7 +978,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     {/* Botão seta: salva e sai (apenas no modo criação) */}
                     {!isEditMode && (
                       <TouchableOpacity
-                        style={{ width: 44, backgroundColor: theme.primary, borderTopRightRadius: 12, borderBottomRightRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
+                        style={{ width: 56, backgroundColor: theme.primary, borderTopRightRadius: 12, borderBottomRightRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
                         activeOpacity={0.7}
                         onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleSave(); }}
                       >
@@ -1002,7 +995,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
               </TouchableWithoutFeedback>
             </View>
           </ScrollView>
-        </KeyboardAvoidingView>
+        </View>
       )}
 
       <MathToolbar
