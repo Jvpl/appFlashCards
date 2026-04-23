@@ -3,7 +3,8 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, M
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, useAnimatedRef, scrollTo } from 'react-native-reanimated';
+import { useGenericKeyboardHandler, KeyboardController, AndroidSoftInputModes } from 'react-native-keyboard-controller';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
@@ -34,7 +35,42 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
   const [activeEditor, setActiveEditor] = useState(null);
   const [isMathToolbarVisible, setMathToolbarVisible] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Nesta tela o SO não deve mover nada — o Animated.View controla tudo
+  useEffect(() => {
+    KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
+    return () => KeyboardController.setDefaultMode();
+  }, []);
+
+  const mathToolbarPad = useSharedValue(0);
+  const kbHeight = useSharedValue(0);
+  const activeEditorRef = useRef(null);
+  const answerContainerY = useSharedValue(0);
+  const animatedScrollRef = useAnimatedRef();
+  const isAnswerActive = useSharedValue(false);
+
+  useGenericKeyboardHandler({
+    onMove: (e) => {
+      'worklet';
+      // Atualiza o padding — cria espaço scrollável igual à altura do teclado
+      kbHeight.value = e.height;
+      // Scroll síncrono no worklet para mostrar o editor de resposta
+      if (e.height > 0 && isAnswerActive.value && answerContainerY.value > 0) {
+        scrollTo(animatedScrollRef, 0, answerContainerY.value - 40, false);
+      } else if (e.height === 0) {
+        scrollTo(animatedScrollRef, 0, 0, false);
+      }
+    },
+    onEnd: (e) => {
+      'worklet';
+      kbHeight.value = e.height;
+    },
+  }, []);
+
+  const scrollBottomPadStyle = useAnimatedStyle(() => {
+    if (mathToolbarPad.value > 0) return { height: mathToolbarPad.value };
+    return { height: kbHeight.value > 0 ? kbHeight.value : 0 };
+  });
 
   // States para edição de fórmula
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -295,9 +331,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
-      (e) => {
+      () => {
         keyboardVisibleRef.current = true;
-        setKeyboardHeight(e.endCoordinates.height);
         mathToolbarRef.current?.forceClose();
         setMathToolbarVisible(false);
       }
@@ -306,7 +341,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       'keyboardDidHide',
       () => {
         keyboardVisibleRef.current = false;
-        setKeyboardHeight(0);
         // Recheca clipboard quando teclado fecha (usuário pode ter copiado algo do editor)
         Clipboard.hasStringAsync().then(has => {
           if (has) Clipboard.getStringAsync().then(t => { if (t !== clipboardText) setClipboardText(t || ''); });
@@ -316,8 +350,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           // Transição teclado→toolbar: mantém posição do scroll (evita salto visual)
           pendingToolbarOpen.current = false;
           mathToolbarRef.current?.toggle();
-        } else {
-          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
         }
       }
     );
@@ -367,23 +399,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     };
   }, [navigation]);
 
-  // Scroll quando o TECLADO abre no input de baixo
-  useEffect(() => {
-    if (keyboardHeight > 0 && activeEditor === 'answer') {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 50);
-    }
-  }, [keyboardHeight, activeEditor]);
 
-  // Scroll quando o MATH TOOLBAR abre (apenas para o input "verso")
-  useEffect(() => {
-    if (isMathToolbarVisible && activeEditor === 'answer') {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 200); // Scroll rápido e responsivo
-    }
-  }, [isMathToolbarVisible, activeEditor]);
 
   const toggleMathToolbar = () => {
     if (!isMathToolbarVisible) {
@@ -395,9 +411,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         Keyboard.dismiss();
       } else {
         mathToolbarRef.current?.toggle();
-        if (activeEditor === 'answer') {
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-        }
       }
     } else {
       Keyboard.dismiss();
@@ -409,6 +422,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     Keyboard.dismiss();
     if (isMathToolbarVisible) mathToolbarRef.current?.forceClose();
     setActiveEditor(null);
+    activeEditorRef.current = null;
     questionEditorRef.current?.blur();
     answerEditorRef.current?.blur();
   };
@@ -813,23 +827,19 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
               </View>
             </View>
           )}
-          <ScrollView
-            ref={scrollViewRef}
+          <Animated.ScrollView
+            ref={(r) => { scrollViewRef.current = r; animatedScrollRef(r); }}
             style={styles.formContainerNoPadding}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContentContainer,
-              {
-                paddingTop: 8,
-                paddingBottom: isMathToolbarVisible ? (insets.bottom > 30 ? 234 : 277) : 10,
-                flexGrow: 1,
-              }
+              { paddingTop: 8, paddingBottom: 0, flexGrow: 1 }
             ]}
-            scrollEnabled={isMathToolbarVisible}
+            scrollEnabled={true}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
-            <View style={{ flex: 1, paddingTop: 0, paddingBottom: 16 }}>
+            <View style={{ flex: 1 }}>
               {/* Área clicável acima da caixa de pergunta */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
                 <View style={{ height: 12 }} />
@@ -871,7 +881,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       editorRef={questionEditorRef}
                       initialValue={global.flashcardDrafts?.[draftKey]?.question || ""}
                       onContentChange={(html) => updateDraft('question', html)}
-                      onFocusCallback={() => setActiveEditor('question')}
+                      onFocusCallback={() => { setActiveEditor('question'); activeEditorRef.current = 'question'; isAnswerActive.value = false; }}
                       onEditMath={handleEditMath}
                       onCharCount={(count) => setQuestionCharCount(count)}
                       onFormatState={(bold, italic, mark) => setQuestionFormat({ bold, italic, mark })}
@@ -906,7 +916,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                 </View>
               </TouchableWithoutFeedback>
 
-              <View style={[styles.inputGroup, { flex: 0 }]}>
+              <View onLayout={(e) => { answerContainerY.value = e.nativeEvent.layout.y; }} style={[styles.inputGroup, { flex: 0 }]}>
                 <View
                   renderToHardwareTextureAndroid={true}
                   style={{
@@ -926,9 +936,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       onContentChange={(html) => updateDraft('answer', html)}
                       onFocusCallback={() => {
                         setActiveEditor('answer');
-                        setTimeout(() => {
-                          scrollViewRef.current?.scrollToEnd({ animated: true });
-                        }, 150);
+                        activeEditorRef.current = 'answer';
+                        isAnswerActive.value = true;
                       }}
                       onEditMath={handleEditMath}
                       onCharCount={(count) => setAnswerCharCount(count)}
@@ -993,18 +1002,23 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
                 <View style={{ flex: 1 }} />
               </TouchableWithoutFeedback>
+
+              <Animated.View style={scrollBottomPadStyle} />
             </View>
-          </ScrollView>
+          </Animated.ScrollView>
         </View>
       )}
 
       <MathToolbar
         ref={mathToolbarRef}
         onInsert={handleInsertMath}
-        onOpen={() => setMathToolbarVisible(true)}
+        onOpen={() => {
+          setMathToolbarVisible(true);
+          mathToolbarPad.value = insets.bottom > 30 ? 234 : 277;
+        }}
         onClose={() => {
           setMathToolbarVisible(false);
-          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+          mathToolbarPad.value = 0;
         }}
         onOpenAdvancedMode={() => {
           mathToolbarRef.current?.forceClose();
