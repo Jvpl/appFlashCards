@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   },
   modalInputFocusedGreen: {
     borderColor: theme.primary,
-    borderWidth: 2,
+    borderWidth: 0.9,
   },
 
   // Contadores Segmentados

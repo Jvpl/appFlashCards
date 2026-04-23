@@ -19283,7 +19283,7 @@ img.ProseMirror-separator {
       if (next && next.classList && next.classList.contains('sentinela-anti-caps')) next = next.nextSibling;
       var prevHighlight = prev && ((prev.nodeName === 'MARK' && prev.classList.contains('destaque')) || (prev.nodeType === 3 && prev.previousSibling && prev.previousSibling.nodeName === 'MARK'));
       var nextHighlight = next && ((next.nodeName === 'MARK' && next.classList.contains('destaque')) || (next.nodeType === 3 && next.nextSibling && next.nextSibling.nodeName === 'MARK'));
-      if (prevHighlight || nextHighlight) {
+      if (prevHighlight && nextHighlight) {
         atom.classList.add('in-highlight');
       } else {
         atom.classList.remove('in-highlight');
