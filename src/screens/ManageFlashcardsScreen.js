@@ -52,9 +52,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   useGenericKeyboardHandler({
     onMove: (e) => {
       'worklet';
-      // Atualiza o padding — cria espaço scrollável igual à altura do teclado
       kbHeight.value = e.height;
-      // Scroll síncrono no worklet para mostrar o editor de resposta
       if (e.height > 0 && isAnswerActive.value && answerContainerY.value > 0) {
         scrollTo(animatedScrollRef, 0, answerContainerY.value - 40, false);
       } else if (e.height === 0) {
@@ -64,6 +62,9 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     onEnd: (e) => {
       'worklet';
       kbHeight.value = e.height;
+      if (e.height > 0 && isAnswerActive.value && answerContainerY.value > 0) {
+        scrollTo(animatedScrollRef, 0, answerContainerY.value - 40, false);
+      }
     },
   }, []);
 
@@ -1274,7 +1275,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     setShowSymbolsPanel(false);
                   }}
                 >
-                  <Text style={styles.modalButtonTextFullWidth}>Confirmar</Text>
+                  <Text style={[styles.modalButtonTextFullWidth, { color: theme.background }]}>Confirmar</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1290,7 +1291,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     setShowSymbolsPanel(false);
                   }}
                 >
-                  <Text style={styles.modalButtonTextFullWidth}>Cancelar</Text>
+                  <Text style={[styles.modalButtonTextFullWidth, { color: theme.textSecondary }]}>Cancelar</Text>
                 </TouchableOpacity>
               </View>
             </View>

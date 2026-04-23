@@ -19856,7 +19856,7 @@ const previewHtml = `<!DOCTYPE html><html><head>
 <style>
 ${katexStyles}
 html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden;}
-body{background:#141D2B;display:flex;justify-content:center;align-items:center;}
+body{background:#0F0F0F;display:flex;justify-content:center;align-items:center;}
 #p{color:white;text-align:center;padding:6px 12px;max-width:100%;overflow-x:auto;}
 .katex{font-size:1.55em;color:white;}.katex .mfrac{font-size:1em;}.katex .op-symbol.large-op{transform:scale(0.82);transform-origin:center;display:inline-block;}.katex-display{margin:0;}
 </style>

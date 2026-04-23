@@ -207,11 +207,16 @@ const styles = StyleSheet.create({
   },
   modalContentFullscreen: {
     flex: 1,
-    backgroundColor: 'rgba(45, 55, 72, 0.95)',
-    borderRadius: 20,
+    backgroundColor: '#141414',
+    borderRadius: 24,
     padding: 20,
-    borderWidth: 1,
-    borderColor: theme.primaryTransparent,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.07)',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
   },
   modalHeaderFullscreen: {
     flexDirection: 'row',
@@ -303,15 +308,17 @@ const styles = StyleSheet.create({
   modalButtonFullWidth: {
     backgroundColor: theme.primary,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
   },
   modalButtonCancelFullWidth: {
-    backgroundColor: theme.backgroundTertiary,
+    backgroundColor: 'transparent',
     marginTop: 12,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   modalButtonTextFullWidth: {
     color: theme.textPrimary,
@@ -321,13 +328,13 @@ const styles = StyleSheet.create({
 
   // Input do Modal com foco verde
   modalInputWithFocus: {
-    backgroundColor: theme.background,
+    backgroundColor: '#0F0F0F',
     color: theme.textPrimary,
-    borderRadius: 10,
+    borderRadius: 14,
     padding: 14,
     fontSize: theme.fontSize.md,
-    borderWidth: 2,
-    borderColor: theme.backgroundTertiary,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
 
   modalButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.info, padding: 15, borderRadius: 10, marginBottom: 10 },
