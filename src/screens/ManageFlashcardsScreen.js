@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, useAnimatedRef, scrollTo } from 'react-native-reanimated';
-import { useGenericKeyboardHandler, KeyboardController, AndroidSoftInputModes } from 'react-native-keyboard-controller';
+import { useGenericKeyboardHandler, KeyboardController, AndroidSoftInputModes, KeyboardProvider, KeyboardAvoidingView as KCKeyboardAvoidingView } from 'react-native-keyboard-controller';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
@@ -21,6 +21,7 @@ import { validateInput, getButtonStates } from '../utils/inputValidation';
 import styles from '../styles/globalStyles';
 import theme from '../styles/theme';
 import { Canvas, Circle, BlurMask } from '@shopify/react-native-skia';
+
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const { deckId, subjectId, preloadedCards, cardId, subjectName } = route.params; // cardId opcional para modo edição
@@ -75,6 +76,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
   // States para edição de fórmula
   const [editModalVisible, setEditModalVisible] = useState(false);
+
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
   const [currentMathId, setCurrentMathId] = useState(null);
   const [currentLatex, setCurrentLatex] = useState('');
@@ -542,6 +544,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
     setEditValue1(v1);
     setEditValue2(v2);
+    KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_PAN);
     setEditModalVisible(true);
   };
 
@@ -1037,18 +1040,21 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       <Modal
         animationType="fade"
         transparent={true}
+        statusBarTranslucent={true}
         visible={editModalVisible}
         onRequestClose={() => {
+          KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
           setEditModalVisible(false);
           setShowLettersPanel(false);
           setShowSymbolsPanel(false);
         }}
       >
-        <View style={styles.modalOverlayFullscreen}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-            style={{ flex: 1 }}
-          >
+        <KeyboardProvider>
+        <KCKeyboardAvoidingView
+          behavior="padding"
+          keyboardVerticalOffset={12}
+          style={styles.modalOverlayFullscreen}
+        >
             <View style={styles.modalContentFullscreen}>
               {/* Header com título e ícone de ajuda */}
               <View style={styles.modalHeaderFullscreen}>
@@ -1110,7 +1116,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     placeholder="Digite o valor..."
                     placeholderTextColor="#666"
                     keyboardType="numeric"
-                    autoFocus={true}
+                    autoFocus={false}
                     autoComplete="off"
                     importantForAutofill="no"
                   />
@@ -1270,6 +1276,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
                     const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
                     target?.updateFormula(currentMathId, newLatex);
+                    KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
@@ -1286,6 +1293,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
                       target?.deleteMath(currentMathId);
                     }
+                    KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
@@ -1295,8 +1303,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </View>
+        </KCKeyboardAvoidingView>
+        </KeyboardProvider>
       </Modal>
       {/* ========== FIM DO MODAL ========== */}
 

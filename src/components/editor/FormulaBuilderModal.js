@@ -4,12 +4,15 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   ScrollView,
   StyleSheet,
   Platform,
   useWindowDimensions,
   Vibration,
 } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, Easing } from 'react-native-reanimated';
+import { useGenericKeyboardHandler, KeyboardController, AndroidSoftInputModes } from 'react-native-keyboard-controller';
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { previewHtml } from './editorTemplates';
@@ -227,8 +230,42 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
     setCursorPos(pos);
   }, []);
 
-  // Cursor colorido teal inserido na posição atual para indicar onde está a edição
-  const CURSOR = '\\mathclose{\\color{#4FD1C5}|}';
+  const kbHeight = useSharedValue(0);
+  useGenericKeyboardHandler({
+    onMove: (e) => { 'worklet'; kbHeight.value = e.height; },
+    onEnd: (e) => { 'worklet'; kbHeight.value = e.height; },
+  }, []);
+  const keyboardPaddingStyle = useAnimatedStyle(() => ({
+    paddingBottom: kbHeight.value,
+  }));
+
+  // Animação do overlay e sheet
+  const overlayOpacity = useSharedValue(0);
+  const translateY = useSharedValue(800);
+
+  const animatedOverlayStyle = useAnimatedStyle(() => ({ opacity: overlayOpacity.value }));
+  const animatedSheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+
+  useEffect(() => {
+    if (visible) {
+      translateY.value = 800;
+      overlayOpacity.value = 0;
+      setTimeout(() => {
+        translateY.value = withTiming(0, { duration: 300, easing: Easing.out(Easing.cubic) });
+        overlayOpacity.value = withTiming(0.6, { duration: 250 });
+      }, 16);
+    }
+  }, [visible]);
+
+  const closeWithAnimation = useCallback(() => {
+    translateY.value = withTiming(800, { duration: 260, easing: Easing.in(Easing.cubic) });
+    overlayOpacity.value = withTiming(0, { duration: 220 }, () => {
+      runOnJS(onCancel)();
+    });
+  }, [onCancel]);
+
+  // Cursor verde musgo inserido na posição atual para indicar onde está a edição
+  const CURSOR = '\\mathclose{\\color{#4A7C2F}|}';
 
   const updatePreview = useCallback((f, pos) => {
     if (!wvRef.current || !readyRef.current) return;
@@ -285,6 +322,16 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
   useEffect(() => {
     if (ready) updatePreview(formula, cursorPos);
   }, [formula, cursorPos, ready, updatePreview]);
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      if (visible) {
+        KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
+      } else {
+        KeyboardController.setDefaultMode();
+      }
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -936,9 +983,14 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
   const canConfirm = formula.trim().length > 0;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-      <View style={s.overlay}>
-        <View style={[s.sheet, { maxHeight: SCREEN_H * 0.98, paddingBottom: Math.max(insets.bottom + 10, Platform.OS === 'ios' ? 20 : 14) }]}>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={closeWithAnimation}>
+      {/* Overlay animado — fechar ao tocar */}
+      <TouchableWithoutFeedback onPress={closeWithAnimation}>
+        <Animated.View style={[StyleSheet.absoluteFill, s.overlay, animatedOverlayStyle]} />
+      </TouchableWithoutFeedback>
+
+      <Animated.View style={[s.sheetWrapper, { maxHeight: SCREEN_H * 0.98 }, animatedSheetStyle]}>
+        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom + 10, Platform.OS === 'ios' ? 20 : 14) }]}>
 
           {/* ── Cabeçalho ── */}
           <View style={s.header}>
@@ -1107,21 +1159,23 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
           </ScrollView>
 
           {/* ── Confirmar / Cancelar ── */}
-          <View style={s.actions}>
-            <TouchableOpacity
-              onPress={() => { tap(); handleConfirm(); }}
-              style={[s.btnConfirm, !canConfirm && s.btnDisabled]}
-              disabled={!canConfirm}
-            >
-              <Text style={s.btnConfirmTxt}>Confirmar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => { tap(); onCancel(); }} style={s.btnCancel}>
-              <Text style={s.btnCancelTxt}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
+          <Animated.View style={keyboardPaddingStyle}>
+            <View style={s.actions}>
+              <TouchableOpacity
+                onPress={() => { tap(); handleConfirm(); }}
+                style={[s.btnConfirm, !canConfirm && s.btnDisabled]}
+                disabled={!canConfirm}
+              >
+                <Text style={s.btnConfirmTxt}>Confirmar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { tap(); closeWithAnimation(); }} style={s.btnCancel}>
+                <Text style={s.btnCancelTxt}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
 
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 };
@@ -1129,9 +1183,13 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.80)',
-    justifyContent: 'flex-end',
+    backgroundColor: '#000',
+  },
+  sheetWrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   sheet: {
     backgroundColor: '#141414',
