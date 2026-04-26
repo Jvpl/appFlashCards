@@ -56,9 +56,10 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     onMove: (e) => {
       'worklet';
       kbHeight.value = e.height;
-      if (e.height > 0 && isAnswerActive.value && answerContainerY.value > 0) {
-        scrollTo(animatedScrollRef, 0, answerContainerY.value - 40, false);
-      } else if (e.height === 0) {
+      if (isAnswerActive.value && answerContainerY.value > 0) {
+        const targetScroll = answerContainerY.value - 40;
+        scrollTo(animatedScrollRef, 0, targetScroll * e.progress, false);
+      } else if (e.progress === 0) {
         scrollTo(animatedScrollRef, 0, 0, false);
       }
     },
@@ -67,6 +68,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       kbHeight.value = e.height;
       if (e.height > 0 && isAnswerActive.value && answerContainerY.value > 0) {
         scrollTo(animatedScrollRef, 0, answerContainerY.value - 40, false);
+      } else if (e.height === 0) {
+        scrollTo(animatedScrollRef, 0, 0, false);
       }
     },
   }, []);
