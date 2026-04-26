@@ -3,7 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, M
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, useAnimatedRef, scrollTo } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, useAnimatedRef, scrollTo, useDerivedValue, interpolateColor, runOnJS } from 'react-native-reanimated';
 import { useGenericKeyboardHandler, KeyboardController, AndroidSoftInputModes, KeyboardProvider, KeyboardAvoidingView as KCKeyboardAvoidingView } from 'react-native-keyboard-controller';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +20,9 @@ import { CollapsibleKeypad } from '../components/editor/CollapsibleKeypad';
 import { validateInput, getButtonStates } from '../utils/inputValidation';
 import styles from '../styles/globalStyles';
 import theme from '../styles/theme';
-import { Canvas, Circle, BlurMask } from '@shopify/react-native-skia';
+import { Canvas, RoundedRect, BlurMask, Circle } from '@shopify/react-native-skia';
+import LottieView from 'lottie-react-native';
+const SaveCardButtonLottie = require('../assets/SaveCardButton.json');
 
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {
@@ -92,9 +94,15 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const [subjectCardCount, setSubjectCardCount] = useState(0);
   // QoL: nome da matéria buscado dos dados (fallback ao param)
   const [resolvedSubjectName, setResolvedSubjectName] = useState(subjectName || '');
-  // QoL: toast de card salvo (melhoria 1 — salvar+ficar)
-  const [saveToastVisible, setSaveToastVisible] = useState(false);
-  const saveToastTimer = useRef(null);
+  const savedFeedbackTimer = useRef(null);
+  const savedFeedbackTimer2 = useRef(null);
+  const lottieRef = useRef(null);
+  const lottieOpacity = useSharedValue(0);
+  const lottieAnimStyle = useAnimatedStyle(() => ({ opacity: lottieOpacity.value }));
+  const saveBtnTextOpacity = useSharedValue(1);
+  const saveBtnTextStyle = useAnimatedStyle(() => ({ opacity: saveBtnTextOpacity.value }));
+  const [mainBtnWidth, setMainBtnWidth] = useState(260);
+  const [saveButtonSize, setSaveButtonSize] = useState({ width: 300, height: 54 });
   // QoL: clear/undo por campo
   const [questionUndoMode, setQuestionUndoMode] = useState(false);
   const [answerUndoMode, setAnswerUndoMode] = useState(false);
@@ -140,6 +148,13 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   }));
   const shakeStyle2 = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeAnim2.value }]
+  }));
+  const saveButtonAnim = useSharedValue(0);
+  const glowAnim = useSharedValue(0);
+  const skiaGlowBlur = useDerivedValue(() => glowAnim.value * 14);
+  const skiaGlowColor = useDerivedValue(() => `rgba(190,255,100,${glowAnim.value * 0.9})`);
+  const saveButtonAnimStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(saveButtonAnim.value, [0, 1], [theme.primary, theme.backgroundTertiary]),
   }));
 
 
@@ -324,7 +339,8 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Cleanup de timers ao desmontar a tela
   useEffect(() => {
     return () => {
-      clearTimeout(saveToastTimer.current);
+      clearTimeout(savedFeedbackTimer.current);
+      clearTimeout(savedFeedbackTimer2.current);
       clearTimeout(questionUndoTimer.current);
       clearTimeout(answerUndoTimer.current);
     };
@@ -649,14 +665,22 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     if (!global.flashcardDrafts) global.flashcardDrafts = {};
     global.flashcardDrafts[draftKey] = { question: '', answer: '' };
 
-    // Mostra toast
-    if (Platform.OS === 'android') {
-      ToastAndroid.show('Card salvo!', ToastAndroid.SHORT);
-    } else {
-      setSaveToastVisible(true);
-      clearTimeout(saveToastTimer.current);
-      saveToastTimer.current = setTimeout(() => setSaveToastVisible(false), 2000);
-    }
+    // Lottie: toca a animação do botão (verde→escuro+checkmark→verde)
+    // Glow Skia: surge (300ms) → mantém (700ms) → some (400ms)
+    glowAnim.value = withSequence(
+      withTiming(1, { duration: 300 }),
+      withTiming(1, { duration: 700 }),
+      withTiming(0, { duration: 400 })
+    );
+    clearTimeout(savedFeedbackTimer.current);
+    clearTimeout(savedFeedbackTimer2.current);
+    saveBtnTextOpacity.value = 0;
+    lottieOpacity.value = 1;
+    lottieRef.current?.play();
+    // frame 56 a 25fps = 2240ms — checkmark começa a desaparecer
+    savedFeedbackTimer.current = setTimeout(() => {
+      saveBtnTextOpacity.value = withTiming(1, { duration: 900 });
+    }, 2240);
   };
 
   const getFieldRefs = (field) => field === 'question'
@@ -955,12 +979,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                 </View>
               </View>
 
-              {/* Toast de card salvo (iOS) */}
-              {saveToastVisible && (
-                <View style={{ position: 'absolute', bottom: 80, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, zIndex: 999 }}>
-                  <Text style={{ color: '#fff', fontFamily: theme.fontFamily.uiMedium, fontSize: 13 }}>Card salvo!</Text>
-                </View>
-              )}
 
               {/* Área extensiva clicável cobrindo o fundo e botões */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
@@ -973,17 +991,44 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     <Text style={{ color: theme.textPrimary, fontSize: theme.fontSize.md, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false, textAlignVertical: 'center' }}>f(x)</Text>
                   </TouchableOpacity>
 
-                  <View style={[styles.saveButtonContainer, { flexDirection: 'row', gap: 0 }]}>
+                  <View
+                    style={[styles.saveButtonContainer, { flexDirection: 'row', gap: 0 }]}
+                    onLayout={(e) => {
+                      const { width, height } = e.nativeEvent.layout;
+                      console.log('CONTAINER SIZE:', width, height);
+                      setSaveButtonSize({ width, height });
+                    }}
+                  >
+
                     {/* Botão principal: salva e continua */}
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: theme.primary, borderTopLeftRadius: 12, borderBottomLeftRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
-                      activeOpacity={0.7}
-                      onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); isEditMode ? handleSave() : handleSaveAndContinue(); }}
-                    >
-                      <Text style={{ color: '#000', fontFamily: theme.fontFamily.uiBold, fontSize: theme.fontSize.body }}>
-                        {isEditMode ? 'Salvar edição' : 'Salvar card'}
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={{ flex: 1, borderTopLeftRadius: 12, borderBottomLeftRadius: 12, height: 54, overflow: 'hidden', backgroundColor: theme.primary }} onLayout={(e) => setMainBtnWidth(e.nativeEvent.layout.width)}>
+                      <TouchableOpacity
+                        style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                        activeOpacity={0.7}
+                        onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); isEditMode ? handleSave() : handleSaveAndContinue(); }}
+                      >
+                        <Animated.Text style={[{ color: '#000', fontFamily: theme.fontFamily.uiBold, fontSize: theme.fontSize.body }, saveBtnTextStyle]}>
+                          {isEditMode ? 'Salvar edição' : 'Salvar card'}
+                        </Animated.Text>
+                      </TouchableOpacity>
+                      <Animated.View style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, lottieAnimStyle]} pointerEvents="none">
+                        <LottieView
+                          ref={lottieRef}
+                          source={SaveCardButtonLottie}
+                          autoPlay={false}
+                          loop={false}
+                          onAnimationFinish={() => {
+                            lottieOpacity.value = 0;
+                          }}
+                          style={{
+                            width: mainBtnWidth,
+                            height: mainBtnWidth * (330 / 1000),
+                            top: -(mainBtnWidth * (330 / 1000) - 54) / 2,
+                            left: 0,
+                          }}
+                        />
+                      </Animated.View>
+                    </View>
                     {/* Separador */}
                     {!isEditMode && (
                       <View style={{ width: 1, backgroundColor: 'rgba(0,0,0,0.2)' }} />
