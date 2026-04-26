@@ -1,0 +1,16 @@
+{
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/android/build/**": true,
+    "**/android/.gradle/**": true,
+    "**/.expo/**": true
+  },
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/.expo": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/android/build": true
+  }
+}

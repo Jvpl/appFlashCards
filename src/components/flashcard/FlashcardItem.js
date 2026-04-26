@@ -47,8 +47,8 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
     }
     const distance = Math.sqrt(translateX.value**2 + translateY.value**2);
     const progress = interpolate(distance, [0, screenWidth / 2], [0, 1], 'clamp');
-    const scale = interpolate(progress, [0, 1], [1 - position.value * 0.04, 1 - (position.value - 1) * 0.04]);
-    const translateY_stack = interpolate(progress, [0, 1], [position.value * -18, (position.value - 1) * -18]);
+    const scale = interpolate(progress, [0, 1], [1 - position.value * 0.035, 1 - (position.value - 1) * 0.035]);
+    const translateY_stack = interpolate(progress, [0, 1], [position.value * -20, (position.value - 1) * -20]);
     return { zIndex, opacity: 1, transform: [{ scale }, { translateY: translateY_stack }] };
   });
 
@@ -182,13 +182,13 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
              <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
                 {renderContent(card.question)}
              </ScrollView>
-             {showLevel && <CardFooter level={card.level || 0} />}
+             {showLevel && <CardFooter level={card.level || 0} consecutiveCorrect={card.consecutiveCorrect || 0} />}
           </Animated.View>
           <Animated.View style={[styles.card, styles.cardBack, backAnimatedStyle]}>
              <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
                 {renderContent(card.answer)}
              </ScrollView>
-             {showLevel && <CardFooter level={card.level || 0} />}
+             {showLevel && <CardFooter level={card.level || 0} consecutiveCorrect={card.consecutiveCorrect || 0} />}
           </Animated.View>
         </TouchableOpacity>
         <Animated.View style={[styles.cardOverlay, overlayAnimatedStyle]} pointerEvents="none" />

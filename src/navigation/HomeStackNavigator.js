@@ -36,6 +36,7 @@ const fadeTransitionSpec = {
 const navScreenOptions = {
     headerStyle: { backgroundColor: theme.background, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', elevation: 0 },
     headerTintColor: theme.textPrimary,
+    headerTitleAlign: 'center',
     headerTitleStyle: { fontWeight: theme.fontWeight.bold },
     // Substituindo Slide por Fade simples
     cardStyleInterpolator: ({ current }) => ({
@@ -71,11 +72,10 @@ export function HomeStackNavigator({navigation}) {
       <HomeStack.Screen
         name="Flashcard"
         component={FlashcardScreen}
-        options={({ route }) => ({
-          title: route.params.subjectName || 'Flashcards',
+        options={{
           cardStyle: { overflow: 'visible' },
           cardStyleInterpolator: ({ current }) => ({ cardStyle: { opacity: current.progress } }),
-        })}
+        }}
       />
       <HomeStack.Screen name="AddDeck" component={AddDeckScreen} options={{ headerShown: false }} />
 <HomeStack.Screen name="AddSubject" component={AddSubjectScreen} options={{ title: 'Nova Matéria' }} />

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, BackHandler, Alert, InteractionManager, ActivityIndicator, Modal, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, InteractionManager, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -19,7 +18,6 @@ const screenHeight = Dimensions.get('window').height;
 
 export const FlashcardScreen = ({ route, navigation }) => {
   const { deckId, subjectId, subjectName, preloadedCards, reviewAll, reviewMode } = route.params;
-  const insets = useSafeAreaInsets();
   const [cards, setCards] = useState(() => {
      if (preloadedCards) {
         if (reviewAll || reviewMode) {
@@ -56,10 +54,22 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const [feedbackColor, setFeedbackColor] = useState('transparent');
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
 
-  // Oculta o header padrão — usamos header customizado
   useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
+    navigation.setOptions({
+      title: subjectName || 'Estudar',
+      headerTitleAlign: 'center',
+      headerTitle: undefined,
+      headerRight: () => (
+        <TouchableOpacity
+          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}
+          onPress={() => navigation.navigate('FlashcardHistory', { deckId, subjectId })}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="create-outline" size={22} color={theme.textSecondary} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, subjectName, deckId, subjectId]);
 
   const loadCards = useCallback(async () => {
       reviewUpdates.current = [];
@@ -348,56 +358,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const animatedRightGlowStyle = useAnimatedStyle(()=>({opacity: rightGlowOpacity.value}));
   const animatedTopGlowStyle = useAnimatedStyle(()=>({opacity: topGlowOpacity.value}));
 
-  const CustomHeader = () => (
-    <View style={[fcs.header, { paddingTop: insets.top }]}>
-      <View style={fcs.headerInner}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={fcs.headerBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="arrow-back" size={22} color={theme.textPrimary} />
-        </TouchableOpacity>
-        <View style={fcs.headerCenter}>
-          <Text style={fcs.headerTitle} numberOfLines={1}>{subjectName || 'Estudar'}</Text>
-          {cards.length > 0 && (
-            <Text style={fcs.headerSub}>{Math.min(jsCurrentIndex + 1, totalCardsInSession)} / {totalCardsInSession}</Text>
-          )}
-        </View>
-        <View style={fcs.headerActions}>
-          {cards.length > 0 && (
-            <>
-              <TouchableOpacity
-                style={fcs.headerBtn}
-                onPress={() => navigation.navigate('FlashcardHistory', { deckId, subjectId })}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="create-outline" size={20} color={theme.textSecondary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={fcs.headerBtn}
-                onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards, subjectName })}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="add" size={24} color={theme.primary} />
-              </TouchableOpacity>
-            </>
-          )}
-          {cards.length === 0 && <View style={{ width: 36 }} />}
-        </View>
-      </View>
-      <View style={fcs.headerDivider} />
-    </View>
-  );
-
   if (loading) {
     return (
-      <View style={[fcs.root, { paddingTop: insets.top }]}>
-        <View style={fcs.headerInner}>
-          <View style={{ width: 36 }} />
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <SkeletonItem style={{ width: 120, height: 16, borderRadius: 8 }} />
-          </View>
-          <View style={{ width: 36 }} />
-        </View>
+      <View style={fcs.root}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          <SkeletonItem style={{ width: screenWidth * 0.88, height: 380, borderRadius: 20 }} />
+          <SkeletonItem style={{ width: screenWidth * 0.9, height: 460, borderRadius: 20 }} />
         </View>
       </View>
     );
@@ -406,7 +371,6 @@ export const FlashcardScreen = ({ route, navigation }) => {
   if (cards.length === 0) {
     return (
       <View style={fcs.root}>
-        <CustomHeader />
         <View style={fcs.emptyContainer}>
           {/* Ícone central */}
           <View style={fcs.emptyIconRing}>
@@ -449,8 +413,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   }
 
   return (
-    <View style={[styles.studyContainer, { paddingTop: insets.top }]}>
-        <CustomHeader />
+    <View style={styles.studyContainer}>
         <Animated.View style={[styles.glow, styles.glowLeft, animatedLeftGlowStyle]}><LinearGradient colors={[theme.dangerGlow, 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
         <Animated.View style={[styles.glow, styles.glowRight, animatedRightGlowStyle]}><LinearGradient colors={['transparent', theme.successGlow]} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
         <Animated.View style={[styles.glow, styles.glowTop, animatedTopGlowStyle]}><LinearGradient colors={[theme.infoGlow, 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:0, y:1}}/></Animated.View>
