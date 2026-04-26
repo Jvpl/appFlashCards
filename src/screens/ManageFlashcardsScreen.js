@@ -655,23 +655,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     const updatedSubject = updatedDeck?.subjects?.find(s => s.id === subjectId);
     if (updatedSubject) setSubjectCardCount(updatedSubject.flashcards?.length || 0);
 
-    // Limpa os editores
-    questionEditorRef.current?.clear();
-    answerEditorRef.current?.clear();
-    setQuestionCharCount(0);
-    setAnswerCharCount(0);
-
-    // Reinicia o draft vazio para o próximo card
-    if (!global.flashcardDrafts) global.flashcardDrafts = {};
-    global.flashcardDrafts[draftKey] = { question: '', answer: '' };
-
-    // Lottie: toca a animação do botão (verde→escuro+checkmark→verde)
-    // Glow Skia: surge (300ms) → mantém (700ms) → some (400ms)
-    glowAnim.value = withSequence(
-      withTiming(1, { duration: 300 }),
-      withTiming(1, { duration: 700 }),
-      withTiming(0, { duration: 400 })
-    );
+    // Lottie: esconde texto e toca animação imediatamente (antes de qualquer re-render)
     clearTimeout(savedFeedbackTimer.current);
     clearTimeout(savedFeedbackTimer2.current);
     saveBtnTextOpacity.value = 0;
@@ -681,6 +665,21 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     savedFeedbackTimer.current = setTimeout(() => {
       saveBtnTextOpacity.value = withTiming(1, { duration: 900 });
     }, 2240);
+
+    // Retira foco e limpa os editores (após configurar Lottie)
+    Keyboard.dismiss();
+    setActiveEditor(null);
+    activeEditorRef.current = null;
+    questionEditorRef.current?.blur();
+    answerEditorRef.current?.blur();
+    questionEditorRef.current?.clear();
+    answerEditorRef.current?.clear();
+    setQuestionCharCount(0);
+    setAnswerCharCount(0);
+
+    // Reinicia o draft vazio para o próximo card
+    if (!global.flashcardDrafts) global.flashcardDrafts = {};
+    global.flashcardDrafts[draftKey] = { question: '', answer: '' };
   };
 
   const getFieldRefs = (field) => field === 'question'
@@ -1005,7 +1004,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       <TouchableOpacity
                         style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
                         activeOpacity={0.7}
-                        onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); isEditMode ? handleSave() : handleSaveAndContinue(); }}
+                        onPress={(e) => { if (lottieOpacity.value > 0) return; e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); isEditMode ? handleSave() : handleSaveAndContinue(); }}
                       >
                         <Animated.Text style={[{ color: '#000', fontFamily: theme.fontFamily.uiBold, fontSize: theme.fontSize.body }, saveBtnTextStyle]}>
                           {isEditMode ? 'Salvar edição' : 'Salvar card'}
