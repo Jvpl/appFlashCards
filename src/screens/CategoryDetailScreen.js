@@ -63,6 +63,7 @@ import { CustomAlert } from '../components/ui/CustomAlert';
 import theme from '../styles/theme';
 import { SvgXml } from 'react-native-svg';
 import GlowIcon from '../components/ui/GlowIcon';
+import { GlowFab } from '../components/ui/GlowFab';
 import {
   administrativoIcon, educacaoIcon, fiscalIcon, justicaIcon,
   militarIcon, operacionalIcon, saudeIcon, segurancaIcon,
@@ -860,13 +861,14 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
 
       {/* ── FAB: adicionar deck nesta categoria ── */}
       {!selectMode && activeTab === 'decks' && (
-        <TouchableOpacity
-          style={[s.fab, { bottom: 20 }]}
-          onPress={() => navigation.navigate('AddDeck', { preselectedCategoryId: categoryId })}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={26} color={theme.background} />
-        </TouchableOpacity>
+        <View style={[s.fabPos, { bottom: 20 }]}>
+          <GlowFab
+            onPress={() => navigation.navigate('AddDeck', { preselectedCategoryId: categoryId })}
+            color={theme.primary}
+          >
+            <Ionicons name="add" size={26} color={theme.background} />
+          </GlowFab>
+        </View>
       )}
 
       {/* ── Context Menu ── */}
@@ -1686,6 +1688,10 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   scrollContent: { paddingHorizontal: GRID_PADDING, paddingTop: 12, paddingBottom: 100 },
+  fabPos: {
+    position: 'absolute',
+    right: 20,
+  },
   fab: {
     position: 'absolute',
     right: 20,
@@ -1693,8 +1699,6 @@ const s = StyleSheet.create({
     backgroundColor: theme.primary,
     alignItems: 'center', justifyContent: 'center',
     elevation: 6,
-    shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 8,
   },
   gridRow: { flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP },
   empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
@@ -2143,7 +2147,7 @@ const edit = StyleSheet.create({
     borderRadius: 16, paddingVertical: 16,
     backgroundColor: theme.primary,
     alignItems: 'center', marginTop: 28,
-    shadowColor: theme.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8
+    shadowColor: theme.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8
   },
   saveBtnDisabled: { backgroundColor: 'rgba(93,214,44,0.35)', shadowOpacity: 0, elevation: 0 },
   saveBtnTxt: { color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold, fontSize: 16 },

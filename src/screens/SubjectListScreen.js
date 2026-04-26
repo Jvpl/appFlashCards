@@ -15,6 +15,7 @@ import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import MateriaCard, { MATERIA_CARD_WIDTH, MATERIA_CARD_HEIGHT } from '../components/home/MateriaCard';
 import theme from '../styles/theme';
+import { GlowFab } from '../components/ui/GlowFab';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -560,21 +561,19 @@ export const SubjectListScreen = ({ route, navigation }) => {
 
           {/* FAB — + normal ou lixeira no modo seleção */}
           {subjectCount > 0 && !isCreating && (
-            <TouchableOpacity
-              style={[
-                s.fab,
-                { bottom: 20 },
-                isSelectionMode && selCount === 0 && { opacity: 0.4 },
-                isSelectionMode && s.fabDanger,
-              ]}
-              onPress={isSelectionMode ? (selCount > 0 ? handleBulkDelete : null) : () => setIsCreating(true)}
-              activeOpacity={isSelectionMode && selCount === 0 ? 1 : 0.85}
-            >
-              {isSelectionMode
-                ? <Ionicons name="trash-outline" size={24} color="white" />
-                : <Ionicons name="add" size={26} color="#0F0F0F" />
-              }
-            </TouchableOpacity>
+            <View style={[s.fabPos, { bottom: 20 }, isSelectionMode && selCount === 0 && { opacity: 0.4 }]}>
+              <GlowFab
+                onPress={isSelectionMode ? (selCount > 0 ? handleBulkDelete : null) : () => setIsCreating(true)}
+                color={isSelectionMode ? theme.danger : theme.primary}
+                activeOpacity={isSelectionMode && selCount === 0 ? 1 : 0.85}
+                disabled={isSelectionMode && selCount === 0}
+              >
+                {isSelectionMode
+                  ? <Ionicons name="trash-outline" size={24} color="white" />
+                  : <Ionicons name="add" size={26} color="#0F0F0F" />
+                }
+              </GlowFab>
+            </View>
           )}
         </>
       )}
@@ -788,8 +787,8 @@ const s = StyleSheet.create({
   emptyCreateBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: theme.primary, borderRadius: 14, height: 50, width: '100%',
-    shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+    shadowColor: theme.primary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5, shadowRadius: 12, elevation: 6,
   },
   emptyCreateTxt: { color: '#0F0F0F', fontSize: 15, fontFamily: theme.fontFamily.uiBold },
 
@@ -842,6 +841,10 @@ const s = StyleSheet.create({
   },
 
   // FAB
+  fabPos: {
+    position: 'absolute',
+    right: 20,
+  },
   fab: {
     position: 'absolute',
     right: 20,
@@ -851,10 +854,6 @@ const s = StyleSheet.create({
     backgroundColor: theme.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
     elevation: 8,
   },
   fabDanger: {

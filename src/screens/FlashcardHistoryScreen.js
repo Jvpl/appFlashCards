@@ -11,6 +11,7 @@ import { katexScript, katexStyles } from '../components/editor/editorTemplates';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
 import theme from '../styles/theme';
+import { GlowFab } from '../components/ui/GlowFab';
 
 export const FlashcardHistoryScreen = ({ route, navigation }) => {
   const [cards, setCards] = useState([]);
@@ -535,12 +536,11 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
       {/* FAB for Deletion */}
       {/* FAB for Deletion */}
       {multiSelectMode && selectedCards.size > 0 && (
-          <TouchableOpacity
-            style={[styles.fab, { backgroundColor: theme.danger }]}
-            onPress={deleteSelected}
-          >
-              <Ionicons name="trash" size={24} color="white" />
-          </TouchableOpacity>
+        <View style={{ position: 'absolute', right: 20, bottom: 20 }}>
+          <GlowFab onPress={deleteSelected} color={theme.danger}>
+            <Ionicons name="trash" size={24} color="white" />
+          </GlowFab>
+        </View>
       )}
 
       {/* Options Modal */}
