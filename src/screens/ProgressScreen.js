@@ -1,188 +1,288 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getAppData } from '../services/storage';
+import { getAppData, getStudyHistory } from '../services/storage';
 import { LEVEL_CONFIG } from '../services/srs';
 import styles from '../styles/globalStyles';
 import theme from '../styles/theme';
 
+const LEVEL_COLORS = ['#EF4444', '#F97316', '#EAB308', '#3B82F6', '#8B5CF6', '#22C55E'];
+
 export const ProgressScreen = () => {
   const navigation = useNavigation();
-  // Ref para o ScrollView principal
   const scrollViewRef = useRef(null);
-  // Refs para cada item da lista (para rolagem automática)
   const deckRefs = useRef({});
   const contentRef = useRef(null);
 
-  const [stats, setStats] = useState({ total: 0, learned: 0 });
   const [progressData, setProgressData] = useState([]);
+  const [todaySessions, setTodaySessions] = useState([]);
+  const [streak, setStreak] = useState(0);
+  const [totalToday, setTotalToday] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('inProgress'); // 'inProgress' or 'completed'
-  
-  const [expandedInProgress, setExpandedInProgress] = useState(null);
-  const [expandedCompleted, setExpandedCompleted] = useState(null);
-  
+  const [viewMode, setViewMode] = useState('hoje'); // 'hoje' | 'niveis' | 'concluidos'
+
+  const [expandedDeck, setExpandedDeck] = useState(null);
+
   const isFocused = useIsFocused();
-  const insets = useSafeAreaInsets(); // Hook para safe area
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    const loadStats = async () => {
+    if (!isFocused) return;
+    const load = async () => {
       setLoading(true);
-      const data = await getAppData();
-      let totalMaxLevel = 0;
-      let currentLevelSum = 0;
-      
-      const structuredData = data.map(deck => {
-        const subjectsWithProgress = deck.subjects.map(subject => {
+      const [data, history] = await Promise.all([getAppData(), getStudyHistory()]);
+
+      // --- Progresso por deck/matéria com distribuição de níveis ---
+      const structured = data.map(deck => {
+        const subjectsWithLevels = deck.subjects.map(subject => {
+          const levelCounts = [0, 0, 0, 0, 0, 0];
+          subject.flashcards.forEach(c => { levelCounts[c.level || 0]++; });
           const totalLevels = subject.flashcards.length * 5;
-          const currentLevels = subject.flashcards.reduce((sum, card) => sum + (card.level || 0), 0);
-          totalMaxLevel += totalLevels;
-          currentLevelSum += currentLevels;
+          const currentLevels = subject.flashcards.reduce((sum, c) => sum + (c.level || 0), 0);
           return {
             ...subject,
+            levelCounts,
             progress: totalLevels > 0 ? Math.round((currentLevels / totalLevels) * 100) : 0,
           };
         });
-
-        return {
-          ...deck,
-          subjects: subjectsWithProgress,
-        };
+        return { ...deck, subjects: subjectsWithLevels };
       });
+      setProgressData(structured);
 
-      setStats({ total: totalMaxLevel, learned: currentLevelSum });
-      setProgressData(structuredData);
+      // --- Histórico de hoje ---
+      const today = new Date().toISOString().split('T')[0];
+      const todayEntries = history.filter(s => s.date === today);
+      setTodaySessions(todayEntries);
+      setTotalToday(todayEntries.reduce((sum, s) => sum + s.count, 0));
+
+      // --- Streak: dias consecutivos com pelo menos 1 sessão ---
+      const daysWithStudy = new Set(history.map(s => s.date));
+      let streakCount = 0;
+      const d = new Date();
+      // se não estudou hoje ainda, começa verificando ontem
+      if (!daysWithStudy.has(today)) d.setDate(d.getDate() - 1);
+      while (true) {
+        const dateStr = d.toISOString().split('T')[0];
+        if (daysWithStudy.has(dateStr)) {
+          streakCount++;
+          d.setDate(d.getDate() - 1);
+        } else break;
+      }
+      setStreak(streakCount);
+
       setLoading(false);
     };
-
-    if (isFocused) {
-      loadStats();
-    }
+    load();
   }, [isFocused]);
 
-  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={theme.backgroundTertiary} /></View>;
+  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={theme.primary} /></View>;
 
-  const overallProgress = stats.total > 0 ? Math.round((stats.learned / stats.total) * 100) : 0;
-  
-  const renderList = (isCompletedList) => {
-    const expandedId = isCompletedList ? expandedCompleted : expandedInProgress;
-    const setExpandedId = isCompletedList ? setExpandedCompleted : setExpandedInProgress;
-
-    const handleToggle = (deckId) => {
-      const isExpanding = expandedId !== deckId;
-      setExpandedId(prevId => (prevId === deckId ? null : deckId));
-
-      if (isExpanding) {
-        // Aguarda a renderização da lista expandida e rola até ela
-        setTimeout(() => {
-          const element = deckRefs.current[deckId];
-          const scrollView = scrollViewRef.current;
-          
-          if (element && scrollView && contentRef.current) {
-            // Tenta medir a posição do elemento
-            element.measure((x, y, width, height, pageX, pageY) => {
-              if (pageY !== undefined) {
-                // Rola para mostrar o item expandido
-                // Usa um offset para garantir que o item fique visível
-                const scrollOffset = Math.max(0, pageY - 100);
-                scrollView.scrollTo({ y: scrollOffset, animated: true });
-              }
-            });
-          }
-        }, 150); // Delay otimizado para responsividade
+  // --- Aba Hoje ---
+  const renderHoje = () => {
+    if (totalToday === 0) {
+      const now = new Date();
+      let pendingCount = 0;
+      for (const deck of progressData) {
+        for (const subject of deck.subjects) {
+          const subjectPending = subject.flashcards.filter(c => {
+            if ((c.level || 0) >= 5) return false;
+            if (!c.nextReview) return true;
+            return new Date(c.nextReview) <= now;
+          }).length;
+          pendingCount += subjectPending;
+        }
       }
-    };
 
-    const filteredData = progressData.map(deck => {
-      const filteredSubjects = deck.subjects
-        .filter(subject => (isCompletedList ? subject.progress === 100 : subject.progress < 100))
-        .sort((a, b) => b.progress - a.progress);
+      if (pendingCount === 0) {
+        return (
+          <View style={{ alignItems: 'center', padding: 40 }}>
+            <Ionicons name="checkmark-circle-outline" size={48} color={theme.success} />
+            <Text style={{ color: theme.textPrimary, marginTop: 12, fontSize: 16, fontWeight: 'bold', textAlign: 'center' }}>
+              Tudo em dia!
+            </Text>
+            <Text style={{ color: theme.textMuted, marginTop: 6, fontSize: 14, textAlign: 'center' }}>
+              Nenhum card pendente para revisar agora.
+            </Text>
+          </View>
+        );
+      }
 
-      return { ...deck, subjects: filteredSubjects };
-    }).filter(deck => deck.subjects.length > 0);
-
-    if (filteredData.length === 0) {
-      return <Text style={styles.noItemsText}>{isCompletedList ? "Nenhuma matéria concluída ainda." : "Nenhuma matéria em andamento."}</Text>
+      return (
+        <View style={{ alignItems: 'center', padding: 32 }}>
+          <Ionicons name="flame-outline" size={48} color={theme.primary} />
+          <Text style={{ color: theme.textPrimary, marginTop: 12, fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
+            Você tem {pendingCount} {pendingCount === 1 ? 'card' : 'cards'} para revisar hoje
+          </Text>
+          <Text style={{ color: theme.textMuted, marginTop: 6, fontSize: 13, textAlign: 'center' }}>
+            Comece uma sessão e mantenha sua sequência!
+          </Text>
+        </View>
+      );
     }
 
-    return filteredData.map(deck => (
-      <View 
-        key={deck.id} 
-        style={styles.deckGroup}
-        ref={el => deckRefs.current[deck.id] = el} // Captura a referência deste item
-        renderToHardwareTextureAndroid={true} // Otimização para animação
-      >
-        <TouchableOpacity style={styles.deckHeader} onPress={() => handleToggle(deck.id)}>
-          <Text style={styles.deckGroupTitle}>{deck.name}</Text>
-          <Ionicons name={expandedId === deck.id ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
-        </TouchableOpacity>
-        {expandedId === deck.id && (
-          <View>
-            {deck.subjects.map((subject, index) => (
-               <View key={subject.id}>
-                 {/* Agora o item é clicável e navega para os flashcards */}
-                <TouchableOpacity 
-                    style={styles.progressSubjectContainer}
-                    onPress={() => navigation.navigate('Início', {
-                        screen: 'HomeDrawer',
-                        params: {
-                            screen: 'Flashcard',
-                            params: { deckId: deck.id, subjectId: subject.id, subjectName: subject.name }
-                        }
-                    })}
-                >
-                  <View style={styles.itemTextContainer}>
-                    <Text style={styles.itemTitle}>{subject.name}</Text>
-                  </View>
-                  <View style={[styles.progressContainer, { borderColor: subject.progress === 100 ? theme.success : theme.primary }]}>
-                      <Text style={styles.progressText}>{subject.progress}%</Text>
-                  </View>
-                </TouchableOpacity>
-                {index < deck.subjects.length - 1 && <View style={styles.divider} />}
-              </View>
-            ))}
+    // Agrupar sessões de hoje por deck e matéria, somando os counts
+    const byDeck = {};
+    todaySessions.forEach(s => {
+      if (!byDeck[s.deckId]) byDeck[s.deckId] = { deckName: s.deckName, subjects: {} };
+      const key = s.subjectId || s.subjectName;
+      if (!byDeck[s.deckId].subjects[key]) byDeck[s.deckId].subjects[key] = { subjectName: s.subjectName, count: 0 };
+      byDeck[s.deckId].subjects[key].count += s.count;
+    });
+
+    return Object.entries(byDeck).map(([deckId, deck]) => (
+      <View key={deckId} style={[styles.deckGroup, { marginBottom: 12 }]}>
+        <Text style={[styles.deckGroupTitle, { padding: 12 }]}>{deck.deckName}</Text>
+        {Object.values(deck.subjects).map((s, i) => (
+          <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 }}>
+            <Text style={{ color: theme.textSecondary, fontSize: 14 }}>{s.subjectName}</Text>
+            <Text style={{ color: theme.primary, fontWeight: 'bold', fontSize: 14 }}>{s.count} cards</Text>
           </View>
-        )}
+        ))}
       </View>
     ));
-  }
+  };
+
+  // --- Aba Níveis ---
+  const renderNiveis = () => {
+    if (progressData.length === 0) {
+      return <Text style={styles.noItemsText}>Nenhum deck encontrado.</Text>;
+    }
+
+    return progressData.map(deck => (
+      <View key={deck.id} style={[styles.deckGroup, { marginBottom: 12 }]} ref={el => deckRefs.current[deck.id] = el}>
+        <TouchableOpacity
+          style={styles.deckHeader}
+          onPress={() => setExpandedDeck(prev => prev === deck.id ? null : deck.id)}
+        >
+          <Text style={styles.deckGroupTitle}>{deck.name}</Text>
+          <Ionicons name={expandedDeck === deck.id ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
+        </TouchableOpacity>
+
+        {expandedDeck === deck.id && deck.subjects.map((subject, idx) => (
+          <View key={subject.id} style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Início', {
+                screen: 'HomeDrawer',
+                params: { screen: 'Flashcard', params: { deckId: deck.id, deckName: deck.name, subjectId: subject.id, subjectName: subject.name } }
+              })}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 }}>
+                <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>{subject.name}</Text>
+                <Text style={{ color: theme.textMuted, fontSize: 12 }}>{subject.progress}%</Text>
+              </View>
+
+              {/* Níveis */}
+              {Object.values(LEVEL_CONFIG).map((lvl, levelIdx) => {
+                const count = subject.levelCounts[levelIdx] || 0;
+                return (
+                  <View key={levelIdx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: LEVEL_COLORS[levelIdx], alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{levelIdx}</Text>
+                      </View>
+                      <Text style={{ color: theme.textMuted, fontSize: 12 }}>{lvl.name}</Text>
+                    </View>
+                    <Text style={{ color: count > 0 ? LEVEL_COLORS[levelIdx] : theme.textMuted, fontSize: 12, fontWeight: count > 0 ? 'bold' : 'normal' }}>{count} cards</Text>
+                  </View>
+                );
+              })}
+            </TouchableOpacity>
+            {idx < deck.subjects.length - 1 && <View style={[styles.divider, { marginTop: 8 }]} />}
+          </View>
+        ))}
+      </View>
+    ));
+  };
+
+  // --- Aba Concluídos ---
+  const renderConcluidos = () => {
+    const completed = progressData
+      .map(deck => ({
+        ...deck,
+        subjects: deck.subjects.filter(s => s.progress === 100),
+      }))
+      .filter(deck => deck.subjects.length > 0);
+
+    if (completed.length === 0) {
+      return (
+        <View style={{ alignItems: 'center', padding: 40 }}>
+          <Ionicons name="trophy-outline" size={48} color={theme.textMuted} />
+          <Text style={{ color: theme.textMuted, marginTop: 12, fontSize: 15, textAlign: 'center' }}>
+            Nenhuma matéria concluída ainda.{'\n'}Continue estudando!
+          </Text>
+        </View>
+      );
+    }
+
+    return completed.map(deck => (
+      <View key={deck.id} style={[styles.deckGroup, { marginBottom: 12 }]}>
+        <Text style={[styles.deckGroupTitle, { padding: 12 }]}>{deck.name}</Text>
+        {deck.subjects.map(s => (
+          <View key={s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 }}>
+            <Text style={{ color: theme.textSecondary, fontSize: 14 }}>{s.name}</Text>
+            <Ionicons name="checkmark-circle" size={18} color={theme.success} />
+          </View>
+        ))}
+      </View>
+    ));
+  };
 
   return (
-    <ScrollView 
-        style={styles.baseContainer} 
-        contentContainerStyle={{ paddingBottom: insets.bottom }}
-        ref={scrollViewRef}
+    <ScrollView
+      style={styles.baseContainer}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+      ref={scrollViewRef}
     >
       <View ref={contentRef}>
-        {/* Adicionado paddingSuperior para respeitar o Header/Statusbar */}
-        <View style={[styles.progressHeader, { paddingTop: insets.top + 20 }]}>
-          <Text style={styles.progressTitle}>Progresso Geral</Text>
-          <Text style={styles.progressValue}>{overallProgress}%</Text>
-          <Text style={styles.progressSubtitle}>Acompanhe sua maestria</Text>
+        {/* Header com streak */}
+        <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 16, paddingBottom: 16, backgroundColor: theme.backgroundSecondary }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View>
+              <Text style={{ color: theme.textPrimary, fontSize: 22, fontWeight: 'bold' }}>Progresso</Text>
+              <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 2 }}>
+                {totalToday > 0 ? `${totalToday} cards revisados hoje` : 'Nenhum card revisado hoje'}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'center', backgroundColor: theme.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 10, color: theme.textMuted, marginBottom: 2 }}>Sequência</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={{ fontSize: 18 }}>🔥</Text>
+                <Text style={{ color: theme.primary, fontWeight: 'bold', fontSize: 20 }}>{streak}</Text>
+              </View>
+              <Text style={{ color: theme.textMuted, fontSize: 10, marginTop: 2 }}>{streak === 1 ? 'dia seguido' : 'dias seguidos'}</Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.toggleContainer}>
-          <TouchableOpacity 
-              style={[styles.toggleButton, viewMode === 'inProgress' && styles.toggleButtonActive]} 
-              onPress={() => setViewMode('inProgress')}>
-            <Text style={[styles.toggleButtonText, viewMode === 'inProgress' && styles.toggleButtonTextActive]}>Em Andamento</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-              style={[styles.toggleButton, viewMode === 'completed' && styles.toggleButtonActive]} 
-              onPress={() => setViewMode('completed')}>
-            <Text style={[styles.toggleButtonText, viewMode === 'completed' && styles.toggleButtonTextActive]}>Concluídos</Text>
-          </TouchableOpacity>
+        {/* Tabs */}
+        <View style={[styles.toggleContainer, { marginTop: 0 }]}>
+          {[
+            { key: 'hoje', label: 'Hoje' },
+            { key: 'niveis', label: 'Níveis' },
+            { key: 'concluidos', label: 'Concluídos' },
+          ].map(tab => (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.toggleButton, viewMode === tab.key && styles.toggleButtonActive]}
+              onPress={() => setViewMode(tab.key)}
+            >
+              <Text style={[styles.toggleButtonText, viewMode === tab.key && styles.toggleButtonTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {viewMode === 'inProgress' ? renderList(false) : renderList(true)}
+        <View style={{ padding: 12 }}>
+          {viewMode === 'hoje' && renderHoje()}
+          {viewMode === 'niveis' && renderNiveis()}
+          {viewMode === 'concluidos' && renderConcluidos()}
+        </View>
       </View>
     </ScrollView>
   );
 };
-
-// =================================================================
-
 
 export default ProgressScreen;

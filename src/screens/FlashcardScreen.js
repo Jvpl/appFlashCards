@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, useAnimatedReaction, interpolate } from 'react-native-reanimated';
-import { getAppData, saveAppData } from '../services/storage';
+import { getAppData, saveAppData, saveStudySession } from '../services/storage';
 import { calculateCardUpdate } from '../services/srs';
 import { FlashcardItem } from '../components/flashcard/FlashcardItem';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
@@ -17,7 +17,7 @@ const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
 export const FlashcardScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, subjectName, preloadedCards, reviewAll, reviewMode } = route.params;
+  const { deckId, subjectId, deckName, subjectName, preloadedCards, reviewAll, reviewMode } = route.params;
   const [cards, setCards] = useState(() => {
      if (preloadedCards) {
         if (reviewAll || reviewMode) {
@@ -52,6 +52,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const feedbackTextOpacity = useSharedValue(0);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackColor, setFeedbackColor] = useState('transparent');
+  const [nextReviewText, setNextReviewText] = useState('');
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
 
   useLayoutEffect(() => {
@@ -165,12 +166,41 @@ export const FlashcardScreen = ({ route, navigation }) => {
       );
       await saveAppData(newData);
     }
+    await saveStudySession({
+      deckId,
+      deckName: deckName || deckId,
+      subjectId: reviewAll ? 'all' : subjectId,
+      subjectName: reviewAll ? 'Revisão Geral' : (subjectName || subjectId),
+      count: reviewUpdates.current.length,
+    });
     reviewUpdates.current = [];
-  }, [deckId, subjectId, reviewAll]);
+  }, [deckId, subjectId, deckName, subjectName, reviewAll]);
 
   useEffect(() => { return () => { saveSessionProgress(); } }, [saveSessionProgress]);
 
+  // Intercepta o botão voltar: salva os dados ANTES de navegar
+  // Assim a SubjectListScreen já encontra os dados atualizados ao recarregar
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (reviewUpdates.current.length === 0) return;
+      e.preventDefault();
+      saveSessionProgress().then(() => {
+        navigation.dispatch(e.data.action);
+      });
+    });
+    return unsubscribe;
+  }, [navigation, saveSessionProgress]);
+
   const onFlip = useCallback(() => { isFlipped.value = !isFlipped.value; }, [isFlipped]);
+
+  const getNextReviewText = useCallback((nextReview) => {
+    if (!nextReview) return 'Volta imediatamente';
+    const diffMin = Math.round((new Date(nextReview) - new Date()) / 60000);
+    if (diffMin <= 0)   return 'Volta imediatamente';
+    if (diffMin < 60)   return `Volta em ${diffMin} min`;
+    if (diffMin < 1440) return `Volta em ${Math.round(diffMin / 60)}h`;
+    return `Volta em ${Math.round(diffMin / 1440)} dia${Math.round(diffMin / 1440) > 1 ? 's' : ''}`;
+  }, []);
 
   const handleReview = useCallback((cardToReview, rating) => {
     if (!cardToReview) return;
@@ -178,7 +208,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
     const existingIndex = reviewUpdates.current.findIndex(c => c.id === updatedCard.id);
     if (existingIndex > -1) reviewUpdates.current[existingIndex] = updatedCard;
     else reviewUpdates.current.push(updatedCard);
-  }, []);
+    setNextReviewText(getNextReviewText(updatedCard.nextReview));
+    setTimeout(() => setNextReviewText(''), 2000);
+  }, [getNextReviewText]);
 
   const gesture = useMemo(() => {
     return Gesture.Pan()
@@ -461,6 +493,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
         <View style={styles.swipeGuideContainer}>
           <Animated.Text style={[styles.feedbackText, { color: feedbackColor }, animatedFeedbackStyle]}>{feedbackText}</Animated.Text>
+          {nextReviewText && !reviewAll ? <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 2 }}>{nextReviewText}</Text> : null}
           <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
              <Text style={styles.swipeGuideText}>
                 {jsIsFlipped ? "Arraste para classificar" : "Toque no card para revelar"}

@@ -213,7 +213,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
 
   const handleStudy = useCallback((subject) => {
     navigation.navigate('Flashcard', {
-      deckId, subjectId: subject.id, subjectName: subject.name,
+      deckId, deckName, subjectId: subject.id, subjectName: subject.name,
       preloadedCards: subject.reviewMode ? subject.flashcards : subject.flashcards,
       reviewMode: !!subject.reviewMode,
     });

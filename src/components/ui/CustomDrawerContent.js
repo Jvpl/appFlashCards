@@ -18,7 +18,7 @@ const MENU_ITEMS = [
   },
 ];
 
-export function CustomDrawerContent({ state, navigation }) {
+export function CustomDrawerContent({ state, navigation, srsModalOpen }) {
   const insets = useSafeAreaInsets();
   const activeRoute = state.routes[state.index]?.name;
 
@@ -91,6 +91,23 @@ export function CustomDrawerContent({ state, navigation }) {
             </TouchableOpacity>
           );
         })}
+
+        {srsModalOpen && (
+          <TouchableOpacity
+            style={dStyles.menuItem}
+            onPress={() => { navigation.closeDrawer(); setTimeout(srsModalOpen, 300); }}
+            activeOpacity={0.75}
+          >
+            <View style={dStyles.menuIconBox}>
+              <Ionicons name="information-circle-outline" size={21} color={theme.textSecondary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={dStyles.menuLabel}>Como funciona</Text>
+              <Text style={dStyles.menuSublabel}>Sistema de níveis SRS</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={15} color={theme.backgroundTertiary} />
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {/* ── RODAPÉ ── */}

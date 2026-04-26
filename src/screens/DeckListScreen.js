@@ -896,6 +896,7 @@ export const DeckListScreen = ({ navigation }) => {
     if (multiSelectMode) { toggleSelection(`${item.deck.id}:${item.subject.id}`); return; }
     navigation.navigate('Flashcard', {
       deckId: item.deck.id,
+      deckName: item.deck.name,
       subjectId: item.subject.id,
       subjectName: item.subject.name,
       preloadedCards: item.subject.flashcards,

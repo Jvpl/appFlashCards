@@ -165,7 +165,6 @@ export const getRecentDeckIds = async () => {
 const CONTINUE_STUDY_KEY = '@continue_study';
 
 export const saveContinueStudy = async (data) => {
-  // data: { deckId, subjectId, deckName, subjectName, availableCount }
   try {
     await AsyncStorage.setItem(CONTINUE_STUDY_KEY, JSON.stringify(data));
   } catch (e) {
@@ -192,7 +191,6 @@ export const clearContinueStudy = async () => {
 
 // ============================================
 // Used Categories — categorias que já tiveram decks
-// (persiste o estado vazio ao mover todos os decks)
 // ============================================
 
 const USED_CATEGORIES_KEY = '@used_category_ids';
@@ -214,7 +212,6 @@ export const saveUsedCategoryIds = async (ids) => {
   }
 };
 
-// Substitui oldId por newId mantendo a posição na ordem de inserção
 export const replaceUsedCategoryId = async (oldId, newId) => {
   try {
     const json = await AsyncStorage.getItem(USED_CATEGORIES_KEY);
@@ -228,6 +225,40 @@ export const replaceUsedCategoryId = async (oldId, newId) => {
     await AsyncStorage.setItem(USED_CATEGORIES_KEY, JSON.stringify(arr));
   } catch (e) {
     console.warn('Failed to replace used category id:', e);
+  }
+};
+
+// ============================================
+// Histórico de Estudo
+// ============================================
+
+const STUDY_HISTORY_KEY = '@FlashcardsApp:studyHistory';
+
+export const getStudyHistory = async () => {
+  try {
+    const json = await AsyncStorage.getItem(STUDY_HISTORY_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch (e) {
+    console.error('Failed to fetch study history', e);
+    return [];
+  }
+};
+
+export const saveStudySession = async (session) => {
+  try {
+    if (!session.count || session.count === 0) return;
+    const history = await getStudyHistory();
+    const today = new Date().toISOString().split('T')[0];
+    history.push({
+      ...session,
+      date: today,
+      timestamp: Date.now(),
+    });
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const trimmed = history.filter(s => s.timestamp >= cutoff);
+    await AsyncStorage.setItem(STUDY_HISTORY_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    console.error('Failed to save study session', e);
   }
 };
 
@@ -245,4 +276,6 @@ export default {
   saveContinueStudy,
   getContinueStudy,
   clearContinueStudy,
+  getStudyHistory,
+  saveStudySession,
 };
