@@ -1,7 +1,7 @@
-import React, { memo } from 'react';
-import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity, ScrollView } from 'react-native';
+import React, { memo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming, runOnJS } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CardFooter } from '../ui/CardFooter';
 import { katexScript, katexStyles as katexFullStyles } from '../editor/editorTemplates';
@@ -9,7 +9,9 @@ import styles from '../../styles/globalStyles';
 
 const screenWidth = Dimensions.get('window').width;
 
-export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, onFlip, isFlipped, jsCurrentIndex, showLevel = true }) => {
+export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, onFlip, isFlipped, jsCurrentIndex, showLevel = true, onEdit }) => {
+  const editingRef = useRef(false);
+  const [localFlipped, setLocalFlipped] = useState(false);
   const rotate = useSharedValue(0);
   const position = useDerivedValue(() => index - currentIndex.value);
 
@@ -18,6 +20,7 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
     (currentValue, previousValue) => {
       if (position.value === 0 && currentValue !== previousValue) {
         rotate.value = withTiming(currentValue ? 180 : 0, { duration: 600 });
+        runOnJS(setLocalFlipped)(!!currentValue);
       } else if (position.value !== 0 && rotate.value !== 0) {
         rotate.value = 0;
       }
@@ -175,22 +178,28 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
       return <Text style={styles.cardText}>{content}</Text>;
   };
 
+  const handleEditPressIn = () => { editingRef.current = true; };
+  const handleEdit = () => {
+    onEdit && onEdit();
+    setTimeout(() => { editingRef.current = false; }, 500);
+  };
+
   return (
     <Animated.View style={[styles.cardContainer, cardAnimatedStyle]}>
-        <TouchableOpacity activeOpacity={1} disabled={index !== jsCurrentIndex} onPress={onFlip}>
-          <Animated.View style={[styles.card, frontAnimatedStyle]}>
+        <Pressable disabled={index !== jsCurrentIndex} onPress={() => { if (!editingRef.current) onFlip(); }}>
+          <Animated.View pointerEvents={localFlipped ? 'none' : 'auto'} style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle]}>
              <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
                 {renderContent(card.question)}
              </ScrollView>
-             {showLevel && <CardFooter level={card.level || 0} consecutiveCorrect={card.consecutiveCorrect || 0} />}
+             {showLevel && <CardFooter level={card.level || 0} currentIndex={jsCurrentIndex} totalCards={totalCards} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
           </Animated.View>
-          <Animated.View style={[styles.card, styles.cardBack, backAnimatedStyle]}>
+          <Animated.View pointerEvents={localFlipped ? 'auto' : 'none'} style={[styles.card, styles.cardBack, (card.level || 0) === 5 && styles.cardDominated, backAnimatedStyle]}>
              <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
                 {renderContent(card.answer)}
              </ScrollView>
-             {showLevel && <CardFooter level={card.level || 0} consecutiveCorrect={card.consecutiveCorrect || 0} />}
+             {showLevel && <CardFooter level={card.level || 0} currentIndex={jsCurrentIndex} totalCards={totalCards} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
           </Animated.View>
-        </TouchableOpacity>
+        </Pressable>
         <Animated.View style={[styles.cardOverlay, overlayAnimatedStyle]} pointerEvents="none" />
       </Animated.View>
   );

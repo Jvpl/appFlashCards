@@ -212,8 +212,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
     setTimeout(() => setNextReviewText(''), 2000);
   }, [getNextReviewText]);
 
+  const panGestureRef = useRef();
   const gesture = useMemo(() => {
-    return Gesture.Pan()
+    return Gesture.Pan().withRef(panGestureRef)
         .onUpdate((event) => {
           'worklet';
           if (!isFlipped.value) return;
@@ -485,6 +486,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
                     onFlip={onFlip} isFlipped={isFlipped}
                     jsCurrentIndex={jsCurrentIndex}
                     showLevel={!reviewAll}
+                    onEdit={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: card.id })}
                 />
                 )
             )}
