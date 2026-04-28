@@ -21,7 +21,8 @@ const styles = StyleSheet.create({
   progressContainer: { width: 50, height: 50, borderRadius: 25, borderWidth: 3, borderColor: theme.primary, justifyContent: 'center', alignItems: 'center' },
   progressText: { color: theme.textPrimary, fontWeight: theme.fontWeight.bold },
   cardContainer: { position: 'absolute' },
-  card: { width: screenWidth * 0.9, height: 460, backgroundColor: theme.backgroundTertiary, borderRadius: 20, justifyContent: 'space-between', alignItems: 'center', padding: 0, backfaceVisibility: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' },
+  card: { width: screenWidth * 0.9, height: 460, backgroundColor: theme.backgroundTertiary, borderRadius: 20, justifyContent: 'space-between', alignItems: 'stretch', padding: 0, backfaceVisibility: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  cardDominated: { borderColor: theme.primary, borderWidth: 1.5 },
   cardBack: { backgroundColor: theme.backgroundSecondary, position: 'absolute', top: 0, justifyContent: 'space-between', backfaceVisibility: 'hidden' },
   cardOverlay: {
     ...StyleSheet.absoluteFillObject,

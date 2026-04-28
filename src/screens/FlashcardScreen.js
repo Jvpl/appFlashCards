@@ -19,16 +19,16 @@ const screenHeight = Dimensions.get('window').height;
 export const FlashcardScreen = ({ route, navigation }) => {
   const { deckId, subjectId, deckName, subjectName, preloadedCards, reviewAll, reviewMode } = route.params;
   const [cards, setCards] = useState(() => {
-     if (preloadedCards) {
-        if (reviewAll || reviewMode) {
-          return [...preloadedCards].sort((a,b) => (a.nextReview || 0) - (b.nextReview || 0));
-        }
-        const now = new Date();
-        return preloadedCards
-          .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
-          .sort((a,b) => (a.nextReview || 0) - (b.nextReview || 0));
-     }
-     return [];
+    if (preloadedCards) {
+      if (reviewAll || reviewMode) {
+        return [...preloadedCards].sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+      }
+      const now = new Date();
+      return preloadedCards
+        .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
+        .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+    }
+    return [];
   });
   const cacheKey = reviewAll ? `${deckId}-all` : `${deckId}-${subjectId}`;
   const [loading, setLoading] = useState(!global.screenCache.flashcards.has(cacheKey)); // Check cache
@@ -73,46 +73,46 @@ export const FlashcardScreen = ({ route, navigation }) => {
   }, [navigation, subjectName, deckId, subjectId]);
 
   const loadCards = useCallback(async () => {
-      reviewUpdates.current = [];
-      // Only delay if NOT cached
-      const shouldDelay = !global.screenCache.flashcards.has(cacheKey);
-      const minDelay = shouldDelay ? new Promise(resolve => setTimeout(resolve, 300)) : Promise.resolve();
-      
-      if (cards.length === 0 && shouldDelay) setLoading(true);
+    reviewUpdates.current = [];
+    // Only delay if NOT cached
+    const shouldDelay = !global.screenCache.flashcards.has(cacheKey);
+    const minDelay = shouldDelay ? new Promise(resolve => setTimeout(resolve, 300)) : Promise.resolve();
 
-      const [allData] = await Promise.all([
-          getAppData(),
-          minDelay
-      ]);
-      
-      // Mark as visited after load
-      global.screenCache.flashcards.add(cacheKey);
-      const data = allData;
-      const deck = data.find(c => c.id === deckId);
-      if (reviewAll) {
-        const allCards = (deck?.subjects || []).flatMap(s =>
-          (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }))
-        ).sort((a,b) => (a.nextReview || 0) - (b.nextReview || 0));
-        setCards(allCards);
-        setTotalCardsInSession(allCards.length);
-      } else {
-        const subject = deck ? deck.subjects.find(s => s.id === subjectId) : null;
-        if (subject) {
-          const now = new Date();
-          const cardsToReview = subject.flashcards
-            .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
-            .sort((a,b) => (a.nextReview || 0) - (b.nextReview || 0));
-          setCards(cardsToReview);
-          setTotalCardsInSession(cardsToReview.length);
-        }
+    if (cards.length === 0 && shouldDelay) setLoading(true);
+
+    const [allData] = await Promise.all([
+      getAppData(),
+      minDelay
+    ]);
+
+    // Mark as visited after load
+    global.screenCache.flashcards.add(cacheKey);
+    const data = allData;
+    const deck = data.find(c => c.id === deckId);
+    if (reviewAll) {
+      const allCards = (deck?.subjects || []).flatMap(s =>
+        (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }))
+      ).sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+      setCards(allCards);
+      setTotalCardsInSession(allCards.length);
+    } else {
+      const subject = deck ? deck.subjects.find(s => s.id === subjectId) : null;
+      if (subject) {
+        const now = new Date();
+        const cardsToReview = subject.flashcards
+          .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
+          .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+        setCards(cardsToReview);
+        setTotalCardsInSession(cardsToReview.length);
       }
-      currentIndex.value = 0;
-      isFlipped.value = false;
-      translateX.value = 0;
-      translateY.value = 0;
-      runOnJS(setJsCurrentIndex)(0);
-      runOnJS(setJsIsFlipped)(false);
-      setLoading(false); // Stop loading
+    }
+    currentIndex.value = 0;
+    isFlipped.value = false;
+    translateX.value = 0;
+    translateY.value = 0;
+    runOnJS(setJsCurrentIndex)(0);
+    runOnJS(setJsIsFlipped)(false);
+    setLoading(false); // Stop loading
   }, [deckId, subjectId, currentIndex, isFlipped, translateX, translateY, cards.length]);
 
 
@@ -154,15 +154,15 @@ export const FlashcardScreen = ({ route, navigation }) => {
     } else {
       const updatesMap = new Map(reviewUpdates.current.map(card => [card.id, card]));
       const newData = allCurrentData.map(deck =>
-          deck.id !== deckId ? deck : {
-              ...deck,
-              subjects: deck.subjects.map(subject =>
-                  subject.id !== subjectId ? subject : {
-                      ...subject,
-                      flashcards: subject.flashcards.map(card => updatesMap.get(card.id) || card)
-                  }
-              )
-          }
+        deck.id !== deckId ? deck : {
+          ...deck,
+          subjects: deck.subjects.map(subject =>
+            subject.id !== subjectId ? subject : {
+              ...subject,
+              flashcards: subject.flashcards.map(card => updatesMap.get(card.id) || card)
+            }
+          )
+        }
       );
       await saveAppData(newData);
     }
@@ -196,8 +196,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const getNextReviewText = useCallback((nextReview) => {
     if (!nextReview) return 'Volta imediatamente';
     const diffMin = Math.round((new Date(nextReview) - new Date()) / 60000);
-    if (diffMin <= 0)   return 'Volta imediatamente';
-    if (diffMin < 60)   return `Volta em ${diffMin} min`;
+    if (diffMin <= 0) return 'Volta imediatamente';
+    if (diffMin < 60) return `Volta em ${diffMin} min`;
     if (diffMin < 1440) return `Volta em ${Math.round(diffMin / 60)}h`;
     return `Volta em ${Math.round(diffMin / 1440)} dia${Math.round(diffMin / 1440) > 1 ? 's' : ''}`;
   }, []);
@@ -215,94 +215,94 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const panGestureRef = useRef();
   const gesture = useMemo(() => {
     return Gesture.Pan().withRef(panGestureRef)
-        .onUpdate((event) => {
-          'worklet';
-          if (!isFlipped.value) return;
-          translateX.value = event.translationX;
-          translateY.value = event.translationY;
-          const xAbs = Math.abs(event.translationX);
-          const yAbs = Math.abs(event.translationY);
+      .onUpdate((event) => {
+        'worklet';
+        if (!isFlipped.value) return;
+        translateX.value = event.translationX;
+        translateY.value = event.translationY;
+        const xAbs = Math.abs(event.translationX);
+        const yAbs = Math.abs(event.translationY);
 
-          let opacity = 0;
-          if (event.translationX < -30 && xAbs > yAbs) { // Left
-            runOnJS(setFeedbackText)('Errei'); runOnJS(setFeedbackColor)(theme.danger);
-            opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
-            leftGlowOpacity.value = opacity; rightGlowOpacity.value = 0; topGlowOpacity.value = 0;
-          } else if (event.translationX > 30 && xAbs > yAbs) { // Right
-            runOnJS(setFeedbackText)('Memorizado'); runOnJS(setFeedbackColor)(theme.success);
-            opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
-            rightGlowOpacity.value = opacity; leftGlowOpacity.value = 0; topGlowOpacity.value = 0;
-          } else if (event.translationY < -30 && yAbs > xAbs) { // Up
-            runOnJS(setFeedbackText)('Quase'); runOnJS(setFeedbackColor)(theme.info);
-            opacity = interpolate(yAbs, [30, screenHeight / 3], [0, 1], 'clamp');
-            topGlowOpacity.value = opacity; leftGlowOpacity.value = 0; rightGlowOpacity.value = 0;
-          } else {
-            opacity = 0;
-            leftGlowOpacity.value = withTiming(0); rightGlowOpacity.value = withTiming(0); topGlowOpacity.value = withTiming(0);
-          }
-          feedbackTextOpacity.value = opacity;
-        })
-        .onEnd((event) => {
-          'worklet';
-          if (!isFlipped.value) {
-            translateX.value = withSpring(0);
-            translateY.value = withSpring(0);
-            return;
-          }
+        let opacity = 0;
+        if (event.translationX < -30 && xAbs > yAbs) { // Left
+          runOnJS(setFeedbackText)('Errei'); runOnJS(setFeedbackColor)(theme.danger);
+          opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
+          leftGlowOpacity.value = opacity; rightGlowOpacity.value = 0; topGlowOpacity.value = 0;
+        } else if (event.translationX > 30 && xAbs > yAbs) { // Right
+          runOnJS(setFeedbackText)('Memorizado'); runOnJS(setFeedbackColor)(theme.success);
+          opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
+          rightGlowOpacity.value = opacity; leftGlowOpacity.value = 0; topGlowOpacity.value = 0;
+        } else if (event.translationY < -30 && yAbs > xAbs) { // Up
+          runOnJS(setFeedbackText)('Quase'); runOnJS(setFeedbackColor)(theme.info);
+          opacity = interpolate(yAbs, [30, screenHeight / 3], [0, 1], 'clamp');
+          topGlowOpacity.value = opacity; leftGlowOpacity.value = 0; rightGlowOpacity.value = 0;
+        } else {
+          opacity = 0;
+          leftGlowOpacity.value = withTiming(0); rightGlowOpacity.value = withTiming(0); topGlowOpacity.value = withTiming(0);
+        }
+        feedbackTextOpacity.value = opacity;
+      })
+      .onEnd((event) => {
+        'worklet';
+        if (!isFlipped.value) {
+          translateX.value = withSpring(0);
+          translateY.value = withSpring(0);
+          return;
+        }
 
-          leftGlowOpacity.value = withTiming(0);
-          rightGlowOpacity.value = withTiming(0);
-          topGlowOpacity.value = withTiming(0);
-          feedbackTextOpacity.value = withTiming(0);
+        leftGlowOpacity.value = withTiming(0);
+        rightGlowOpacity.value = withTiming(0);
+        topGlowOpacity.value = withTiming(0);
+        feedbackTextOpacity.value = withTiming(0);
 
-          const swipeThresholdX = screenWidth * 0.3;
-          const swipeThresholdY = screenHeight * 0.2;
+        const swipeThresholdX = screenWidth * 0.3;
+        const swipeThresholdY = screenHeight * 0.2;
 
-          let rating = null;
-          let destinationX = 0;
-          let destinationY = 0;
+        let rating = null;
+        let destinationX = 0;
+        let destinationY = 0;
 
-          const isNearRight = event.translationX > swipeThresholdX * 0.8;
-          const isNearLeft  = event.translationX < -swipeThresholdX * 0.8;
-          const isNearTop   = event.translationY < -swipeThresholdY * 0.8;
+        const isNearRight = event.translationX > swipeThresholdX * 0.8;
+        const isNearLeft = event.translationX < -swipeThresholdX * 0.8;
+        const isNearTop = event.translationY < -swipeThresholdY * 0.8;
 
-          const absX = Math.abs(event.translationX);
-          const absY = Math.abs(event.translationY);
-          const horizontalDominant = absX > absY;
+        const absX = Math.abs(event.translationX);
+        const absY = Math.abs(event.translationY);
+        const horizontalDominant = absX > absY;
 
-          if (isNearTop && !horizontalDominant) {
-            rating = 'up';
-            destinationY = -screenHeight * 1.1;
-            destinationX = event.translationX;
-          } else if (isNearLeft && horizontalDominant) {
-            rating = 'left';
-            destinationX = -screenWidth * 1.1;
-            destinationY = event.translationY * 0.3;
-          } else if (isNearRight && horizontalDominant) {
-            rating = 'right';
-            destinationX = screenWidth * 1.1;
-            destinationY = event.translationY * 0.3;
-          }
+        if (isNearTop && !horizontalDominant) {
+          rating = 'up';
+          destinationY = -screenHeight * 1.1;
+          destinationX = event.translationX;
+        } else if (isNearLeft && horizontalDominant) {
+          rating = 'left';
+          destinationX = -screenWidth * 1.1;
+          destinationY = event.translationY * 0.3;
+        } else if (isNearRight && horizontalDominant) {
+          rating = 'right';
+          destinationX = screenWidth * 1.1;
+          destinationY = event.translationY * 0.3;
+        }
 
-          if (rating) {
-            translateX.value = withTiming(destinationX, { duration: 220 });
-            translateY.value = withTiming(destinationY, { duration: 220 }, (finished) => {
-              'worklet';
-              if (finished) {
-                runOnJS(handleReview)(cards[Math.floor(currentIndex.value)], rating);
-                currentIndex.value = currentIndex.value + 1;
-                isFlipped.value = false;
+        if (rating) {
+          translateX.value = withTiming(destinationX, { duration: 220 });
+          translateY.value = withTiming(destinationY, { duration: 220 }, (finished) => {
+            'worklet';
+            if (finished) {
+              runOnJS(handleReview)(cards[Math.floor(currentIndex.value)], rating);
+              currentIndex.value = currentIndex.value + 1;
+              isFlipped.value = false;
 
-                translateX.value = 0;
-                translateY.value = 0;
-              }
-            });
-          } else {
-            // Retorno suave se não atingir o threshold
-            translateX.value = withSpring(0);
-            translateY.value = withSpring(0);
-          }
-        });
+              translateX.value = 0;
+              translateY.value = 0;
+            }
+          });
+        } else {
+          // Retorno suave se não atingir o threshold
+          translateX.value = withSpring(0);
+          translateY.value = withSpring(0);
+        }
+      });
   }, [cards, handleReview, isFlipped, translateX, translateY, currentIndex]); // Adicionado dependências
 
   const handleReviewComplete = useCallback(async () => {
@@ -365,8 +365,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
       message: "Tem certeza?",
       buttons: [
         { text: "Cancelar", style: "cancel", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) },
-        { 
-          text: "Confirmar", 
+        {
+          text: "Confirmar",
           style: "destructive",
           onPress: async () => {
             const data = await getAppData();
@@ -376,7 +376,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
               if (subject) {
                 subject.flashcards = subject.flashcards.filter(f => f.id !== currentCardForModal.id);
                 await saveAppData(data);
-                loadCards(); 
+                loadCards();
                 setAlertConfig(prev => ({ ...prev, visible: false }));
               }
             }
@@ -386,10 +386,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
     });
   };
 
-  const animatedFeedbackStyle = useAnimatedStyle(()=>({opacity: feedbackTextOpacity.value}));
-  const animatedLeftGlowStyle = useAnimatedStyle(()=>({opacity: leftGlowOpacity.value}));
-  const animatedRightGlowStyle = useAnimatedStyle(()=>({opacity: rightGlowOpacity.value}));
-  const animatedTopGlowStyle = useAnimatedStyle(()=>({opacity: topGlowOpacity.value}));
+  const animatedFeedbackStyle = useAnimatedStyle(() => ({ opacity: feedbackTextOpacity.value }));
+  const animatedLeftGlowStyle = useAnimatedStyle(() => ({ opacity: leftGlowOpacity.value }));
+  const animatedRightGlowStyle = useAnimatedStyle(() => ({ opacity: rightGlowOpacity.value }));
+  const animatedTopGlowStyle = useAnimatedStyle(() => ({ opacity: topGlowOpacity.value }));
 
   if (loading) {
     return (
@@ -447,65 +447,65 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.studyContainer}>
-        <Animated.View style={[styles.glow, styles.glowLeft, animatedLeftGlowStyle]}><LinearGradient colors={[theme.dangerGlow, 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
-        <Animated.View style={[styles.glow, styles.glowRight, animatedRightGlowStyle]}><LinearGradient colors={['transparent', theme.successGlow]} style={styles.flexOne} start={{x: 0, y:0}} end={{x:1, y:0}}/></Animated.View>
-        <Animated.View style={[styles.glow, styles.glowTop, animatedTopGlowStyle]}><LinearGradient colors={[theme.infoGlow, 'transparent']} style={styles.flexOne} start={{x: 0, y:0}} end={{x:0, y:1}}/></Animated.View>
+      <Animated.View style={[styles.glow, styles.glowLeft, animatedLeftGlowStyle]}><LinearGradient colors={[theme.dangerGlow, 'transparent']} style={styles.flexOne} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} /></Animated.View>
+      <Animated.View style={[styles.glow, styles.glowRight, animatedRightGlowStyle]}><LinearGradient colors={['transparent', theme.successGlow]} style={styles.flexOne} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} /></Animated.View>
+      <Animated.View style={[styles.glow, styles.glowTop, animatedTopGlowStyle]}><LinearGradient colors={[theme.infoGlow, 'transparent']} style={styles.flexOne} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} /></Animated.View>
 
-        {currentCardForModal && <Modal animationType="fade" transparent={true} visible={isOptionsModalVisible} onRequestClose={() => setOptionsModalVisible(false)}>
-            <TouchableWithoutFeedback onPress={() => setOptionsModalVisible(false)}>
-            <View style={styles.modalOverlay}>
-                <TouchableWithoutFeedback>
-                <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>Opções do Card</Text>
-                    {currentCardForModal.isUserCreated && (
-                        <TouchableOpacity style={styles.modalButton} onPress={() => { setOptionsModalVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCardForModal.id })}}>
-                            <Ionicons name="create-outline" size={22} color="#FFFFFF" /><Text style={styles.modalButtonText}>Editar Card</Text>
-                        </TouchableOpacity>
-                    )}
-                    {currentCardForModal.isUserCreated && (
-                        <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.danger}]} onPress={performDelete}>
-                            <Ionicons name="trash-outline" size={22} color="#FFFFFF" /><Text style={styles.modalButtonText}>Apagar Card</Text>
-                        </TouchableOpacity>
-                    )}
-                     <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.backgroundTertiary, marginTop: 20}]} onPress={() => setOptionsModalVisible(false)}>
-                        <Text style={styles.modalButtonText}>Cancelar</Text>
-                    </TouchableOpacity>
-                </View>
-                </TouchableWithoutFeedback>
-            </View>
+      {currentCardForModal && <Modal animationType="fade" transparent={true} visible={isOptionsModalVisible} onRequestClose={() => setOptionsModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setOptionsModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Opções do Card</Text>
+                {currentCardForModal.isUserCreated && (
+                  <TouchableOpacity style={styles.modalButton} onPress={() => { setOptionsModalVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCardForModal.id }) }}>
+                    <Ionicons name="create-outline" size={22} color="#FFFFFF" /><Text style={styles.modalButtonText}>Editar Card</Text>
+                  </TouchableOpacity>
+                )}
+                {currentCardForModal.isUserCreated && (
+                  <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.danger }]} onPress={performDelete}>
+                    <Ionicons name="trash-outline" size={22} color="#FFFFFF" /><Text style={styles.modalButtonText}>Apagar Card</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.backgroundTertiary, marginTop: 20 }]} onPress={() => setOptionsModalVisible(false)}>
+                  <Text style={styles.modalButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
             </TouchableWithoutFeedback>
-        </Modal>}
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>}
 
-        <GestureDetector gesture={gesture}>
-            <Animated.View style={styles.cardWrapper}>
-            {cards.map((card, index) => (
-                <FlashcardItem
-                    key={card.id} card={card} index={index}
-                    currentIndex={currentIndex} totalCards={cards.length}
-                    translateX={translateX} translateY={translateY}
-                    onFlip={onFlip} isFlipped={isFlipped}
-                    jsCurrentIndex={jsCurrentIndex}
-                    showLevel={!reviewAll}
-                    onEdit={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: card.id })}
-                />
-                )
-            )}
-            </Animated.View>
-        </GestureDetector>
+      <GestureDetector gesture={gesture}>
+        <Animated.View style={styles.cardWrapper}>
+          {cards.map((card, index) => (
+            <FlashcardItem
+              key={card.id} card={card} index={index}
+              currentIndex={currentIndex} totalCards={cards.length}
+              translateX={translateX} translateY={translateY}
+              onFlip={onFlip} isFlipped={isFlipped}
+              jsCurrentIndex={jsCurrentIndex}
+              showLevel={!reviewAll}
+              onEdit={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: card.id })}
+            />
+          )
+          )}
+        </Animated.View>
+      </GestureDetector>
 
-        <View style={styles.swipeGuideContainer}>
-          <Animated.Text style={[styles.feedbackText, { color: feedbackColor }, animatedFeedbackStyle]}>{feedbackText}</Animated.Text>
-          {nextReviewText && !reviewAll ? <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 2 }}>{nextReviewText}</Text> : null}
-          <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
-             <Text style={styles.swipeGuideText}>
-                {jsIsFlipped ? "Arraste para classificar" : "Toque no card para revelar"}
-                {currentCardForModal?.isUserCreated && <Ionicons name="ellipsis-horizontal" size={16} color={theme.textMuted} />}
-            </Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.swipeGuideContainer}>
+        <Animated.Text style={[styles.feedbackText, { color: feedbackColor }, animatedFeedbackStyle]}>{feedbackText}</Animated.Text>
+        {nextReviewText && !reviewAll ? <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 2 }}>{nextReviewText}</Text> : null}
+        <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
+          <Text style={styles.swipeGuideText}>
+            {jsIsFlipped ? "Arraste para classificar" : "Toque no card para revelar"}
+            {currentCardForModal?.isUserCreated && <Ionicons name="ellipsis-horizontal" size={16} color={theme.textMuted} />}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
 
-        <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
+      <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
     </View>
   );
 };

@@ -2,6 +2,7 @@ import React, { memo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming, runOnJS } from 'react-native-reanimated';
+import { Canvas, RoundedRect, BlurMask } from '@shopify/react-native-skia';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CardFooter } from '../ui/CardFooter';
 import { katexScript, katexStyles as katexFullStyles } from '../editor/editorTemplates';
@@ -184,8 +185,39 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
     setTimeout(() => { editingRef.current = false; }, 500);
   };
 
+  const cardW = screenWidth * 0.9;
+  const cardH = 460;
+  const cardRadius = 20;
+  const glowBlur = 12;
+  const glowPad = glowBlur * 2;
+  const isMax = (card.level || 0) === 5;
+
   return (
     <Animated.View style={[styles.cardContainer, cardAnimatedStyle]}>
+        {isMax && (
+          <Canvas
+            style={{
+              position: 'absolute',
+              top: -glowPad,
+              left: -glowPad,
+              width: cardW + glowPad * 2,
+              height: cardH + glowPad * 2,
+            }}
+            pointerEvents="none"
+          >
+            <RoundedRect
+              x={glowPad} y={glowPad}
+              width={cardW} height={cardH}
+              r={cardRadius}
+              color="#5DD62C"
+              opacity={0.55}
+              style="stroke"
+              strokeWidth={2}
+            >
+              <BlurMask blur={glowBlur} style="outer" respectCTM={false} />
+            </RoundedRect>
+          </Canvas>
+        )}
         <Pressable disabled={index !== jsCurrentIndex} onPress={() => { if (!editingRef.current) onFlip(); }}>
           <Animated.View pointerEvents={localFlipped ? 'none' : 'auto'} style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle]}>
              <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
