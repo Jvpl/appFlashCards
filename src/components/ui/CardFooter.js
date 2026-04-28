@@ -54,7 +54,7 @@ export const CardFooter = ({ level, currentIndex, totalCards, onEdit, onEditPres
   const glowPad = glowBlur * 3;
 
   return (
-    <View style={{ width: '100%', height: FOOTER_H, marginTop: -8, paddingTop: 8 }}>
+    <View style={{ width: '100%', height: FOOTER_H }}>
 
       {/* Glow Skia no ring — nível 5 */}
       {isMax && (

@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   cardContentScrollView: { flex: 1, width: '100%' },
-  cardContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  cardContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20, paddingTop: 75 },
   cardText: { fontSize: theme.fontSize.xl, color: theme.textPrimary, textAlign: 'center' },
   noCardsText: { fontSize: theme.fontSize.md, color: theme.textMuted, textAlign: 'center', paddingHorizontal: 20 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, backgroundColor: 'rgba(0,0,0,0.2)', width: '100%' },
