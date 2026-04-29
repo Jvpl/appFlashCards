@@ -17,16 +17,12 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
   const position = useDerivedValue(() => index - currentIndex.value);
   const isCurrentCard = index === jsCurrentIndex;
 
-  const logReaction = (msg) => { console.log(msg); };
-
   useAnimatedReaction(
     () => ({ flipped: isFlipped.value, pos: position.value, reset: resetKey ? resetKey.value : 0 }),
     (current, previous) => {
       const resetFired = previous && current.reset !== previous.reset;
-      runOnJS(logReaction)(`[FAR idx=${index}] pos=${current.pos} flip=${current.flipped} reset=${current.reset} prevReset=${previous?.reset} prevFlip=${previous?.flipped} resetFired=${resetFired} rot=${rotate.value}`);
       if (resetFired || (current.pos === 0 && current.flipped !== previous?.flipped)) {
         const targetFlip = resetFired ? false : !!current.flipped;
-        runOnJS(logReaction)(`[FAR idx=${index}] ACTING targetFlip=${targetFlip} resetFired=${resetFired}`);
         rotate.value = withTiming(targetFlip ? 180 : 0, { duration: resetFired ? 0 : 600 });
         runOnJS(setLocalFlipped)(targetFlip);
       } else if (current.pos !== 0) {
