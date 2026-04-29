@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, InteractionManager, Modal, TouchableWithoutFeedback } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { GlowFab } from '../components/ui/GlowFab';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, useAnimatedReaction, interpolate } from 'react-native-reanimated';
@@ -16,8 +18,11 @@ import theme from '../styles/theme';
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
+
+
 export const FlashcardScreen = ({ route, navigation }) => {
   const { deckId, subjectId, deckName, subjectName, preloadedCards, reviewAll, reviewMode } = route.params;
+  const insets = useSafeAreaInsets();
   const [cards, setCards] = useState(() => {
     if (preloadedCards) {
       if (reviewAll || reviewMode) {
@@ -37,11 +42,13 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const isFocused = useIsFocused();
 
   const reviewUpdates = useRef([]);
+  const hasLoadedOnce = useRef(false);
 
   const currentIndex = useSharedValue(0);
   const isFlipped = useSharedValue(0);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  const resetKey = useSharedValue(0);
 
   const [jsCurrentIndex, setJsCurrentIndex] = useState(0);
   const [jsIsFlipped, setJsIsFlipped] = useState(false);
@@ -54,6 +61,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const [feedbackColor, setFeedbackColor] = useState('transparent');
   const [nextReviewText, setNextReviewText] = useState('');
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
+
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -106,14 +114,23 @@ export const FlashcardScreen = ({ route, navigation }) => {
         setTotalCardsInSession(cardsToReview.length);
       }
     }
-    currentIndex.value = 0;
-    isFlipped.value = false;
-    translateX.value = 0;
-    translateY.value = 0;
-    runOnJS(setJsCurrentIndex)(0);
-    runOnJS(setJsIsFlipped)(false);
+    const isReturning = hasLoadedOnce.current;
+    hasLoadedOnce.current = true;
+
+    if (!isReturning) {
+      currentIndex.value = 0;
+      isFlipped.value = 0;
+      translateX.value = 0;
+      translateY.value = 0;
+      resetKey.value = resetKey.value + 1;
+      runOnJS(setJsCurrentIndex)(0);
+      runOnJS(setJsIsFlipped)(false);
+    } else {
+      translateX.value = 0;
+      translateY.value = 0;
+    }
     setLoading(false); // Stop loading
-  }, [deckId, subjectId, currentIndex, isFlipped, translateX, translateY, cards.length]);
+  }, [deckId, subjectId, currentIndex, isFlipped, translateX, translateY, resetKey, cards.length]);
 
 
   useEffect(() => {
@@ -458,7 +475,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Opções do Card</Text>
                 {currentCardForModal.isUserCreated && (
-                  <TouchableOpacity style={styles.modalButton} onPress={() => { setOptionsModalVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCardForModal.id }) }}>
+                  <TouchableOpacity style={styles.modalButton} onPress={() => { setOptionsModalVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCardForModal.id }); }}>
                     <Ionicons name="create-outline" size={22} color="#FFFFFF" /><Text style={styles.modalButtonText}>Editar Card</Text>
                   </TouchableOpacity>
                 )}
@@ -485,6 +502,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
               translateX={translateX} translateY={translateY}
               onFlip={onFlip} isFlipped={isFlipped}
               jsCurrentIndex={jsCurrentIndex}
+              jsIsFlipped={jsIsFlipped}
+              resetKey={resetKey}
               showLevel={!reviewAll}
               onEdit={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: card.id })}
             />
@@ -493,7 +512,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
         </Animated.View>
       </GestureDetector>
 
-      <View style={styles.swipeGuideContainer}>
+      <View style={[styles.swipeGuideContainer, { bottom: insets.bottom + 120 }]}>
         <Animated.Text style={[styles.feedbackText, { color: feedbackColor }, animatedFeedbackStyle]}>{feedbackText}</Animated.Text>
         {nextReviewText && !reviewAll ? <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 2 }}>{nextReviewText}</Text> : null}
         <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
@@ -506,6 +525,15 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
 
       <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
+
+      <View style={fcs.fabContainer} pointerEvents="box-none">
+        <GlowFab
+          onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards, subjectName })}
+          size={56}
+        >
+          <Ionicons name="add" size={26} color="#0F0F0F" />
+        </GlowFab>
+      </View>
     </View>
   );
 };
@@ -519,6 +547,11 @@ const fcs = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: theme.background,
+  },
+  fabContainer: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
   },
 
   // Header

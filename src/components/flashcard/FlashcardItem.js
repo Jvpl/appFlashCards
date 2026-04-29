@@ -1,4 +1,4 @@
-import React, { memo, useRef, useState } from 'react';
+import React, { memo, useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming, runOnJS } from 'react-native-reanimated';
@@ -10,20 +10,28 @@ import styles from '../../styles/globalStyles';
 
 const screenWidth = Dimensions.get('window').width;
 
-export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, onFlip, isFlipped, jsCurrentIndex, showLevel = true, onEdit }) => {
+export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, onFlip, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, onEdit }) => {
   const editingRef = useRef(false);
   const [localFlipped, setLocalFlipped] = useState(false);
   const rotate = useSharedValue(0);
   const position = useDerivedValue(() => index - currentIndex.value);
+  const isCurrentCard = index === jsCurrentIndex;
+
+  const logReaction = (msg) => { console.log(msg); };
 
   useAnimatedReaction(
-    () => isFlipped.value,
-    (currentValue, previousValue) => {
-      if (position.value === 0 && currentValue !== previousValue) {
-        rotate.value = withTiming(currentValue ? 180 : 0, { duration: 600 });
-        runOnJS(setLocalFlipped)(!!currentValue);
-      } else if (position.value !== 0 && rotate.value !== 0) {
-        rotate.value = 0;
+    () => ({ flipped: isFlipped.value, pos: position.value, reset: resetKey ? resetKey.value : 0 }),
+    (current, previous) => {
+      const resetFired = previous && current.reset !== previous.reset;
+      runOnJS(logReaction)(`[FAR idx=${index}] pos=${current.pos} flip=${current.flipped} reset=${current.reset} prevReset=${previous?.reset} prevFlip=${previous?.flipped} resetFired=${resetFired} rot=${rotate.value}`);
+      if (resetFired || (current.pos === 0 && current.flipped !== previous?.flipped)) {
+        const targetFlip = resetFired ? false : !!current.flipped;
+        runOnJS(logReaction)(`[FAR idx=${index}] ACTING targetFlip=${targetFlip} resetFired=${resetFired}`);
+        rotate.value = withTiming(targetFlip ? 180 : 0, { duration: resetFired ? 0 : 600 });
+        runOnJS(setLocalFlipped)(targetFlip);
+      } else if (current.pos !== 0) {
+        if (rotate.value !== 0) rotate.value = 0;
+        if (previous?.pos === 0) runOnJS(setLocalFlipped)(false);
       }
     }
   );
@@ -179,10 +187,21 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
       return <Text style={styles.cardText}>{content}</Text>;
   };
 
+  // Reseta estado local sempre que este card não é o atual
+  useEffect(() => {
+    if (index !== jsCurrentIndex) {
+      editingRef.current = false;
+      if (localFlipped) {
+        setLocalFlipped(false);
+        rotate.value = 0;
+      }
+    }
+  }, [jsCurrentIndex, index, localFlipped, rotate]);
+
   const handleEditPressIn = () => { editingRef.current = true; };
   const handleEdit = () => {
+    editingRef.current = false;
     onEdit && onEdit();
-    setTimeout(() => { editingRef.current = false; }, 500);
   };
 
   const cardW = screenWidth * 0.9;
@@ -219,13 +238,19 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
           </Canvas>
         )}
         <Pressable disabled={index !== jsCurrentIndex} onPress={() => { if (!editingRef.current) onFlip(); }}>
-          <Animated.View pointerEvents={localFlipped ? 'none' : 'auto'} style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle]}>
+          <Animated.View
+            pointerEvents={isCurrentCard && jsIsFlipped ? 'none' : 'auto'}
+            style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle, { zIndex: isCurrentCard && localFlipped ? 1 : 2 }]}
+          >
              <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
                 {renderContent(card.question)}
              </ScrollView>
              {showLevel && <CardFooter level={card.level || 0} currentIndex={jsCurrentIndex} totalCards={totalCards} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
           </Animated.View>
-          <Animated.View pointerEvents={localFlipped ? 'auto' : 'none'} style={[styles.card, styles.cardBack, (card.level || 0) === 5 && styles.cardDominated, backAnimatedStyle]}>
+          <Animated.View
+            pointerEvents={isCurrentCard && jsIsFlipped ? 'auto' : 'none'}
+            style={[styles.card, styles.cardBack, (card.level || 0) === 5 && styles.cardDominated, backAnimatedStyle, { zIndex: isCurrentCard && localFlipped ? 2 : 1 }]}
+          >
              <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
                 {renderContent(card.answer)}
              </ScrollView>

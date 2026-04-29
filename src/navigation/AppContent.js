@@ -2,14 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Keyboard, StatusBar, TouchableOpacity, StyleSheet } from 'react-native';
 import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppTheme } from '../config/theme';
 import { DrawerNavigator } from './DrawerNavigator';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { LojaScreen } from '../screens/LojaScreen';
+import { FlashcardScreen } from '../screens/FlashcardScreen';
+import { ManageFlashcardsScreen } from '../screens/ManageFlashcardsScreen';
+import { EditFlashcardScreen } from '../screens/EditFlashcardScreen';
+import { FlashcardHistoryScreen } from '../screens/FlashcardHistoryScreen';
 import { FadeInView } from '../components/ui/FadeInView';
 import theme from '../styles/theme';
+
+
+const Root = createStackNavigator();
 
 const Tab = createBottomTabNavigator();
 
@@ -91,21 +99,14 @@ function MainTabs() {
         <CustomTabBar {...props} isKeyboardVisible={isKeyboardVisible} />
       )}
       sceneContainerStyle={{ backgroundColor: theme.background }}
-      screenOptions={{
-        headerShown: false,
-      }}
+      screenOptions={{ headerShown: false }}
     >
       <Tab.Screen
         name="Início"
         options={{ unmountOnBlur: false }}
         listeners={({ navigation, route }) => ({
           tabPress: (e) => {
-            if (isKeyboardVisible) {
-              e.preventDefault();
-              return;
-            }
-
-            // Só intercepta quando já está no tab Início (para resetar a stack)
+            if (isKeyboardVisible) { e.preventDefault(); return; }
             if (!navigation.isFocused()) return;
 
             const drawerState = route.state;
@@ -114,7 +115,6 @@ function MainTabs() {
             if (drawerIndex === 0) {
               const homeDrawerRoute = drawerState?.routes?.[0];
               const stackState = homeDrawerRoute?.state;
-
               if (!stackState || stackState.index === 0) {
                 e.preventDefault();
                 return;
@@ -123,17 +123,11 @@ function MainTabs() {
 
             e.preventDefault();
             navigation.dispatch(state => {
-              const routes = state.routes.map(r => {
-                if (r.name === 'Início') {
-                  return {
-                    name: 'Início',
-                    key: r.key,
-                    params: { resetTs: Date.now() }
-                  };
-                }
-                return r;
-              });
-
+              const routes = state.routes.map(r =>
+                r.name === 'Início'
+                  ? { name: 'Início', key: r.key, params: { resetTs: Date.now() } }
+                  : r
+              );
               return CommonActions.reset({
                 ...state,
                 routes,
@@ -153,19 +147,11 @@ function MainTabs() {
       </Tab.Screen>
 
       <Tab.Screen name="Progresso">
-        {() => (
-          <FadeInView>
-            <ProgressScreen />
-          </FadeInView>
-        )}
+        {() => <FadeInView><ProgressScreen /></FadeInView>}
       </Tab.Screen>
 
       <Tab.Screen name="Loja">
-        {() => (
-          <FadeInView>
-            <LojaScreen />
-          </FadeInView>
-        )}
+        {() => <FadeInView><LojaScreen /></FadeInView>}
       </Tab.Screen>
     </Tab.Navigator>
   );
@@ -175,7 +161,70 @@ export function AppContent() {
   return (
     <NavigationContainer theme={AppTheme}>
       <StatusBar barStyle="light-content" backgroundColor={theme.background} />
-      <MainTabs />
+      <Root.Navigator screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: theme.background },
+        animationEnabled: true,
+        cardStyleInterpolator: () => ({ cardStyle: {} }),
+        transitionSpec: {
+          open: { animation: 'timing', config: { duration: 0 } },
+          close: { animation: 'timing', config: { duration: 0 } },
+        },
+      }}>
+        <Root.Screen name="MainTabs" component={MainTabs} />
+        <Root.Screen
+          name="Flashcard"
+          component={FlashcardScreen}
+          options={{
+            headerShown: true,
+            headerStyle: { backgroundColor: theme.background, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', elevation: 0 },
+            headerTintColor: theme.textPrimary,
+            headerTitleAlign: 'center',
+            headerTitleStyle: { fontWeight: 'bold' },
+            cardStyle: { backgroundColor: theme.background },
+          }}
+        />
+        <Root.Screen
+          name="ManageFlashcards"
+          component={ManageFlashcardsScreen}
+          options={{
+            headerShown: true,
+            title: 'Criar Flashcard',
+            headerStyle: { backgroundColor: theme.background, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', elevation: 0 },
+            headerTintColor: theme.textPrimary,
+            headerTitleAlign: 'center',
+            headerTitleStyle: { fontWeight: 'bold' },
+            gestureEnabled: false,
+            cardStyle: { backgroundColor: theme.background },
+          }}
+        />
+        <Root.Screen
+          name="EditFlashcard"
+          component={EditFlashcardScreen}
+          options={{
+            headerShown: true,
+            title: 'Editar Flashcard',
+            headerStyle: { backgroundColor: theme.background, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', elevation: 0 },
+            headerTintColor: theme.textPrimary,
+            headerTitleAlign: 'center',
+            headerTitleStyle: { fontWeight: 'bold' },
+            cardStyle: { backgroundColor: theme.background },
+          }}
+        />
+        <Root.Screen
+          name="FlashcardHistory"
+          component={FlashcardHistoryScreen}
+          options={{
+            headerShown: true,
+            title: 'Histórico de Cards',
+            headerStyle: { backgroundColor: theme.background, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', elevation: 0 },
+            headerTintColor: theme.textPrimary,
+            headerTitleAlign: 'center',
+            headerTitleStyle: { fontWeight: 'bold' },
+            cardStyle: { backgroundColor: theme.background },
+          }}
+        />
+      </Root.Navigator>
     </NavigationContainer>
   );
 }
@@ -185,9 +234,7 @@ export function AppContent() {
 // ─────────────────────────────────────────────
 
 const tbStyles = StyleSheet.create({
-  outerWrap: {
-    backgroundColor: theme.background,
-  },
+  outerWrap: { backgroundColor: theme.background },
   wrapper: {
     backgroundColor: theme.backgroundSecondary,
     borderTopLeftRadius: 24,
@@ -198,36 +245,11 @@ const tbStyles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 20,
   },
-  container: {
-    flexDirection: 'row',
-    paddingTop: 10,
-    paddingHorizontal: 8,
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    gap: 4,
-    position: 'relative',
-  },
-  indicator: {
-    position: 'absolute',
-    top: 0,
-    width: 32,
-    height: 3,
-    borderRadius: 3,
-    backgroundColor: theme.primary,
-  },
-  label: {
-    fontSize: 10,
-    fontFamily: theme.fontFamily.uiMedium,
-    color: theme.textPrimary,
-    letterSpacing: 0.2,
-  },
-  labelActive: {
-    color: theme.primary,
-    fontFamily: theme.fontFamily.uiSemiBold,
-  },
+  container: { flexDirection: 'row', paddingTop: 10, paddingHorizontal: 8 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 8, gap: 4, position: 'relative' },
+  indicator: { position: 'absolute', top: 0, width: 32, height: 3, borderRadius: 3, backgroundColor: theme.primary },
+  label: { fontSize: 10, fontFamily: theme.fontFamily.uiMedium, color: theme.textPrimary, letterSpacing: 0.2 },
+  labelActive: { color: theme.primary, fontFamily: theme.fontFamily.uiSemiBold },
 });
 
 export default AppContent;

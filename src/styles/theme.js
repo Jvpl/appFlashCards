@@ -14,12 +14,12 @@
 const shared = {
 
   // ── NÍVEIS SRS (progressão dos flashcards) ───────────────────
-  srsLevel0:           '#9CA3AF',           // Marco Zero — cinza
-  srsLevel1:           '#EF4444',           // Aprendiz — vermelho
-  srsLevel2:           '#F97316',           // Em Progresso — laranja
-  srsLevel3:           '#FACC15',           // Consolidando — amarelo
-  srsLevel4:           '#3B82F6',           // Confiante — azul
-  srsLevel5:           '#22C55E',           // Dominado — verde
+  srsLevel0:           '#4B5563',           // Marco Zero — cinza azulado
+  srsLevel1:           '#7C3AED',           // Aprendiz — roxo
+  srsLevel2:           '#4F46E5',           // Em Progresso — índigo
+  srsLevel3:           '#2563EB',           // Consolidando — azul
+  srsLevel4:           '#0891B2',           // Confiante — ciano
+  srsLevel5:           '#5DD62C',           // Dominado — verde lima
 
   // ── SEMÂNTICAS ───────────────────────────────────────────────
   danger:              '#F85149',

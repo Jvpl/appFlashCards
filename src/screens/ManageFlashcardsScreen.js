@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Vibration, ToastAndroid } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
@@ -95,6 +95,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
   // QoL: contador de cards da matéria
   const [subjectCardCount, setSubjectCardCount] = useState(0);
+  const [cardIndexInSubject, setCardIndexInSubject] = useState(0);
   // QoL: nome da matéria buscado dos dados (fallback ao param)
   const [resolvedSubjectName, setResolvedSubjectName] = useState(subjectName || '');
   const savedFeedbackTimer = useRef(null);
@@ -310,7 +311,12 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           const subject = deck.subjects.find(s => s.id === subjectId);
           if (subject) {
             if (!subjectName) setResolvedSubjectName(subject.name || '');
-            setSubjectCardCount(subject.flashcards?.length || 0);
+            const flashcards = subject.flashcards || [];
+            setSubjectCardCount(flashcards.length);
+            if (isEditMode && cardId) {
+              const idx = flashcards.findIndex(c => c.id === cardId);
+              setCardIndexInSubject(idx >= 0 ? idx + 1 : 1);
+            }
           }
         }
       } catch (_) { }
@@ -841,22 +847,19 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         </View>
       ) : (
         <View style={{ flex: 1 }}>
-          {!isEditMode && (
-            <View style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: 'transparent', borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary }}>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, opacity: 0.75 }}>
-                <Ionicons name="folder" size={15} color={theme.primary} />
-                <Text style={{ fontSize: theme.fontSize.caption, fontFamily: theme.fontFamily.uiBold, color: theme.textPrimary, lineHeight: theme.fontSize.caption }} numberOfLines={1}>
-                  {resolvedSubjectName || ''}
-                </Text>
-                <View style={{ width: 1.5, height: 16, backgroundColor: theme.primary }} />
-                <Ionicons name="layers" size={15} color={theme.primary} />
-                <Text style={{ fontSize: theme.fontSize.caption, fontFamily: theme.fontFamily.uiBold, color: theme.textPrimary, lineHeight: theme.fontSize.caption }}>
-                  card nº{subjectCardCount + 1}
-                </Text>
-              </View>
+          <View style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: 'transparent', borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, opacity: 0.75 }}>
+              <Ionicons name="folder" size={15} color={theme.primary} />
+              <Text style={{ fontSize: theme.fontSize.caption, fontFamily: theme.fontFamily.uiBold, color: theme.textPrimary, lineHeight: theme.fontSize.caption }} numberOfLines={1}>
+                {resolvedSubjectName || ''}
+              </Text>
+              <View style={{ width: 1.5, height: 16, backgroundColor: theme.primary }} />
+              <Ionicons name="layers" size={15} color={theme.primary} />
+              <Text style={{ fontSize: theme.fontSize.caption, fontFamily: theme.fontFamily.uiBold, color: theme.textPrimary, lineHeight: theme.fontSize.caption }}>
+                {isEditMode ? `card nº${cardIndexInSubject}` : `card nº${subjectCardCount + 1}`}
+              </Text>
             </View>
-          )}
+          </View>
           <Animated.ScrollView
             ref={(r) => { scrollViewRef.current = r; animatedScrollRef(r); }}
             style={styles.formContainerNoPadding}
@@ -1003,7 +1006,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                   >
 
                     {/* Botão principal: salva e continua */}
-                    <View style={{ flex: 1, borderTopLeftRadius: 12, borderBottomLeftRadius: 12, height: 54, overflow: 'hidden', backgroundColor: theme.primary }} onLayout={(e) => setMainBtnWidth(e.nativeEvent.layout.width)}>
+                    <View style={{ flex: 1, borderTopLeftRadius: 12, borderBottomLeftRadius: 12, borderTopRightRadius: isEditMode ? 12 : 0, borderBottomRightRadius: isEditMode ? 12 : 0, height: 54, overflow: 'hidden', backgroundColor: theme.primary }} onLayout={(e) => setMainBtnWidth(e.nativeEvent.layout.width)}>
                       <TouchableOpacity
                         style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
                         activeOpacity={0.7}
