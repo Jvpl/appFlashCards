@@ -66,7 +66,7 @@ export const SrsInfoModal = ({ visible, onClose }) => {
                   <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                     <Text style={{ fontSize: 16, marginRight: 8 }}>👆</Text>
                     <Text style={{ color: theme.textMuted, fontSize: 13, flex: 1 }}>
-                      <Text style={{ color: theme.warning, fontWeight: 'bold' }}>Quase lembrou</Text> → mantém o nível
+                      <Text style={{ color: theme.warning, fontWeight: 'bold' }}>Quase lembrou</Text> → conta como acerto (máx. nível 4)
                     </Text>
                   </View>
                   <View style={{ flexDirection: 'row' }}>

@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions, InteractionManage
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { GlowFab } from '../components/ui/GlowFab';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, useAnimatedReaction, interpolate } from 'react-native-reanimated';
@@ -18,31 +17,53 @@ import theme from '../styles/theme';
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
+function formatNextReview(ms) {
+  const diff = ms - Date.now();
+  if (diff <= 0) return 'na próxima sessão';
+  const mins = Math.round(diff / 60000);
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.round(diff / 3600000);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.round(diff / 86400000);
+  return `${days} dia${days > 1 ? 's' : ''}`;
+}
+
 
 
 export const FlashcardScreen = ({ route, navigation }) => {
   const { deckId, subjectId, deckName, subjectName, preloadedCards, reviewAll, reviewMode } = route.params;
   const insets = useSafeAreaInsets();
-  const [cards, setCards] = useState(() => {
-    if (preloadedCards) {
-      if (reviewAll || reviewMode) {
-        return [...preloadedCards].sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
-      }
-      const now = new Date();
-      return preloadedCards
-        .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
-        .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+  const initialState = React.useMemo(() => {
+    if (!preloadedCards || reviewAll || reviewMode) {
+      return { cards: preloadedCards ? [...preloadedCards].sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0)) : [], sessionDone: false, sessionNextReview: null, totalSubjectCards: null };
     }
-    return [];
-  });
-  const cacheKey = reviewAll ? `${deckId}-all` : `${deckId}-${subjectId}`;
-  const [loading, setLoading] = useState(!global.screenCache.flashcards.has(cacheKey)); // Check cache
+    const now = new Date();
+    const filtered = preloadedCards
+      .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
+      .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+    if (filtered.length === 0 && preloadedCards.length > 0) {
+      let earliest = null;
+      preloadedCards.forEach(c => {
+        if (c.nextReview) {
+          const t = new Date(c.nextReview).getTime();
+          if (earliest === null || t < earliest) earliest = t;
+        }
+      });
+      return { cards: filtered, sessionDone: true, sessionNextReview: earliest, totalSubjectCards: preloadedCards.length };
+    }
+    return { cards: filtered, sessionDone: false, sessionNextReview: null, totalSubjectCards: preloadedCards.length };
+  }, []);
 
-  const [totalCardsInSession, setTotalCardsInSession] = useState(cards.length || 0);
+  const [cards, setCards] = useState(initialState.cards);
+  const cacheKey = reviewAll ? `${deckId}-all` : `${deckId}-${subjectId}`;
+  const [loading, setLoading] = useState(!initialState.sessionDone);
+
+  const [totalCardsInSession, setTotalCardsInSession] = useState(initialState.cards.length || 0);
   const isFocused = useIsFocused();
 
   const reviewUpdates = useRef([]);
   const hasLoadedOnce = useRef(false);
+  const sessionDoneRef = useRef(false);
 
   const currentIndex = useSharedValue(0);
   const isFlipped = useSharedValue(0);
@@ -61,7 +82,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const [feedbackColor, setFeedbackColor] = useState('transparent');
   const [nextReviewText, setNextReviewText] = useState('');
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
+  const [sessionDone, setSessionDone] = useState(initialState.sessionDone);
+  const [sessionNextReview, setSessionNextReview] = useState(initialState.sessionNextReview);
+  const [totalSubjectCards, setTotalSubjectCards] = useState(initialState.totalSubjectCards);
 
+
+  const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -70,15 +96,16 @@ export const FlashcardScreen = ({ route, navigation }) => {
       headerTitle: undefined,
       headerRight: () => (
         <TouchableOpacity
-          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}
-          onPress={() => navigation.navigate('FlashcardHistory', { deckId, subjectId })}
+          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8, opacity: sessionDone ? 0.3 : 1 }}
+          onPress={() => { if (!sessionDone) setHeaderMenuVisible(v => !v); }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          disabled={sessionDone}
         >
-          <Ionicons name="create-outline" size={22} color={theme.textSecondary} />
+          <Ionicons name="ellipsis-vertical" size={22} color={theme.textPrimary} />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, subjectName, deckId, subjectId]);
+  }, [navigation, subjectName, deckId, subjectId, sessionDone]);
 
   const loadCards = useCallback(async () => {
     reviewUpdates.current = [];
@@ -95,6 +122,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
     // Mark as visited after load
     global.screenCache.flashcards.add(cacheKey);
+    const isReturning = hasLoadedOnce.current;
+    hasLoadedOnce.current = true;
     const data = allData;
     const deck = data.find(c => c.id === deckId);
     if (reviewAll) {
@@ -107,16 +136,29 @@ export const FlashcardScreen = ({ route, navigation }) => {
       const subject = deck ? deck.subjects.find(s => s.id === subjectId) : null;
       if (subject) {
         const now = new Date();
-        const cardsToReview = subject.flashcards
+        const allSubjectCards = subject.flashcards || [];
+        const cardsToReview = allSubjectCards
           .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
           .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+        setTotalSubjectCards(allSubjectCards.length);
         setCards(cardsToReview);
         setTotalCardsInSession(cardsToReview.length);
+        // Todos em cooldown: calcular próximo review e mostrar tela de parabéns
+        if (cardsToReview.length === 0 && allSubjectCards.length > 0 && !isReturning) {
+          let earliest = null;
+          allSubjectCards.forEach(c => {
+            if (c.nextReview) {
+              const t = new Date(c.nextReview).getTime();
+              if (earliest === null || t < earliest) earliest = t;
+            }
+          });
+          setSessionNextReview(earliest);
+          sessionDoneRef.current = true; setSessionDone(true);
+          setLoading(false);
+          return;
+        }
       }
     }
-    const isReturning = hasLoadedOnce.current;
-    hasLoadedOnce.current = true;
-
     if (!isReturning) {
       currentIndex.value = 0;
       isFlipped.value = 0;
@@ -130,18 +172,20 @@ export const FlashcardScreen = ({ route, navigation }) => {
       translateY.value = 0;
     }
     setLoading(false); // Stop loading
-  }, [deckId, subjectId, currentIndex, isFlipped, translateX, translateY, resetKey, cards.length]);
+  }, [deckId, subjectId, currentIndex, isFlipped, translateX, translateY, resetKey]);
 
+
+  const loadCardsRef = useRef(loadCards);
+  useEffect(() => { loadCardsRef.current = loadCards; });
 
   useEffect(() => {
     if (isFocused) {
-      // setLoading(true); // Removed to prevent flicker on back navigation
       const task = InteractionManager.runAfterInteractions(() => {
-        loadCards();
+        loadCardsRef.current();
       });
       return () => task.cancel();
     }
-  }, [isFocused, loadCards]);
+  }, [isFocused]);
 
   useAnimatedReaction(() => currentIndex.value, (res) => { runOnJS(setJsCurrentIndex)(Math.floor(res)) });
   useAnimatedReaction(() => isFlipped.value, (res) => { runOnJS(setJsIsFlipped)(res) });
@@ -323,7 +367,22 @@ export const FlashcardScreen = ({ route, navigation }) => {
   }, [cards, handleReview, isFlipped, translateX, translateY, currentIndex]); // Adicionado dependências
 
   const handleReviewComplete = useCallback(async () => {
-    if (!reviewMode || !subjectId) { navigation.goBack(); return; }
+    if (!reviewMode || !subjectId) {
+      // Captura antes de saveSessionProgress zerar o array
+      const snapshot = [...reviewUpdates.current];
+      await saveSessionProgress();
+      let earliest = null;
+      const allToCheck = snapshot.length > 0 ? snapshot : cards;
+      allToCheck.forEach(c => {
+        if (c.nextReview) {
+          const t = new Date(c.nextReview).getTime();
+          if (earliest === null || t < earliest) earliest = t;
+        }
+      });
+      setSessionNextReview(earliest);
+      sessionDoneRef.current = true; setSessionDone(true);
+      return;
+    }
     // Pergunta se quer continuar no modo revisão ou sair
     setAlertConfig({
       visible: true,
@@ -362,7 +421,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
         },
       ],
     });
-  }, [reviewMode, subjectId, deckId, navigation, currentIndex, isFlipped]);
+  }, [reviewMode, subjectId, deckId, navigation, currentIndex, isFlipped, saveSessionProgress, cards]);
 
   useAnimatedReaction(() => currentIndex.value, (value) => {
     if (value >= totalCardsInSession && totalCardsInSession > 0) {
@@ -408,6 +467,72 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const animatedRightGlowStyle = useAnimatedStyle(() => ({ opacity: rightGlowOpacity.value }));
   const animatedTopGlowStyle = useAnimatedStyle(() => ({ opacity: topGlowOpacity.value }));
 
+  if (sessionDone) {
+    return (
+      <View style={fcs.root}>
+        {headerMenuVisible && (
+          <TouchableWithoutFeedback onPress={() => setHeaderMenuVisible(false)}>
+            <View style={fcs.menuOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={fcs.menuDropdown}>
+                  <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: [], subjectName }); }}>
+                    <Ionicons name="add-circle-outline" size={20} color={theme.textPrimary} />
+                    <Text style={fcs.menuItemText}>Criar card</Text>
+                  </TouchableOpacity>
+                  <View style={fcs.menuDivider} />
+                  <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards, subjectName }); }}>
+                    <Ionicons name="layers-outline" size={20} color={theme.textPrimary} />
+                    <Text style={fcs.menuItemText}>Gerenciar cards</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        )}
+        <View style={fcs.doneContainer}>
+          <View style={fcs.doneIconRing}>
+            <Ionicons name="checkmark-done" size={40} color={theme.primary} />
+          </View>
+          <Text style={fcs.doneTitle}>Sessão concluída!</Text>
+          <Text style={fcs.doneSubtitle}>
+            {totalCardsInSession > 0
+              ? `Você estudou ${totalCardsInSession} card${totalCardsInSession !== 1 ? 's' : ''} de `
+              : 'Nenhum card disponível agora em '
+            }
+            <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>{subjectName}</Text>
+          </Text>
+          {sessionNextReview != null && (
+            <View style={fcs.doneNextRow}>
+              <Ionicons name="time-outline" size={16} color={theme.textMuted} />
+              <Text style={fcs.doneNextText}>
+                Próximo card disponível em <Text style={{ color: theme.primary }}>{formatNextReview(sessionNextReview)}</Text>
+              </Text>
+            </View>
+          )}
+          <View style={fcs.doneBtnRow}>
+            <TouchableOpacity style={fcs.doneBtn} onPress={() => navigation.goBack()}>
+              <Text style={fcs.doneBtnTxt}>Voltar</Text>
+            </TouchableOpacity>
+            {(sessionNextReview == null || sessionNextReview <= Date.now()) && (
+              <TouchableOpacity
+                style={fcs.doneBtnPrimary}
+                onPress={async () => {
+                  sessionDoneRef.current = false;
+                  setSessionDone(false);
+                  hasLoadedOnce.current = false;
+                  setLoading(true);
+                  await loadCards();
+                }}
+              >
+                <Text style={fcs.doneBtnPrimaryTxt}>Continuar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   if (loading) {
     return (
       <View style={fcs.root}>
@@ -418,7 +543,17 @@ export const FlashcardScreen = ({ route, navigation }) => {
     );
   }
 
-  if (cards.length === 0) {
+  if (totalSubjectCards === null) {
+    return (
+      <View style={fcs.root}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+          <SkeletonItem style={{ width: screenWidth * 0.9, height: 460, borderRadius: 20 }} />
+        </View>
+      </View>
+    );
+  }
+
+  if (cards.length === 0 && totalSubjectCards === 0) {
     return (
       <View style={fcs.root}>
         <View style={fcs.emptyContainer}>
@@ -526,14 +661,25 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
       <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
 
-      <View style={fcs.fabContainer} pointerEvents="box-none">
-        <GlowFab
-          onPress={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards, subjectName })}
-          size={56}
-        >
-          <Ionicons name="add" size={26} color="#0F0F0F" />
-        </GlowFab>
-      </View>
+      {headerMenuVisible && (
+        <TouchableWithoutFeedback onPress={() => setHeaderMenuVisible(false)}>
+          <View style={fcs.menuOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={fcs.menuDropdown}>
+                <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: [], subjectName }); }}>
+                  <Ionicons name="add-circle-outline" size={20} color={theme.textPrimary} />
+                  <Text style={fcs.menuItemText}>Criar card</Text>
+                </TouchableOpacity>
+                <View style={fcs.menuDivider} />
+                <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards, subjectName }); }}>
+                  <Ionicons name="layers-outline" size={20} color={theme.textPrimary} />
+                  <Text style={fcs.menuItemText}>Gerenciar cards</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      )}
     </View>
   );
 };
@@ -548,10 +694,43 @@ const fcs = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.background,
   },
-  fabContainer: {
+  menuOverlay: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
+    top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 100,
+  },
+  menuDropdown: {
+    position: 'absolute',
+    top: 8,
+    right: 12,
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+    minWidth: 190,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  menuItemText: {
+    color: theme.textPrimary,
+    fontSize: 14,
+    fontFamily: theme.fontFamily.uiMedium,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginHorizontal: 0,
   },
 
   // Header
@@ -681,6 +860,87 @@ const fcs = StyleSheet.create({
     color: '#0F0F0F',
     fontSize: 15,
     fontWeight: '700',
+  },
+
+  // Session done state
+  doneContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingBottom: 40,
+    gap: 0,
+  },
+  doneIconRing: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(93,214,44,0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(93,214,44,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  doneTitle: {
+    color: theme.textPrimary,
+    fontSize: 24,
+    fontFamily: theme.fontFamily.uiBold,
+    letterSpacing: -0.4,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  doneSubtitle: {
+    color: theme.textSecondary,
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  doneNextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  doneNextText: {
+    color: theme.textMuted,
+    fontSize: 13,
+  },
+  doneBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  doneBtn: {
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 16,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  doneBtnTxt: {
+    color: theme.textPrimary,
+    fontSize: 15,
+    fontFamily: theme.fontFamily.uiMedium,
+  },
+  doneBtnPrimary: {
+    backgroundColor: theme.primary,
+    borderRadius: 16,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+  },
+  doneBtnPrimaryTxt: {
+    color: '#0F0F0F',
+    fontSize: 15,
+    fontFamily: theme.fontFamily.uiBold,
   },
 });
 
