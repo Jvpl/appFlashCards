@@ -533,21 +533,20 @@ export const FlashcardScreen = ({ route, navigation }) => {
     );
   }
 
-  if (loading) {
+  if (loading || totalSubjectCards === null) {
+    const cardW = screenWidth * 0.9;
     return (
       <View style={fcs.root}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          <SkeletonItem style={{ width: screenWidth * 0.9, height: 460, borderRadius: 20 }} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: cardW, height: 460, backgroundColor: theme.backgroundSecondary, borderRadius: 20, padding: 28, justifyContent: 'center', gap: 14 }}>
+            <SkeletonItem style={{ width: '60%', height: 14, borderRadius: 7 }} />
+            <SkeletonItem style={{ width: '90%', height: 14, borderRadius: 7 }} />
+            <SkeletonItem style={{ width: '75%', height: 14, borderRadius: 7 }} />
+            <SkeletonItem style={{ width: '50%', height: 14, borderRadius: 7 }} />
+          </View>
         </View>
-      </View>
-    );
-  }
-
-  if (totalSubjectCards === null) {
-    return (
-      <View style={fcs.root}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          <SkeletonItem style={{ width: screenWidth * 0.9, height: 460, borderRadius: 20 }} />
+        <View style={{ alignItems: 'center', paddingBottom: 48 }}>
+          <SkeletonItem style={{ width: 160, height: 13, borderRadius: 6 }} />
         </View>
       </View>
     );
