@@ -1883,19 +1883,65 @@ export const DeckListScreen = ({ navigation }) => {
         <TouchableWithoutFeedback onPress={closeSubjectContextMenu}>
           <View style={ctxStyles.overlay}>
             {(() => {
-              const menuW = 180;
-              const menuH = 104;
+              const menuW = 200;
+              const menuH = 220;
               let menuLeft = subjectContextMenu.x - menuW + 16;
               let menuTop = subjectContextMenu.y - menuH - 10;
               if (menuLeft < 8) menuLeft = 8;
               if (menuLeft + menuW > width - 8) menuLeft = width - menuW - 8;
               if (menuTop < 60) menuTop = subjectContextMenu.y + 10;
+              const item = subjectContextMenu.item;
+              const isReview = item?.subject?.reviewMode;
               return (
                 <View style={[ctxStyles.menu, { left: menuLeft, top: menuTop }]}>
                   <TouchableOpacity
+                    style={[ctxStyles.item, { paddingVertical: 14 }, isReview && { backgroundColor: 'rgba(93,214,44,0.06)' }]}
+                    onPress={async () => {
+                      closeSubjectContextMenu();
+                      if (!item) return;
+                      const newVal = !item.subject.reviewMode;
+                      const allData = await getAppData();
+                      await saveAppData(allData.map(d => {
+                        if (d.id !== item.deck.id) return d;
+                        return { ...d, subjects: d.subjects.map(s => s.id === item.subject.id ? { ...s, reviewMode: newVal } : s) };
+                      }));
+                      loadData();
+                    }}
+                  >
+                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: isReview ? theme.primary : 'rgba(93,214,44,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="repeat-outline" size={16} color={isReview ? '#0F0F0F' : theme.primary} />
+                    </View>
+                    <Text style={{ flex: 1, color: theme.primary, fontSize: 14, fontFamily: theme.fontFamily.uiSemiBold }}>{isReview ? 'Desativar Revisão' : 'Modo Revisão'}</Text>
+                    {isReview && <Ionicons name="checkmark-circle" size={16} color={theme.primary} />}
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
                     style={ctxStyles.item}
                     onPress={() => {
-                      const item = subjectContextMenu.item;
+                      closeSubjectContextMenu();
+                      if (!item) return;
+                      navigation.navigate('ManageFlashcards', { deckId: item.deck.id, subjectId: item.subject.id, preloadedCards: [], subjectName: item.subject.name });
+                    }}
+                  >
+                    <Ionicons name="add-circle-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Criar card</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      closeSubjectContextMenu();
+                      if (!item) return;
+                      navigation.navigate('ManageFlashcards', { deckId: item.deck.id, subjectId: item.subject.id, preloadedCards: item.subject.flashcards, subjectName: item.subject.name });
+                    }}
+                  >
+                    <Ionicons name="layers-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Gerenciar Cards</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
                       closeSubjectContextMenu();
                       if (item) setRenameSubjectModal({ visible: true, item, text: item.subject.name || '' });
                     }}
@@ -1907,7 +1953,6 @@ export const DeckListScreen = ({ navigation }) => {
                   <TouchableOpacity
                     style={ctxStyles.item}
                     onPress={() => {
-                      const item = subjectContextMenu.item;
                       closeSubjectContextMenu();
                       if (!item) return;
                       setTimeout(() => {

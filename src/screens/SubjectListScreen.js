@@ -608,7 +608,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
         <TouchableWithoutFeedback onPress={closeContextMenu}>
           <View style={ctx.overlay}>
             {(() => {
-              const menuW = 210, menuH = 196;
+              const menuW = 210, menuH = 240;
               let menuLeft = contextMenu.x - menuW + 16;
               let menuTop = contextMenu.y - menuH - 10;
               if (menuLeft < 8) menuLeft = 8;
@@ -626,6 +626,10 @@ export const SubjectListScreen = ({ route, navigation }) => {
                       {isReview ? 'Desativar Revisão' : 'Modo Revisão'}
                     </Text>
                     {isReview && <Ionicons name="checkmark-circle" size={16} color={theme.primary} />}
+                  </TouchableOpacity>
+                  <View style={ctx.sep} />
+                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('ManageFlashcards', { deckId, subjectId: sub.id, preloadedCards: [], subjectName: sub.name }); }}>
+                    <Ionicons name="add-circle-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Criar card</Text>
                   </TouchableOpacity>
                   <View style={ctx.sep} />
                   <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) handleManageCards(sub); }}>
