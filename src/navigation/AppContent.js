@@ -216,7 +216,7 @@ export function AppContent() {
           component={FlashcardHistoryScreen}
           options={{
             headerShown: true,
-            title: 'Histórico de Cards',
+            title: 'Gerenciar Cards',
             headerStyle: { backgroundColor: theme.background, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', elevation: 0 },
             headerTintColor: theme.textPrimary,
             headerTitleAlign: 'center',

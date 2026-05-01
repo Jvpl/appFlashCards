@@ -480,7 +480,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
                     <Text style={fcs.menuItemText}>Criar card</Text>
                   </TouchableOpacity>
                   <View style={fcs.menuDivider} />
-                  <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards, subjectName }); }}>
+                  <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('FlashcardHistory', { deckId, subjectId }); }}>
                     <Ionicons name="layers-outline" size={20} color={theme.textPrimary} />
                     <Text style={fcs.menuItemText}>Gerenciar cards</Text>
                   </TouchableOpacity>
@@ -670,7 +670,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
                   <Text style={fcs.menuItemText}>Criar card</Text>
                 </TouchableOpacity>
                 <View style={fcs.menuDivider} />
-                <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: cards, subjectName }); }}>
+                <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('FlashcardHistory', { deckId, subjectId }); }}>
                   <Ionicons name="layers-outline" size={20} color={theme.textPrimary} />
                   <Text style={fcs.menuItemText}>Gerenciar cards</Text>
                 </TouchableOpacity>
