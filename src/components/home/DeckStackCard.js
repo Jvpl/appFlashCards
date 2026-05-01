@@ -43,17 +43,19 @@ const DeckStackCard = ({ deck, onPress, onLongPress, onMenuPress, isSelected, mu
   // fracs[i] = fração de cards com level >= (i+1)
   const fracs = calcLevelFractions(deck.subjects);
 
-  // stackCard3: acende conforme maioria chega no level 1+
-  // stackCard2: acende conforme maioria chega no level 2+
-  // stackCard1: acende conforme maioria chega no level 3+
+  // De trás pra frente: stackCard3 (mais atrás) acende por último
+  // stackCard1: acende conforme maioria chega no level 1+  (mais próximo da carta principal)
+  // stackCard2: acende conforme maioria chega no level 2+  (meio)
+  // stackCard3: acende conforme maioria chega no level 3+  (mais atrás)
   // borda:      acende conforme maioria chega no level 4+ e 5
-  const s3op = Math.min(1, fracs[0] * 2);
+  const s1op = Math.min(1, fracs[0] * 2);
   const s2op = Math.min(1, fracs[1] * 2);
-  const s1op = Math.min(1, fracs[2] * 2);
+  const s3op = Math.min(1, fracs[2] * 2);
   const borderOpacity = Math.min(0.55, fracs[3] * 2 * 0.3 + fracs[4] * 2 * 0.25);
 
-  const stackBg = (op) => op > 0 ? `rgba(93,214,44,${(op * 0.10).toFixed(2)})` : 'rgba(32,32,32,0.4)';
-  const stackBd = (op) => op > 0 ? `rgba(93,214,44,${(op * 0.40).toFixed(2)})` : 'rgba(93,214,44,0.05)';
+  // Cada camada tem intensidade máxima diferente: mais próxima=fraca, mais atrás=forte
+  const stackBg = (op, maxBg) => op > 0 ? `rgba(93,214,44,${(op * maxBg).toFixed(2)})` : 'rgba(32,32,32,0.4)';
+  const stackBd = (op, maxBd) => op > 0 ? `rgba(93,214,44,${(op * maxBd).toFixed(2)})` : 'rgba(93,214,44,0.05)';
 
   const cardWidth = width || DECK_CARD_WIDTH;
   const cardHeight = height || DECK_CARD_HEIGHT;
@@ -87,10 +89,10 @@ const DeckStackCard = ({ deck, onPress, onLongPress, onMenuPress, isSelected, mu
       activeOpacity={0.78}
       style={[styles.container, { width: cardWidth, height: cardHeight }]}
     >
-      {/* Cartas decorativas empilhadas atrás */}
-      <View style={[styles.stackCard, styles.stackCard3, { backgroundColor: stackBg(s3op), borderColor: stackBd(s3op) }]} />
-      <View style={[styles.stackCard, styles.stackCard2, { backgroundColor: stackBg(s2op), borderColor: stackBd(s2op) }]} />
-      <View style={[styles.stackCard, styles.stackCard1, { backgroundColor: stackBg(s1op), borderColor: stackBd(s1op) }]} />
+      {/* Cartas decorativas empilhadas atrás — mais atrás = mais forte */}
+      <View style={[styles.stackCard, styles.stackCard3, { backgroundColor: stackBg(s3op, 0.14), borderColor: stackBd(s3op, 0.55) }]} />
+      <View style={[styles.stackCard, styles.stackCard2, { backgroundColor: stackBg(s2op, 0.08), borderColor: stackBd(s2op, 0.32) }]} />
+      <View style={[styles.stackCard, styles.stackCard1, { backgroundColor: stackBg(s1op, 0.04), borderColor: stackBd(s1op, 0.18) }]} />
 
       {/* Carta principal */}
       <View style={[
