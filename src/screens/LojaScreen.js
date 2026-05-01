@@ -19,6 +19,7 @@ import theme from '../styles/theme';
 
 export const LojaScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+
   const [products, setProducts] = useState([]);
   const [purchasedIds, setPurchasedIds] = useState([]);
   const [loading, setLoading] = useState(true);
