@@ -15,8 +15,9 @@ const MateriaCard = ({
   width: propWidth, height: propHeight,
   onMenuPress,
 }) => {
-  const cardCount  = subject.flashcards?.length || 0;
-  const isReview   = !!subject.reviewMode;
+  const totalCards   = subject.flashcards?.length || 0;
+  const studiedCards = (subject.flashcards || []).filter(c => (c.level || 0) > 0).length;
+  const isReview     = !!subject.reviewMode;
   const cardWidth  = propWidth  || MATERIA_CARD_WIDTH;
   const cardHeight = propHeight || MATERIA_CARD_HEIGHT;
   const touchStart = useRef(null);
@@ -55,15 +56,33 @@ const MateriaCard = ({
         <Text style={styles.label} numberOfLines={1}>{(deck?.name || 'Matéria').toUpperCase()}</Text>
         <Text style={styles.name} numberOfLines={3}>{subject.name || 'Matéria'}</Text>
         <View style={{ flex: 1 }} />
-        <View style={styles.cardCountRow}>
-          <Text style={styles.cardCountNumber}>{cardCount}</Text>
-          <Text style={styles.cardCountWord}>{cardCount === 1 ? ' card' : ' cards'}</Text>
-          {isReview && (
-            <View style={styles.reviewBadge}>
-              <Text style={styles.reviewBadgeTxt}>Revisão</Text>
+        {studiedCards > 0 ? (
+          <>
+            <View style={styles.cardCountRow}>
+              <Text style={styles.cardCountNumber}>{studiedCards}</Text>
+              <Text style={styles.cardCountWord}>/{totalCards}</Text>
+              {isReview && (
+                <View style={styles.reviewBadge}>
+                  <Text style={styles.reviewBadgeTxt}>Revisão</Text>
+                </View>
+              )}
             </View>
-          )}
-        </View>
+            <Text style={styles.cardCountLabel}>cards estudados</Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.cardCountRow}>
+              <Text style={styles.cardCountNumber}>{totalCards}</Text>
+              <Text style={styles.cardCountWord}>{totalCards === 1 ? ' card' : ' cards'}</Text>
+              {isReview && (
+                <View style={styles.reviewBadge}>
+                  <Text style={styles.reviewBadgeTxt}>Revisão</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.cardCountLabel}>Não iniciado</Text>
+          </>
+        )}
       </View>
 
       {/* Menu 3 pontos */}
@@ -158,9 +177,15 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   cardCountWord: {
-    fontFamily: theme.fontFamily.ui,
-    fontSize: 11,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 15,
     color: theme.textMuted,
+  },
+  cardCountLabel: {
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 10,
+    color: theme.textMuted,
+    marginTop: 1,
   },
   reviewBadge: {
     marginLeft: 'auto',

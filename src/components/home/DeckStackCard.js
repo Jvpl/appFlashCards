@@ -16,58 +16,47 @@ export const DECK_CARD_WIDTH = (width - GRID_PADDING * 2 - GRID_GAP) / 2;
 export const DECK_CARD_HEIGHT = DECK_CARD_WIDTH * 1.35;
 
 /**
- * Calcula porcentagem de domínio arredondada para múltiplos de 25.
+ * Calcula matérias estudadas (≥1 card com level>0) e total.
  */
-const calcDominio = (subjects = []) => {
-  let total = 0, sum = 0;
-  subjects.forEach(s =>
-    (s.flashcards || []).forEach(c => { total++; sum += c.level || 0; })
+const calcSubjectProgress = (subjects = []) => {
+  const total = subjects.length;
+  const studied = subjects.filter(s => (s.flashcards || []).some(c => (c.level || 0) > 0)).length;
+  return { studied, total };
+};
+
+/**
+ * Para cada nível 1..5, retorna a fração de cards que atingiram aquele nível ou mais.
+ */
+const calcLevelFractions = (subjects = []) => {
+  const cards = (subjects || []).flatMap(s => s.flashcards || []);
+  const total = cards.length;
+  if (total === 0) return [0, 0, 0, 0, 0];
+  return [1, 2, 3, 4, 5].map(lvl =>
+    cards.filter(c => (c.level || 0) >= lvl).length / total
   );
-  if (total === 0) return 0;
-  const raw = sum / (total * 5);
-  return Math.round(raw / 0.25) * 25;
-};
-
-/**
- * Retorna label de status e cor baseado na % de domínio.
- */
-const getDominioInfo = (pct) => {
-  switch (pct) {
-    case 100: return { label: '● Dominado',  color: theme.primary };
-    case 75:  return { label: 'Quase lá',    color: theme.primary };
-    case 50:  return { label: 'Avançando',   color: theme.primary };
-    case 25:  return { label: 'Iniciando',   color: theme.primary };
-    default:  return { label: 'Não iniciado', color: theme.textMuted };
-  }
-};
-
-/**
- * Retorna a opacidade da borda e das cartas de trás conforme o nível.
- */
-const getLevelStyle = (pct) => {
-  switch (pct) {
-    case 100: return { borderOpacity: 1.0,  stackOpacity: 1.0 };
-    case 75:  return { borderOpacity: 0.75, stackOpacity: 0.8 };
-    case 50:  return { borderOpacity: 0.5,  stackOpacity: 0.6 };
-    case 25:  return { borderOpacity: 0.3,  stackOpacity: 0.4 };
-    default:  return { borderOpacity: 0,    stackOpacity: 0.2 };
-  }
 };
 
 const DeckStackCard = ({ deck, onPress, onLongPress, onMenuPress, isSelected, multiSelectMode, width, height, categoryLabel }) => {
-  const subjectCount = deck.subjects?.length || 0;
-  const pct = calcDominio(deck.subjects);
-  const { label: statusLabel, color: statusColor } = getDominioInfo(pct);
-  const { borderOpacity, stackOpacity } = getLevelStyle(pct);
+  const { studied, total: subjectCount } = calcSubjectProgress(deck.subjects);
+  const hasStudied = studied > 0;
+
+  // fracs[i] = fração de cards com level >= (i+1)
+  const fracs = calcLevelFractions(deck.subjects);
+
+  // stackCard3: acende conforme maioria chega no level 1+
+  // stackCard2: acende conforme maioria chega no level 2+
+  // stackCard1: acende conforme maioria chega no level 3+
+  // borda:      acende conforme maioria chega no level 4+ e 5
+  const s3op = Math.min(1, fracs[0] * 2);
+  const s2op = Math.min(1, fracs[1] * 2);
+  const s1op = Math.min(1, fracs[2] * 2);
+  const borderOpacity = Math.min(0.55, fracs[3] * 2 * 0.3 + fracs[4] * 2 * 0.25);
+
+  const stackBg = (op) => op > 0 ? `rgba(93,214,44,${(op * 0.10).toFixed(2)})` : 'rgba(32,32,32,0.4)';
+  const stackBd = (op) => op > 0 ? `rgba(93,214,44,${(op * 0.40).toFixed(2)})` : 'rgba(93,214,44,0.05)';
 
   const cardWidth = width || DECK_CARD_WIDTH;
   const cardHeight = height || DECK_CARD_HEIGHT;
-
-  const borderColor = borderOpacity > 0
-    ? `rgba(93,214,44,${borderOpacity})`
-    : 'transparent';
-  const stackBg = `rgba(32,32,32,${stackOpacity})`;
-  const stackBorder = `rgba(93,214,44,${stackOpacity * 0.5})`;
 
   const [tooltip, setTooltip] = useState(null); // { x, y, label }
   const [isTruncated, setIsTruncated] = useState(false);
@@ -99,26 +88,14 @@ const DeckStackCard = ({ deck, onPress, onLongPress, onMenuPress, isSelected, mu
       style={[styles.container, { width: cardWidth, height: cardHeight }]}
     >
       {/* Cartas decorativas empilhadas atrás */}
-      <View style={[
-        styles.stackCard, styles.stackCard3,
-        { backgroundColor: stackBg, borderColor: stackBorder },
-      ]} />
-      <View style={[
-        styles.stackCard, styles.stackCard2,
-        { backgroundColor: stackBg, borderColor: stackBorder },
-      ]} />
-      <View style={[
-        styles.stackCard, styles.stackCard1,
-        { backgroundColor: stackBg, borderColor: stackBorder },
-      ]} />
+      <View style={[styles.stackCard, styles.stackCard3, { backgroundColor: stackBg(s3op), borderColor: stackBd(s3op) }]} />
+      <View style={[styles.stackCard, styles.stackCard2, { backgroundColor: stackBg(s2op), borderColor: stackBd(s2op) }]} />
+      <View style={[styles.stackCard, styles.stackCard1, { backgroundColor: stackBg(s1op), borderColor: stackBd(s1op) }]} />
 
       {/* Carta principal */}
       <View style={[
         styles.mainCard,
-        {
-          borderColor,
-          borderWidth: borderOpacity > 0 ? 1.5 : 1,
-        },
+        borderOpacity > 0 && { borderColor: `rgba(93,214,44,${borderOpacity})`, borderWidth: 1.5 },
         isSelected && styles.mainCardSelected,
       ]}>
         {/* Label categoria / DECK */}
@@ -167,16 +144,25 @@ const DeckStackCard = ({ deck, onPress, onLongPress, onMenuPress, isSelected, mu
 
         {/* Footer */}
         <View style={styles.footer}>
-          <View style={styles.subjectRow}>
-            <Text style={styles.subjectNumber}>{subjectCount}</Text>
-            <Text style={styles.subjectWord}>{subjectCount === 1 ? ' matéria' : ' matérias'}</Text>
-          </View>
-          {pct > 0 && (
-            <Text style={styles.pctLabel}>{pct}%</Text>
+          {hasStudied ? (
+            <>
+              <View style={styles.subjectRow}>
+                <Text style={styles.subjectNumber}>{studied}</Text>
+                <Text style={styles.subjectWord}>/{subjectCount}</Text>
+              </View>
+              <Text style={styles.subjectLabel}>
+                {studied === 1 ? 'matéria estudada' : 'matérias estudadas'}
+              </Text>
+            </>
+          ) : (
+            <>
+              <View style={styles.subjectRow}>
+                <Text style={styles.subjectNumber}>{subjectCount}</Text>
+                <Text style={styles.subjectWord}>{subjectCount === 1 ? ' matéria' : ' matérias'}</Text>
+              </View>
+              <Text style={styles.subjectLabel}>Não iniciado</Text>
+            </>
           )}
-          <Text style={[styles.statusLabel, { color: statusColor }]}>
-            {statusLabel}
-          </Text>
         </View>
       </View>
 
@@ -242,6 +228,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: theme.backgroundSecondary,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.backgroundTertiary,
     padding: 12,
     flex: 1,
   },
@@ -279,18 +267,14 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   subjectWord: {
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 15,
+    color: theme.textMuted,
+  },
+  subjectLabel: {
     fontFamily: theme.fontFamily.ui,
     fontSize: 11,
     color: theme.textMuted,
-  },
-  pctLabel: {
-    fontFamily: theme.fontFamily.heading,
-    fontSize: 13,
-    color: theme.primary,
-  },
-  statusLabel: {
-    fontFamily: theme.fontFamily.uiSemiBold,
-    fontSize: 12,
   },
 
   // Multi-select

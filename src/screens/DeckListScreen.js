@@ -251,7 +251,9 @@ const FeaturedCard = ({ label, title, subtitle, accentColor, onPress }) => {
 
 const RecentDeckCard = ({ deck, onPress }) => {
   const srsColor = getProgressColor(deck.subjects);
-  const progressPct = getProgressPercent(deck.subjects);
+  const subjects = deck.subjects || [];
+  const studiedSubjects = subjects.filter(s => (s.flashcards || []).some(c => (c.level || 0) > 0)).length;
+  const progressPct = subjects.length > 0 ? Math.round((studiedSubjects / subjects.length) * 100) : 0;
   const totalCards = getTotalCards(deck.subjects);
   // Decks sem progresso teriam cinza -- usar cor da categoria ou azul como fallback
   const rawCatId = deck.category;
@@ -338,8 +340,10 @@ const CategoryCard = ({ category, deckCount, onPress, isActive }) => {
 
 const DeckCard = ({ deck, onPress, onLongPress, isSelected, multiSelectMode }) => {
   const progressColor = getProgressColor(deck.subjects);
-  const progressPercent = getProgressPercent(deck.subjects);
-  const subjectCount = deck.subjects?.length || 0;
+  const subjects = deck.subjects || [];
+  const subjectCount = subjects.length;
+  const studiedSubjects = subjects.filter(s => (s.flashcards || []).some(c => (c.level || 0) > 0)).length;
+  const progressPercent = subjectCount > 0 ? Math.round((studiedSubjects / subjectCount) * 100) : 0;
 
   return (
     <TouchableOpacity
