@@ -1936,7 +1936,7 @@ export const DeckListScreen = ({ navigation }) => {
                     onPress={() => {
                       closeSubjectContextMenu();
                       if (!item) return;
-                      navigation.navigate('ManageFlashcards', { deckId: item.deck.id, subjectId: item.subject.id, preloadedCards: item.subject.flashcards, subjectName: item.subject.name });
+                      navigation.navigate('FlashcardHistory', { deckId: item.deck.id, subjectId: item.subject.id });
                     }}
                   >
                     <Ionicons name="layers-outline" size={16} color={theme.textPrimary} />

@@ -632,7 +632,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
                     <Ionicons name="add-circle-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Criar card</Text>
                   </TouchableOpacity>
                   <View style={ctx.sep} />
-                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) handleManageCards(sub); }}>
+                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('FlashcardHistory', { deckId, subjectId: sub.id }); }}>
                     <Ionicons name="layers-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Gerenciar Cards</Text>
                   </TouchableOpacity>
                   <View style={ctx.sep} />
