@@ -341,7 +341,7 @@ const edit = StyleSheet.create({
   iconGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
   iconOpt: { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.backgroundTertiary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'transparent' },
   iconOptSelected: { borderColor: theme.primary, backgroundColor: 'rgba(255,255,255,0.1)' },
-  saveBtn: { borderRadius: 16, paddingVertical: 16, backgroundColor: theme.primary, alignItems: 'center', marginTop: 28, shadowColor: theme.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
+  saveBtn: { borderRadius: 16, paddingVertical: 16, backgroundColor: theme.primary, alignItems: 'center', marginTop: 28, shadowColor: theme.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
   saveBtnDisabled: { backgroundColor: 'rgba(93,214,44,0.35)', shadowOpacity: 0, elevation: 0 },
   saveBtnTxt: { color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold, fontSize: 16 },
   saveBtnTxtDisabled: { color: 'rgba(15,15,15,0.5)', fontFamily: theme.fontFamily.uiBold, fontSize: 16 },

@@ -736,8 +736,8 @@ const s = StyleSheet.create({
   saveBtn: {
     height: 48, borderRadius: 14, backgroundColor: theme.primary,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
+    shadowColor: theme.primary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5, shadowRadius: 12, elevation: 6,
   },
   saveBtnDisabled: { backgroundColor: 'rgba(93,214,44,0.25)', shadowOpacity: 0, elevation: 0 },
   saveBtnText: { color: '#0F0F0F', fontSize: 15, fontFamily: theme.fontFamily.uiBold },
