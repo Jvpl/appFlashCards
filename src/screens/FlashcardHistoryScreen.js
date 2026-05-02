@@ -401,13 +401,35 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
         <View style={[s.sortLine, { flex: 0, width: 40 }]} />
       </View>
 
-      {/* Multi-select bar */}
+      {/* Barra de seleção — padrão da aba início */}
       {multiSelectMode && (
-        <View style={s.multiBar}>
-          <Text style={s.multiBarTxt}>{selectedCards.size} selecionado{selectedCards.size !== 1 ? 's' : ''}</Text>
-          <TouchableOpacity onPress={() => { setMultiSelectMode(false); setSelectedCards(new Set()); }}>
-            <Text style={s.multiBarCancel}>Cancelar</Text>
+        <View style={s.selectBar}>
+          <TouchableOpacity onPress={() => { setMultiSelectMode(false); setSelectedCards(new Set()); }} style={s.selectBarCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close" size={15} color={theme.textSecondary} />
+            <Text style={s.selectBarCancelTxt}>Cancelar</Text>
           </TouchableOpacity>
+          <Text style={s.selectBarCount}>{selectedCards.size === 1 ? '1 selecionado' : `${selectedCards.size} selecionados`}</Text>
+          <View style={s.selectBarActions}>
+            <TouchableOpacity
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={s.selectBarAction}
+              onPress={() => {
+                if (selectedCards.size === filteredCards.length) {
+                  setSelectedCards(new Set());
+                  setMultiSelectMode(false);
+                } else {
+                  setSelectedCards(new Set(filteredCards.map(c => c.id)));
+                }
+              }}
+            >
+              <Ionicons name="checkmark-done-outline" size={17} color={theme.textSecondary} />
+            </TouchableOpacity>
+            {selectedCards.size > 0 && (
+              <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={[s.selectBarAction, s.selectBarDelete]} onPress={deleteSelected}>
+                <Ionicons name="trash-outline" size={15} color={theme.danger} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
 
@@ -430,19 +452,13 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
         />
       )}
 
-      {/* FAB deletar */}
-      {multiSelectMode && selectedCards.size > 0 && (
-        <TouchableOpacity style={s.deleteFab} onPress={deleteSelected}>
-          <Ionicons name="trash" size={22} color="#fff" />
-        </TouchableOpacity>
-      )}
 
       {/* Context menu — padrão do app */}
       <Modal transparent animationType="fade" visible={contextMenu.visible} onRequestClose={closeContextMenu} statusBarTranslucent>
         <TouchableWithoutFeedback onPress={closeContextMenu}>
           <View style={{ flex: 1 }}>
             {(() => {
-              const menuW = 200, menuH = 156;
+              const menuW = 200, menuH = 104;
               let menuLeft = contextMenu.x - menuW;
               let menuTop  = contextMenu.y - menuH - 10;
               if (menuLeft < 8) menuLeft = 8;
@@ -450,11 +466,6 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
               if (menuTop < 60) menuTop = contextMenu.y + 10;
               return (
                 <View style={[ctx.menu, { left: menuLeft, top: menuTop }]}>
-                  <TouchableOpacity style={ctx.item} onPress={() => handleOptionSelect('edit')}>
-                    <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
-                    <Text style={ctx.itemText}>Editar</Text>
-                  </TouchableOpacity>
-                  <View style={ctx.sep} />
                   <TouchableOpacity style={ctx.item} onPress={() => handleOptionSelect('select')}>
                     <Ionicons name="checkbox-outline" size={16} color={theme.textPrimary} />
                     <Text style={ctx.itemText}>Selecionar</Text>
@@ -540,9 +551,13 @@ const s = StyleSheet.create({
   sortBtnTxtActive: { color: theme.primary, fontFamily: theme.fontFamily.uiSemiBold },
 
   // Multi-select
-  multiBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: theme.backgroundSecondary, borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary },
-  multiBarTxt: { fontFamily: theme.fontFamily.uiSemiBold, fontSize: 13, color: theme.textPrimary },
-  multiBarCancel: { fontFamily: theme.fontFamily.uiMedium, fontSize: 13, color: theme.primary },
+  selectBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, backgroundColor: theme.backgroundSecondary, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  selectBarCancel: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingRight: 8 },
+  selectBarCancelTxt: { color: theme.textSecondary, fontFamily: theme.fontFamily.uiMedium, fontSize: 13 },
+  selectBarCount: { flex: 1, textAlign: 'center', color: theme.primary, fontFamily: theme.fontFamily.headingSemiBold, fontSize: 13 },
+  selectBarActions: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 8 },
+  selectBarAction: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.05)' },
+  selectBarDelete: { backgroundColor: 'rgba(239,68,68,0.1)' },
 
   listContent: { paddingHorizontal: 16, paddingTop: 0, paddingBottom: 100, flexGrow: 1, gap: 10 },
 
@@ -592,7 +607,6 @@ const s = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
   emptyTxt: { fontFamily: theme.fontFamily.ui, fontSize: 14, color: theme.textMuted },
 
-  deleteFab: { position: 'absolute', right: 20, bottom: 24, width: 52, height: 52, borderRadius: 26, backgroundColor: theme.danger, alignItems: 'center', justifyContent: 'center', elevation: 6 },
 
 });
 
