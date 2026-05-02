@@ -80,7 +80,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const feedbackTextOpacity = useSharedValue(0);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackColor, setFeedbackColor] = useState('transparent');
-  const [nextReviewText, setNextReviewText] = useState('');
+  const [swipeReviewText, setSwipeReviewText] = useState('');
+  const previewTextsRef = useRef({ wrong: '', hard: '', easy: '' });
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
   const [sessionDone, setSessionDone] = useState(initialState.sessionDone);
   const [sessionNextReview, setSessionNextReview] = useState(initialState.sessionNextReview);
@@ -269,9 +270,18 @@ export const FlashcardScreen = ({ route, navigation }) => {
     const existingIndex = reviewUpdates.current.findIndex(c => c.id === updatedCard.id);
     if (existingIndex > -1) reviewUpdates.current[existingIndex] = updatedCard;
     else reviewUpdates.current.push(updatedCard);
-    setNextReviewText(getNextReviewText(updatedCard.nextReview));
-    setTimeout(() => setNextReviewText(''), 2000);
+    setSwipeReviewText('');
   }, [getNextReviewText]);
+
+  useEffect(() => {
+    const card = cards[jsCurrentIndex];
+    if (!card) { previewTextsRef.current = { wrong: '', hard: '', easy: '' }; return; }
+    previewTextsRef.current = {
+      wrong: getNextReviewText(calculateCardUpdate(card, 'wrong')?.nextReview),
+      hard: getNextReviewText(calculateCardUpdate(card, 'hard')?.nextReview),
+      easy: getNextReviewText(calculateCardUpdate(card, 'easy')?.nextReview),
+    };
+  }, [jsCurrentIndex, cards, getNextReviewText]);
 
   const panGestureRef = useRef();
   const gesture = useMemo(() => {
@@ -287,17 +297,21 @@ export const FlashcardScreen = ({ route, navigation }) => {
         let opacity = 0;
         if (event.translationX < -30 && xAbs > yAbs) { // Left
           runOnJS(setFeedbackText)('Errei'); runOnJS(setFeedbackColor)(theme.danger);
+          runOnJS(setSwipeReviewText)(previewTextsRef.current.wrong);
           opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
           leftGlowOpacity.value = opacity; rightGlowOpacity.value = 0; topGlowOpacity.value = 0;
         } else if (event.translationX > 30 && xAbs > yAbs) { // Right
           runOnJS(setFeedbackText)('Memorizado'); runOnJS(setFeedbackColor)(theme.success);
+          runOnJS(setSwipeReviewText)(previewTextsRef.current.easy);
           opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
           rightGlowOpacity.value = opacity; leftGlowOpacity.value = 0; topGlowOpacity.value = 0;
         } else if (event.translationY < -30 && yAbs > xAbs) { // Up
           runOnJS(setFeedbackText)('Quase'); runOnJS(setFeedbackColor)(theme.info);
+          runOnJS(setSwipeReviewText)(previewTextsRef.current.hard);
           opacity = interpolate(yAbs, [30, screenHeight / 3], [0, 1], 'clamp');
           topGlowOpacity.value = opacity; leftGlowOpacity.value = 0; rightGlowOpacity.value = 0;
         } else {
+          runOnJS(setSwipeReviewText)('');
           opacity = 0;
           leftGlowOpacity.value = withTiming(0); rightGlowOpacity.value = withTiming(0); topGlowOpacity.value = withTiming(0);
         }
@@ -360,11 +374,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
           });
         } else {
           // Retorno suave se não atingir o threshold
+          runOnJS(setSwipeReviewText)('');
           translateX.value = withSpring(0);
           translateY.value = withSpring(0);
         }
       });
-  }, [cards, handleReview, isFlipped, translateX, translateY, currentIndex]); // Adicionado dependências
+  }, [handleReview, isFlipped, translateX, translateY, currentIndex]);
 
   const handleReviewComplete = useCallback(async () => {
     if (!reviewMode || !subjectId) {
@@ -646,15 +661,15 @@ export const FlashcardScreen = ({ route, navigation }) => {
         </Animated.View>
       </GestureDetector>
 
-      <View style={[styles.swipeGuideContainer, { bottom: insets.bottom + 120 }]}>
+      <View style={[styles.swipeGuideContainer, { bottom: insets.bottom + 100 }]}>
         <Animated.Text style={[styles.feedbackText, { color: feedbackColor }, animatedFeedbackStyle]}>{feedbackText}</Animated.Text>
-        {nextReviewText && !reviewAll ? <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 2 }}>{nextReviewText}</Text> : null}
         <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
           <Text style={styles.swipeGuideText}>
             {jsIsFlipped ? "Arraste para classificar" : "Toque no card para revelar"}
             {currentCardForModal?.isUserCreated && <Ionicons name="ellipsis-horizontal" size={16} color={theme.textMuted} />}
           </Text>
         </TouchableOpacity>
+        {!reviewAll && <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, opacity: swipeReviewText ? 1 : 0 }}>{swipeReviewText || ' '}</Text>}
       </View>
 
 
