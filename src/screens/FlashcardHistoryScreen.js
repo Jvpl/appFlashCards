@@ -131,8 +131,10 @@ const SORT_OPTIONS = [
 ];
 
 const formatNextReview = (nextReview) => {
-  if (!nextReview || typeof nextReview !== 'number' || nextReview <= Date.now()) return 'Disponível';
-  const diff = nextReview - Date.now();
+  if (!nextReview) return 'Disponível';
+  const t = typeof nextReview === 'number' ? nextReview : new Date(nextReview).getTime();
+  if (isNaN(t) || t <= Date.now()) return 'Disponível';
+  const diff = t - Date.now();
   const mins = Math.floor(diff / 60000);
   const hrs  = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
@@ -226,7 +228,7 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
       case 'level_desc':return [...result].sort((a, b) => (b.level || 0) - (a.level || 0));
       case 'formula':   return result.filter(c => c.question && c.question.trim().match(/^<[^>]*(?:math-atom|data-latex)/i));
       case 'has_formula': return result.filter(c => hasFormula(c.question) || hasFormula(c.answer));
-      case 'review':    return [...result].sort((a, b) => ((a.nextReview || 0) <= Date.now() ? -1 : 1) - ((b.nextReview || 0) <= Date.now() ? -1 : 1));
+      case 'review':    return [...result].sort((a, b) => { const ta = a.nextReview ? new Date(a.nextReview).getTime() : 0; const tb = b.nextReview ? new Date(b.nextReview).getTime() : 0; return (ta <= Date.now() ? -1 : 1) - (tb <= Date.now() ? -1 : 1); });
       default:          return result;
     }
   }, [cards, searchTerm, sortKey, route.params]);
@@ -296,7 +298,7 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
     const questionText  = smartPreview(item.question);
     const answerText    = smartPreview(item.answer);
     const nextReviewTxt = formatNextReview(item.nextReview);
-    const available     = !item.nextReview || item.nextReview <= Date.now();
+    const available     = !item.nextReview || new Date(item.nextReview).getTime() <= Date.now();
 
     return (
       <TouchableOpacity

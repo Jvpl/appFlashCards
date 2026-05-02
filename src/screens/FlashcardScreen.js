@@ -403,10 +403,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
       const snapshot = [...reviewUpdates.current];
       await saveSessionProgress();
       let earliest = null;
+      const now = Date.now();
       const allToCheck = snapshot.length > 0 ? snapshot : cards;
       allToCheck.forEach(c => {
         if (c.nextReview) {
           const t = new Date(c.nextReview).getTime();
+          if (t <= now) { earliest = now; return; } // já disponível agora
           if (earliest === null || t < earliest) earliest = t;
         }
       });
@@ -536,7 +538,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
             <View style={fcs.doneNextRow}>
               <Ionicons name="time-outline" size={16} color={theme.textMuted} />
               <Text style={fcs.doneNextText}>
-                Próximo card disponível em <Text style={{ color: theme.primary }}>{formatNextReview(sessionNextReview)}</Text>
+                {sessionNextReview <= Date.now()
+                  ? <Text style={{ color: theme.primary }}>Há cards disponíveis agora</Text>
+                  : <>Próximo card disponível em <Text style={{ color: theme.primary }}>{formatNextReview(sessionNextReview)}</Text></>
+                }
               </Text>
             </View>
           )}
