@@ -56,7 +56,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const [cards, setCards] = useState(initialState.cards);
   const cacheKey = reviewAll ? `${deckId}-all` : `${deckId}-${subjectId}`;
-  const [loading, setLoading] = useState(!initialState.sessionDone);
+  const [loading, setLoading] = useState(initialState.cards.length === 0 && !initialState.sessionDone && !global.screenCache?.flashcards?.has(cacheKey));
 
   const [totalCardsInSession, setTotalCardsInSession] = useState(initialState.cards.length || 0);
   const isFocused = useIsFocused();
@@ -70,6 +70,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const resetKey = useSharedValue(0);
+  const swipeProgress = useSharedValue(0);
+  // 0=none 1=left(errei) 2=right(memorizado) 3=up(quase)
+  const swipeDirection = useSharedValue(0);
 
   const [jsCurrentIndex, setJsCurrentIndex] = useState(0);
   const [jsIsFlipped, setJsIsFlipped] = useState(false);
@@ -191,6 +194,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
   useAnimatedReaction(() => currentIndex.value, (res) => { runOnJS(setJsCurrentIndex)(Math.floor(res)) });
   useAnimatedReaction(() => isFlipped.value, (res) => { runOnJS(setJsIsFlipped)(res) });
 
+  // Warm-up: dispara withTiming invisível para compilar worklet antes do primeiro flip
+  const _warmup = useSharedValue(0);
+  useEffect(() => {
+    _warmup.value = withTiming(1, { duration: 1 }, () => { _warmup.value = 0; });
+  }, []);
+
   const saveSessionProgress = useCallback(async () => {
     if (reviewUpdates.current.length === 0) return;
     const allCurrentData = await getAppData();
@@ -295,27 +304,31 @@ export const FlashcardScreen = ({ route, navigation }) => {
         const yAbs = Math.abs(event.translationY);
 
         let opacity = 0;
-        if (event.translationX < -30 && xAbs > yAbs) { // Left
-          runOnJS(setFeedbackText)('Errei'); runOnJS(setFeedbackColor)(theme.danger);
+        if (event.translationX < -30 && xAbs > yAbs) { // Left — Errei
           runOnJS(setSwipeReviewText)(previewTextsRef.current.wrong);
           opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
           leftGlowOpacity.value = opacity; rightGlowOpacity.value = 0; topGlowOpacity.value = 0;
-        } else if (event.translationX > 30 && xAbs > yAbs) { // Right
-          runOnJS(setFeedbackText)('Memorizado'); runOnJS(setFeedbackColor)(theme.success);
+          swipeDirection.value = 1;
+          swipeProgress.value = opacity;
+        } else if (event.translationX > 30 && xAbs > yAbs) { // Right — Memorizado
           runOnJS(setSwipeReviewText)(previewTextsRef.current.easy);
           opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
           rightGlowOpacity.value = opacity; leftGlowOpacity.value = 0; topGlowOpacity.value = 0;
-        } else if (event.translationY < -30 && yAbs > xAbs) { // Up
-          runOnJS(setFeedbackText)('Quase'); runOnJS(setFeedbackColor)(theme.info);
+          swipeDirection.value = 2;
+          swipeProgress.value = opacity;
+        } else if (event.translationY < -30 && yAbs > xAbs) { // Up — Quase
           runOnJS(setSwipeReviewText)(previewTextsRef.current.hard);
           opacity = interpolate(yAbs, [30, screenHeight / 3], [0, 1], 'clamp');
           topGlowOpacity.value = opacity; leftGlowOpacity.value = 0; rightGlowOpacity.value = 0;
+          swipeDirection.value = 3;
+          swipeProgress.value = opacity;
         } else {
           runOnJS(setSwipeReviewText)('');
           opacity = 0;
           leftGlowOpacity.value = withTiming(0); rightGlowOpacity.value = withTiming(0); topGlowOpacity.value = withTiming(0);
+          swipeDirection.value = 0;
+          swipeProgress.value = 0;
         }
-        feedbackTextOpacity.value = opacity;
       })
       .onEnd((event) => {
         'worklet';
@@ -328,7 +341,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
         leftGlowOpacity.value = withTiming(0);
         rightGlowOpacity.value = withTiming(0);
         topGlowOpacity.value = withTiming(0);
-        feedbackTextOpacity.value = withTiming(0);
+        swipeProgress.value = withTiming(0);
+        swipeDirection.value = 0;
 
         const swipeThresholdX = screenWidth * 0.3;
         const swipeThresholdY = screenHeight * 0.2;
@@ -375,11 +389,13 @@ export const FlashcardScreen = ({ route, navigation }) => {
         } else {
           // Retorno suave se não atingir o threshold
           runOnJS(setSwipeReviewText)('');
+          swipeProgress.value = withTiming(0);
+          swipeDirection.value = 0;
           translateX.value = withSpring(0);
           translateY.value = withSpring(0);
         }
       });
-  }, [handleReview, isFlipped, translateX, translateY, currentIndex]);
+  }, [handleReview, isFlipped, translateX, translateY, currentIndex, swipeProgress, swipeDirection]);
 
   const handleReviewComplete = useCallback(async () => {
     if (!reviewMode || !subjectId) {
@@ -613,9 +629,6 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.studyContainer}>
-      <Animated.View style={[styles.glow, styles.glowLeft, animatedLeftGlowStyle]}><LinearGradient colors={[theme.dangerGlow, 'transparent']} style={styles.flexOne} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} /></Animated.View>
-      <Animated.View style={[styles.glow, styles.glowRight, animatedRightGlowStyle]}><LinearGradient colors={['transparent', theme.successGlow]} style={styles.flexOne} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} /></Animated.View>
-      <Animated.View style={[styles.glow, styles.glowTop, animatedTopGlowStyle]}><LinearGradient colors={[theme.infoGlow, 'transparent']} style={styles.flexOne} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} /></Animated.View>
 
       {currentCardForModal && <Modal animationType="fade" transparent={true} visible={isOptionsModalVisible} onRequestClose={() => setOptionsModalVisible(false)}>
         <TouchableWithoutFeedback onPress={() => setOptionsModalVisible(false)}>
@@ -654,6 +667,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
               jsIsFlipped={jsIsFlipped}
               resetKey={resetKey}
               showLevel={!reviewAll}
+              swipeProgress={swipeProgress}
+              swipeDirection={swipeDirection}
               onEdit={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: card.id })}
             />
           )
@@ -662,8 +677,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       </GestureDetector>
 
       <View style={[styles.swipeGuideContainer, { bottom: insets.bottom + 100 }]}>
-        <Animated.Text style={[styles.feedbackText, { color: feedbackColor }, animatedFeedbackStyle]}>{feedbackText}</Animated.Text>
-        <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
+<TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
           <Text style={styles.swipeGuideText}>
             {jsIsFlipped ? "Arraste para classificar" : "Toque no card para revelar"}
             {currentCardForModal?.isUserCreated && <Ionicons name="ellipsis-horizontal" size={16} color={theme.textMuted} />}
