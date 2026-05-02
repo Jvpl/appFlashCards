@@ -319,13 +319,17 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
 
         {/* Painel direito — conteúdo */}
         <View style={s.contentPanel}>
-          <Text style={[s.questionLabel, { color: '#FFFFFF' }]}>P:</Text>
-          <Text style={[s.questionText, { color: 'rgba(255,255,255,0.75)' }]} numberOfLines={3} ellipsizeMode="tail">{questionText}</Text>
+          <View style={s.qaRow}>
+            <Text style={[s.questionLabel, { color: '#FFFFFF' }]}>P: </Text>
+            <Text style={[s.questionText, { color: 'rgba(255,255,255,0.75)', flex: 1 }]} numberOfLines={3} ellipsizeMode="tail">{questionText}</Text>
+          </View>
 
-          <View style={s.divider} />
+          <View style={[s.divider, { marginHorizontal: -6 }]} />
 
-          <Text style={[s.answerLabel, { color: '#FFFFFF' }]}>R:</Text>
-          <Text style={[s.answerText, { color: 'rgba(255,255,255,0.75)' }]} numberOfLines={3} ellipsizeMode="tail">{answerText || '—'}</Text>
+          <View style={s.qaRow}>
+            <Text style={[s.answerLabel, { color: '#FFFFFF' }]}>R: </Text>
+            <Text style={[s.answerText, { color: 'rgba(255,255,255,0.75)', flex: 1 }]} numberOfLines={3} ellipsizeMode="tail">{answerText || '—'}</Text>
+          </View>
         </View>
 
         {/* Menu ou checkbox */}
@@ -550,7 +554,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.backgroundTertiary,
     overflow: 'hidden',
-    height: 190,
+    height: 172,
   },
   cardSelected: { borderColor: theme.primary, borderWidth: 2 },
 
@@ -571,12 +575,13 @@ const s = StyleSheet.create({
   separator: { width: 1, backgroundColor: theme.backgroundTertiary },
 
   // Painel direito — conteúdo
-  contentPanel: { flex: 1, paddingHorizontal: 14, paddingVertical: 12, gap: 2, justifyContent: 'center' },
-  questionLabel: { fontFamily: theme.fontFamily.uiBold, fontSize: 11, color: '#FFFFFF', letterSpacing: 0.5 },
-  questionText: { fontFamily: theme.fontFamily.uiSemiBold, fontSize: 13, color: '#FFFFFF', lineHeight: 19 },
-  divider: { height: 1, backgroundColor: theme.primary + '33', marginVertical: 7 },
-  answerLabel: { fontFamily: theme.fontFamily.uiBold, fontSize: 11, color: 'rgba(255,255,255,0.5)', letterSpacing: 0.5 },
-  answerText: { fontFamily: theme.fontFamily.ui, fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 17 },
+  contentPanel: { flex: 1, paddingLeft: 14, paddingRight: 30, paddingVertical: 10, justifyContent: 'space-between' },
+  qaRow: { flexDirection: 'row', alignItems: 'flex-start', flex: 1 },
+  questionLabel: { fontFamily: theme.fontFamily.uiBold, fontSize: 13, color: '#FFFFFF', letterSpacing: 0.5, lineHeight: 19 },
+  questionText: { fontFamily: theme.fontFamily.uiSemiBold, fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 19 },
+  divider: { height: 1, backgroundColor: theme.primary + '33', marginVertical: 6 },
+  answerLabel: { fontFamily: theme.fontFamily.uiBold, fontSize: 13, color: '#FFFFFF', letterSpacing: 0.5, lineHeight: 19 },
+  answerText: { fontFamily: theme.fontFamily.ui, fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 19 },
 
   // Menu / checkbox
   menuBtn: { position: 'absolute', top: 8, right: 6, padding: 4 },
