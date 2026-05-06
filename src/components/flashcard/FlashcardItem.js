@@ -1,7 +1,7 @@
 import React, { memo, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Platform, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming, Easing } from 'react-native-reanimated';
 import { Canvas, RoundedRect, BlurMask } from '@shopify/react-native-skia';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path as SvgPath } from 'react-native-svg';
@@ -39,19 +39,24 @@ const SwipeIcon = ({ paths, color, size = 80 }) => (
 
 const screenWidth = Dimensions.get('window').width;
 
-export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, onFlip, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit }) => {
+export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV }) => {
   const editingRef = useRef(false);
   const rotate = useSharedValue(0);
   const position = useDerivedValue(() => index - currentIndex.value);
   const isCurrentCard = index === jsCurrentIndex;
 
+  // localFlipped: troca quando rotate cruza 90° — controla pointerEvents das faces
   useAnimatedReaction(
     () => ({ flipped: isFlipped.value, pos: position.value, reset: resetKey ? resetKey.value : 0 }),
     (current, previous) => {
       const resetFired = previous && current.reset !== previous.reset;
-      if (resetFired || (current.pos === 0 && current.flipped !== previous?.flipped)) {
-        const targetFlip = resetFired ? false : !!current.flipped;
-        rotate.value = withTiming(targetFlip ? 180 : 0, { duration: resetFired ? 0 : 600 });
+      if (resetFired) {
+        rotate.value = withTiming(0, { duration: 0 });
+      } else if (current.pos === 0) {
+        const target = !!current.flipped ? 180 : 0;
+        if (rotate.value !== target) {
+          rotate.value = withTiming(target, { duration: 420, easing: Easing.out(Easing.cubic) });
+        }
       } else if (current.pos !== 0) {
         if (rotate.value !== 0) rotate.value = 0;
       }
@@ -100,10 +105,12 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
 
   const frontAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ rotateY: `${rotate.value}deg` }],
+    opacity: rotate.value > 90 ? 0 : 1,
   }));
 
   const backAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ rotateY: `${rotate.value + 180}deg` }],
+    opacity: rotate.value > 90 ? 1 : 0,
   }));
 
   // Texto do verso some rápido ao iniciar o swipe
@@ -240,9 +247,13 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
     }
   }, [jsCurrentIndex, index]);
 
-  const handleEditPressIn = () => { editingRef.current = true; };
+  const handleEditPressIn = () => {
+    editingRef.current = true;
+    if (footerPressedSV) footerPressedSV.value = true;
+  };
   const handleEdit = () => {
     editingRef.current = false;
+    if (footerPressedSV) footerPressedSV.value = false;
     onEdit && onEdit();
   };
 
@@ -279,21 +290,24 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
           </RoundedRect>
         </Canvas>
       )}
-      <Pressable disabled={index !== jsCurrentIndex} onPress={() => { if (!editingRef.current) onFlip(); }}>
+
+      <View>
+        {/* Face da frente — pointerEvents='none' quando virado (verso fica na frente) */}
         <Animated.View
-          pointerEvents={isCurrentCard && jsIsFlipped ? 'none' : 'auto'}
           style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle]}
+          pointerEvents={isCurrentCard && jsIsFlipped ? 'none' : 'auto'}
         >
-          <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
+          <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent} pointerEvents="none">
             {renderContent(card.question)}
           </ScrollView>
           {showLevel && <CardFooter level={card.level || 0} currentIndex={jsCurrentIndex} totalCards={totalCards} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
         </Animated.View>
+
+        {/* Face do verso — pointerEvents='none' quando não virado */}
         <Animated.View
-          pointerEvents={isCurrentCard && jsIsFlipped ? 'auto' : 'none'}
           style={[styles.card, styles.cardBack, (card.level || 0) === 5 && styles.cardDominated, backAnimatedStyle]}
+          pointerEvents={isCurrentCard && jsIsFlipped ? 'auto' : 'none'}
         >
-          {/* Borda SVG interna — padding uniforme, fundo alinhado ao footer */}
           {[
             { color: SWIPE_COLORS[1], anim: borderOpacityLeft },
             { color: SWIPE_COLORS[2], anim: borderOpacityRight },
@@ -311,15 +325,11 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
               </Animated.View>
             );
           })}
-
-          {/* Conteúdo da resposta — some rápido ao swipe */}
-          <Animated.View style={[{ flex: 1, width: '100%' }, backContentOpacity]}>
-            <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent}>
+          <Animated.View style={[{ flex: 1, width: '100%' }, backContentOpacity]} pointerEvents="none">
+            <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent} pointerEvents="none">
               {renderContent(card.answer)}
             </ScrollView>
           </Animated.View>
-
-          {/* Overlay com ícone+label — aparece progressivamente */}
           <Animated.View pointerEvents="none" style={[fi.swipeOverlay, swipeOverlayStyle]}>
             <Animated.View style={[fi.iconWrap, borderOpacityLeft]}>
               <SwipeIcon paths={ERREI_PATHS} color={SWIPE_COLORS[1]} size={64} />
@@ -334,10 +344,10 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
               <Text style={[fi.swipeLabel, { color: SWIPE_COLORS[3] }]}>QUASE</Text>
             </Animated.View>
           </Animated.View>
-
           {showLevel && <CardFooter level={card.level || 0} currentIndex={jsCurrentIndex} totalCards={totalCards} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
         </Animated.View>
-      </Pressable>
+      </View>
+
       <Animated.View style={[styles.cardOverlay, overlayAnimatedStyle]} pointerEvents="none" />
     </Animated.View>
   );
@@ -358,6 +368,11 @@ const fi = StyleSheet.create({
   },
   swipeLabel: {
     fontSize: 18, fontWeight: '800', letterSpacing: 2, marginTop: 12,
+  },
+  flipHitbox: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    bottom: FOOTER_H,
   },
 });
 

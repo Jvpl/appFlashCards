@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, Text, useWindowDimensions } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import Svg, { Circle, Path, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Canvas, Circle as SkiaCircle, BlurMask } from '@shopify/react-native-skia';
 import { Feather } from '@expo/vector-icons';

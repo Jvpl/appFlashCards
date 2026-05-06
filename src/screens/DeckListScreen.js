@@ -903,7 +903,7 @@ export const DeckListScreen = ({ navigation }) => {
       deckName: item.deck.name,
       subjectId: item.subject.id,
       subjectName: item.subject.name,
-      preloadedCards: item.subject.flashcards,
+      preloadedCards: item.subject.flashcards || [],
     });
   }, [multiSelectMode, navigation, toggleSelection]);
 

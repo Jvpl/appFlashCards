@@ -191,8 +191,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     if (isFocused) {
-      const task = InteractionManager.runAfterInteractions(() => loadData());
-      return () => task.cancel();
+      loadData();
     }
   }, [isFocused, loadData]);
 
@@ -215,7 +214,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
   const handleStudy = useCallback((subject) => {
     navigation.navigate('Flashcard', {
       deckId, deckName, subjectId: subject.id, subjectName: subject.name,
-      preloadedCards: subject.reviewMode ? subject.flashcards : subject.flashcards,
+      preloadedCards: subject.flashcards || [],
       reviewMode: !!subject.reviewMode,
     });
   }, [navigation, deckId]);

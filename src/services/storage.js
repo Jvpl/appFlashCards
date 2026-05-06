@@ -5,7 +5,10 @@ export const STORAGE_KEY = '@FlashcardsApp:data';
 const DATA_VERSION_KEY = '@FlashcardsApp:dataVersion';
 const CURRENT_DATA_VERSION = 'v2';
 
+let _memoryCache = null;
+
 export const getAppData = async () => {
+  if (_memoryCache) return _memoryCache;
   try {
     const jsonValue = await AsyncStorage.getItem(STORAGE_KEY);
 
@@ -36,11 +39,13 @@ export const getAppData = async () => {
           });
         });
       });
+      _memoryCache = data;
       return data;
     }
 
     await saveAppData(initialData);
     await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+    _memoryCache = initialData;
     return initialData;
   } catch (e) { console.error("Failed to fetch data", e); return initialData; }
 };
@@ -49,6 +54,7 @@ export const getAppData = async () => {
 
 export const saveAppData = async (value) => {
   try {
+    _memoryCache = value;
     const jsonValue = JSON.stringify(value);
     await AsyncStorage.setItem(STORAGE_KEY, jsonValue);
   } catch (e) { console.error("Failed to save data", e); }

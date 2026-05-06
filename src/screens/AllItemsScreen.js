@@ -278,7 +278,7 @@ export const AllItemsScreen = ({ route, navigation }) => {
           deckId: item.deck.id,
           subjectId: item.subject.id,
           subjectName: item.subject.name,
-          preloadedCards: item.subject.flashcards,
+          preloadedCards: item.subject.flashcards || [],
         });
         break;
     }
