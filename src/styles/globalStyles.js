@@ -12,7 +12,7 @@ const styles = StyleSheet.create({
   glowLeft: { left: 0, top: 0, bottom: 0 },
   glowRight: { right: 0, top: 0, bottom: 0 },
   glowTop: { top: 0, left: 0, right: 0, height: 100, width: '100%' },
-  cardWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%', marginBottom: 40 },
+  cardWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
   itemContainer: { backgroundColor: theme.backgroundSecondary, padding: 20, marginVertical: 8, marginHorizontal: 16, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   progressSubjectContainer: { backgroundColor: theme.backgroundSecondary, paddingHorizontal: 20, paddingVertical: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   itemTextContainer: { flex: 1, marginRight: 16 },

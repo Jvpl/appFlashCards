@@ -642,7 +642,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   if (cards.length === 0 && totalSubjectCards === 0) {
     return (
       <View style={fcs.root}>
-        <View style={fcs.emptyContainer}>
+        <View style={[fcs.emptyContainer, { paddingBottom: 40 + insets.bottom }]}>
           {/* Ícone central */}
           <View style={fcs.emptyIconRing}>
             <Ionicons name="layers-outline" size={36} color={theme.primary} />
@@ -714,7 +714,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       <GestureDetector gesture={gesture}>
         <Animated.View
           ref={cardWrapperRef}
-          style={styles.cardWrapper}
+          style={[styles.cardWrapper, { marginBottom: 40 + insets.bottom }]}
           onLayout={() => {
             cardWrapperRef.current?.measure((_x, _y, _w, _h, _px, py) => { cardTopY.value = py; });
           }}
@@ -872,7 +872,6 @@ const fcs = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 28,
-    paddingBottom: 40,
   },
   emptyIconRing: {
     width: 80,
