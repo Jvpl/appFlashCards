@@ -150,8 +150,14 @@ export const FlashcardScreen = ({ route, navigation }) => {
       setJsCurrentIndex(0);
       setJsIsFlipped(false);
     } else {
+      currentIndex.value = 0;
+      isFlipped.value = 0;
       translateX.value = 0;
       translateY.value = 0;
+      resetKey.value = resetKey.value + 1;
+      setJsCurrentIndex(0);
+      setJsIsFlipped(false);
+      sessionStudiedIds.current = new Set();
     }
 
     const data = allData;
