@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     paddingLeft: 10,
-    paddingRight: 10,
+    paddingRight: 34,
   },
   label: {
     fontFamily: theme.fontFamily.uiMedium,
