@@ -35,12 +35,18 @@ export const ProgressScreen = () => {
       const [data, history] = await Promise.all([getAppData(), getStudyHistory()]);
 
       // --- Progresso por deck/matéria com distribuição de níveis ---
+      const getAllCards = (subject) =>
+        subject.topics?.length > 0
+          ? subject.topics.flatMap(t => t.flashcards || [])
+          : (subject.flashcards || []);
+
       const structured = data.map(deck => {
         const subjectsWithLevels = deck.subjects.map(subject => {
+          const cards = getAllCards(subject);
           const levelCounts = [0, 0, 0, 0, 0, 0];
-          subject.flashcards.forEach(c => { levelCounts[c.level || 0]++; });
-          const totalLevels = subject.flashcards.length * 5;
-          const currentLevels = subject.flashcards.reduce((sum, c) => sum + (c.level || 0), 0);
+          cards.forEach(c => { levelCounts[c.level || 0]++; });
+          const totalLevels = cards.length * 5;
+          const currentLevels = cards.reduce((sum, c) => sum + (c.level || 0), 0);
           return {
             ...subject,
             levelCounts,
@@ -84,14 +90,17 @@ export const ProgressScreen = () => {
     if (totalToday === 0) {
       const now = new Date();
       let pendingCount = 0;
+      const isPending = (c) => {
+        if ((c.level || 0) >= 5) return false;
+        if (!c.nextReview) return true;
+        return new Date(c.nextReview) <= now;
+      };
       for (const deck of progressData) {
         for (const subject of deck.subjects) {
-          const subjectPending = subject.flashcards.filter(c => {
-            if ((c.level || 0) >= 5) return false;
-            if (!c.nextReview) return true;
-            return new Date(c.nextReview) <= now;
-          }).length;
-          pendingCount += subjectPending;
+          const cards = subject.topics?.length > 0
+            ? subject.topics.flatMap(t => t.flashcards || [])
+            : (subject.flashcards || []);
+          pendingCount += cards.filter(isPending).length;
         }
       }
 
@@ -163,10 +172,13 @@ export const ProgressScreen = () => {
         {expandedDeck === deck.id && deck.subjects.map((subject, idx) => (
           <View key={subject.id} style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
             <TouchableOpacity
-              onPress={() => navigation.navigate('Início', {
-                screen: 'HomeDrawer',
-                params: { screen: 'Flashcard', params: { deckId: deck.id, deckName: deck.name, subjectId: subject.id, subjectName: subject.name } }
-              })}
+              onPress={() => {
+                const target = subject.topics?.length > 0 ? 'TopicList' : 'Flashcard';
+                const params = subject.topics?.length > 0
+                  ? { deckId: deck.id, deckName: deck.name, subjectId: subject.id, subjectName: subject.name }
+                  : { deckId: deck.id, deckName: deck.name, subjectId: subject.id, subjectName: subject.name };
+                navigation.navigate('Início', { screen: 'HomeDrawer', params: { screen: target, params } });
+              }}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 4 }}>
                 <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>{subject.name}</Text>

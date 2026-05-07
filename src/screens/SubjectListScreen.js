@@ -212,12 +212,19 @@ export const SubjectListScreen = ({ route, navigation }) => {
   // ── Navigation ────────────────────────────────────────────────────
 
   const handleStudy = useCallback((subject) => {
-    navigation.navigate('Flashcard', {
-      deckId, deckName, subjectId: subject.id, subjectName: subject.name,
-      preloadedCards: subject.flashcards || [],
-      reviewMode: !!subject.reviewMode,
-    });
-  }, [navigation, deckId]);
+    if (subject.topics?.length > 0) {
+      navigation.navigate('TopicList', {
+        deckId, deckName, subjectId: subject.id, subjectName: subject.name,
+        preloadedTopics: subject.topics,
+      });
+    } else {
+      navigation.navigate('Flashcard', {
+        deckId, deckName, subjectId: subject.id, subjectName: subject.name,
+        preloadedCards: subject.flashcards || [],
+        reviewMode: !!subject.reviewMode,
+      });
+    }
+  }, [navigation, deckId, deckName]);
 
   const handleManageCards = useCallback((subject) => {
     navigation.navigate('ManageFlashcards', { deckId, subjectId: subject.id, preloadedCards: subject.flashcards, subjectName: subject.name });
@@ -407,13 +414,19 @@ export const SubjectListScreen = ({ route, navigation }) => {
 
   // ── Grid ──────────────────────────────────────────────────────────
 
+  // For subjects with topics, aggregate cards from all topics for display
+  const toDisplaySubject = (s) => {
+    if (!s.topics?.length) return s;
+    return { ...s, flashcards: s.topics.flatMap(t => t.flashcards || []) };
+  };
+
   const renderGrid = (items) => {
     const rows = [];
     for (let i = 0; i < items.length; i += 2) {
       rows.push(
         <View key={i} style={s.gridRow}>
           <MateriaCard
-            subject={items[i]} deck={deckObj}
+            subject={toDisplaySubject(items[i])} deck={deckObj}
             width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
             onPress={() => isSelectionMode ? handleToggleSelection(items[i].id) : handleStudy(items[i])}
             onLongPress={() => handleToggleSelection(items[i].id)}
@@ -423,7 +436,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
           />
           {items[i + 1] ? (
             <MateriaCard
-              subject={items[i + 1]} deck={deckObj}
+              subject={toDisplaySubject(items[i + 1])} deck={deckObj}
               width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
               onPress={() => isSelectionMode ? handleToggleSelection(items[i + 1].id) : handleStudy(items[i + 1])}
               onLongPress={() => handleToggleSelection(items[i + 1].id)}

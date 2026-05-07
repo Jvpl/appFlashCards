@@ -3,7 +3,7 @@ import { initialData } from '../data/mockData';
 
 export const STORAGE_KEY = '@FlashcardsApp:data';
 const DATA_VERSION_KEY = '@FlashcardsApp:dataVersion';
-const CURRENT_DATA_VERSION = 'v3';
+const CURRENT_DATA_VERSION = 'v4';
 
 let _memoryCache = null;
 
@@ -42,14 +42,18 @@ export const getAppData = async () => {
       if (changed) await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 
       // Migração de campos dos cards (existente)
+      const migrateCards = (cards) => {
+        cards.forEach(card => {
+          if (card.level === undefined) card.level = 0;
+          if (card.points === undefined) card.points = 0;
+          if (card.consecutiveCorrect === undefined) card.consecutiveCorrect = 0;
+          if (card.reviewStreak === undefined) card.reviewStreak = 0;
+        });
+      };
       data.forEach(deck => {
         deck.subjects.forEach(subject => {
-          subject.flashcards.forEach(card => {
-            if (card.level === undefined) card.level = 0;
-            if (card.points === undefined) card.points = 0;
-            if (card.consecutiveCorrect === undefined) card.consecutiveCorrect = 0;
-            if (card.reviewStreak === undefined) card.reviewStreak = 0;
-          });
+          migrateCards(subject.flashcards || []);
+          (subject.topics || []).forEach(topic => migrateCards(topic.flashcards || []));
         });
       });
       _memoryCache = data;
@@ -281,6 +285,66 @@ export const saveStudySession = async (session) => {
   }
 };
 
+
+// ============================================
+// Helpers para hierarquia: Deck → Matéria → Assunto → Cards
+// ============================================
+
+/**
+ * Encontra um subject ou topic pelo id dentro de um deck.
+ * Retorna o objeto encontrado (subject ou topic) ou null.
+ */
+export const findStudyUnit = (deck, unitId) => {
+  for (const s of (deck.subjects || [])) {
+    if (s.id === unitId) return s;
+    for (const t of (s.topics || [])) {
+      if (t.id === unitId) return t;
+    }
+  }
+  return null;
+};
+
+/**
+ * Retorna todos os flashcards de um subject ou topic (incluindo de topics aninhados).
+ */
+export const getAllCards = (unit) => {
+  if (unit.topics?.length > 0) return unit.topics.flatMap(t => t.flashcards || []);
+  return unit.flashcards || [];
+};
+
+/**
+ * Atualiza os flashcards de um study unit (subject ou topic) em allData,
+ * retornando um novo array de dados.
+ * @param {Array} allData
+ * @param {string} deckId
+ * @param {string} unitId
+ * @param {(cards: Array) => Array} updateFn
+ */
+export const updateStudyUnit = (allData, deckId, unitId, updateFn) => {
+  return allData.map(deck => {
+    if (deck.id !== deckId) return deck;
+    return {
+      ...deck,
+      subjects: deck.subjects.map(subject => {
+        if (subject.id === unitId) {
+          return { ...subject, flashcards: updateFn(subject.flashcards || []) };
+        }
+        if (subject.topics) {
+          const topicIdx = subject.topics.findIndex(t => t.id === unitId);
+          if (topicIdx >= 0) {
+            return {
+              ...subject,
+              topics: subject.topics.map((t, i) =>
+                i !== topicIdx ? t : { ...t, flashcards: updateFn(t.flashcards || []) }
+              ),
+            };
+          }
+        }
+        return subject;
+      }),
+    };
+  });
+};
 
 export default {
   STORAGE_KEY,

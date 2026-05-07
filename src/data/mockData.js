@@ -457,8 +457,13 @@ export const initialData = [
     subjects: [
       // ── PORTUGUÊS ──────────────────────────────
       {
+        id: 'subj_pb2_pt',
+        name: 'Português',
+        flashcards: [],
+        topics: [
+      {
         id: 'subj_pb2_port_comp',
-        name: 'Português - Compreensão de Textos',
+        name: 'Compreensão de Textos',
         flashcards: [
           card('pb2_pc_1', 'O que é compreensão textual?', 'Capacidade de entender o significado global do texto, suas ideias principais e a intenção do autor.'),
           card('pb2_pc_2', 'O que é gênero narrativo?', 'Texto que relata ações e eventos em sequência temporal. Possui narrador, personagens e enredo.'),
@@ -470,7 +475,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_port_tip',
-        name: 'Português - Tipos Textuais',
+        name: 'Tipos Textuais',
         flashcards: [
           card('pb2_pt_1', 'Quais são os tipos textuais?', 'Narração, descrição, dissertação, exposição e injunção.'),
           card('pb2_pt_2', 'O que caracteriza um texto expositivo?', 'Apresenta informações de forma objetiva e clara, sem argumentar. Ex: verbetes de enciclopédia.'),
@@ -482,7 +487,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_port_ort',
-        name: 'Português - Ortografia Oficial',
+        name: 'Ortografia Oficial',
         flashcards: [
           card('pb2_po_1', 'O que rege a ortografia brasileira atual?', 'O Acordo Ortográfico de 1990, em vigor no Brasil desde 2009, unificando a ortografia dos países lusófonos.'),
           card('pb2_po_2', 'Quando usar "s" ou "z"?', '"S" em palavras como casa, mesa. "Z" em verbos terminados em -izar (realizar, organizar) e sufixo -ez (frieza).'),
@@ -494,7 +499,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_port_cl',
-        name: 'Português - Classes de Palavras',
+        name: 'Classes de Palavras',
         flashcards: [
           card('pb2_pcl_1', 'Quais são as 10 classes de palavras?', 'Substantivo, adjetivo, artigo, numeral, pronome, verbo, advérbio, preposição, conjunção e interjeição.'),
           card('pb2_pcl_2', 'O que é advérbio?', 'Palavra que modifica verbo, adjetivo ou outro advérbio. Indica modo, tempo, lugar, intensidade, etc.'),
@@ -506,7 +511,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_port_mor',
-        name: 'Português - Morfossintaxe: Estrutura da Oração',
+        name: 'Morfossintaxe: Estrutura da Oração',
         flashcards: [
           card('pb2_pmo_1', 'O que é sujeito?', 'Termo sobre o qual se declara algo. Concorda com o verbo em pessoa e número.'),
           card('pb2_pmo_2', 'O que é predicado?', 'Tudo que se declara sobre o sujeito. Inclui o verbo e seus complementos.'),
@@ -518,7 +523,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_port_reg',
-        name: 'Português - Regência Verbal e Nominal',
+        name: 'Regência Verbal e Nominal',
         flashcards: [
           card('pb2_prv_1', 'O que é regência?', 'Relação de dependência entre um verbo ou nome e seus complementos, com ou sem preposição.'),
           card('pb2_prv_2', 'O verbo "assistir" no sentido de ver pede qual preposição?', '"A". Ex: "Assistiu ao procedimento." — Transitivo indireto.'),
@@ -530,7 +535,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_port_conc',
-        name: 'Português - Concordância',
+        name: 'Concordância',
         flashcards: [
           card('pb2_pco_1', 'O que é concordância verbal?', 'O verbo deve concordar em número e pessoa com o sujeito. Ex: "Os enfermeiros chegaram."'),
           card('pb2_pco_2', 'O que é concordância nominal?', 'Adjetivo, artigo e pronome concordam em gênero e número com o substantivo.'),
@@ -542,7 +547,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_port_sin',
-        name: 'Português - Pontuação',
+        name: 'Pontuação',
         flashcards: [
           card('pb2_pp_1', 'Quando usar vírgula antes de "mas"?', 'Sempre. A vírgula separa as orações coordenadas adversativas. Ex: "Estudei, mas não passei."'),
           card('pb2_pp_2', 'Quando NÃO usar vírgula entre sujeito e verbo?', 'Nunca separe sujeito de seu verbo com vírgula. Ex: "Os alunos estudaram." (sem vírgula).'),
@@ -552,10 +557,17 @@ export const initialData = [
           card('pb2_pp_6', 'O aposto explicativo exige vírgula?', 'Sim, é isolado por vírgulas. Ex: "São Paulo, a maior cidade do Brasil, é muito populosa."'),
         ],
       },
+        ], // end topics for Português
+      }, // end Português subject
       // ── MATEMÁTICA ─────────────────────────────
       {
+        id: 'subj_pb2_mat',
+        name: 'Matemática',
+        flashcards: [],
+        topics: [
+      {
         id: 'subj_pb2_mat_conj',
-        name: 'Matemática - Conjuntos Numéricos',
+        name: 'Conjuntos Numéricos',
         flashcards: [
           card('pb2_mc_1', 'O que são números naturais (ℕ)?', 'Números inteiros não negativos usados para contar. ℕ = {0, 1, 2, 3, ...}'),
           card('pb2_mc_2', 'O que são números inteiros (ℤ)?', 'Incluem naturais e negativos. ℤ = {..., -2, -1, 0, 1, 2, ...}'),
@@ -567,7 +579,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_mat_func',
-        name: 'Matemática - Funções',
+        name: 'Funções',
         flashcards: [
           card('pb2_mf_1', 'O que é função do 1º grau?', 'f(x) = ax + b, com a≠0. Gráfico é uma reta. Crescente se a>0, decrescente se a<0.'),
           card('pb2_mf_2', 'O que é função do 2º grau?', 'f(x) = ax² + bx + c, com a≠0. Gráfico é uma parábola.'),
@@ -579,7 +591,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_mat_eq',
-        name: 'Matemática - Equações e Sistemas',
+        name: 'Equações e Sistemas',
         flashcards: [
           card('pb2_meq_1', 'O que é equação do 1º grau?', 'ax + b = 0, com a≠0. Tem sempre uma solução. Ex: 2x + 4 = 0 → x = -2.'),
           card('pb2_meq_2', 'O que é sistema linear?', 'Conjunto de equações com as mesmas incógnitas. Solução é o ponto que satisfaz todas as equações.'),
@@ -591,7 +603,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_mat_pa_pg',
-        name: 'Matemática - Progressões (PA e PG)',
+        name: 'Progressões (PA e PG)',
         flashcards: [
           card('pb2_mpg_1', 'O que é PA (Progressão Aritmética)?', 'Sequência onde a diferença entre termos consecutivos é constante (razão r). Ex: 2, 5, 8, 11 (r=3).'),
           card('pb2_mpg_2', 'Qual a fórmula do termo geral da PA?', 'aₙ = a₁ + (n-1)·r'),
@@ -603,7 +615,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_mat_comb',
-        name: 'Matemática - Análise Combinatória',
+        name: 'Análise Combinatória',
         flashcards: [
           card('pb2_mcb_1', 'O que é fatorial?', 'n! = n × (n-1) × ... × 2 × 1. Ex: 5! = 120. Por definição, 0! = 1.'),
           card('pb2_mcb_2', 'O que é permutação simples?', 'Número de formas de arranjar n elementos distintos. Pₙ = n!'),
@@ -615,7 +627,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_mat_trig',
-        name: 'Matemática - Trigonometria',
+        name: 'Trigonometria',
         flashcards: [
           card('pb2_mtr_1', 'O que é seno?', 'Razão entre cateto oposto e hipotenusa. sen(θ) = CO/HIP.'),
           card('pb2_mtr_2', 'O que é cosseno?', 'Razão entre cateto adjacente e hipotenusa. cos(θ) = CA/HIP.'),
@@ -627,7 +639,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_mat_geo',
-        name: 'Matemática - Geometria Plana e Espacial',
+        name: 'Geometria Plana e Espacial',
         flashcards: [
           card('pb2_mgp_1', 'Qual a área do triângulo?', 'A = base × altura / 2.'),
           card('pb2_mgp_2', 'Qual a área do círculo?', 'A = π × r².'),
@@ -639,7 +651,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_mat_fin',
-        name: 'Matemática - Financeira',
+        name: 'Financeira',
         flashcards: [
           card('pb2_mfi_1', 'O que é capital?', 'Valor inicial aplicado ou emprestado, também chamado de principal.'),
           card('pb2_mfi_2', 'O que são juros simples?', 'Juros calculados sempre sobre o capital inicial. J = C × i × t.'),
@@ -649,10 +661,17 @@ export const initialData = [
           card('pb2_mfi_6', 'Qual a diferença entre desconto simples e composto?', 'Desconto simples é calculado sobre o valor nominal. Composto é calculado sobre o valor presente acumulado.'),
         ],
       },
+        ], // end topics for Matemática
+      }, // end Matemática subject
       // ── CONHECIMENTOS ESPECÍFICOS ───────────────
       {
+        id: 'subj_pb2_enf',
+        name: 'Enfermagem',
+        flashcards: [],
+        topics: [
+      {
         id: 'subj_pb2_enf_urg',
-        name: 'Enfermagem - Urgências e Emergências',
+        name: 'Urgências e Emergências',
         flashcards: [
           card('pb2_eu_1', 'O que é atendimento pré-hospitalar?', 'Conjunto de ações realizadas fora do hospital para estabilizar e transportar a vítima com segurança.'),
           card('pb2_eu_2', 'Qual a diferença entre urgência e emergência?', 'Urgência: risco à saúde sem risco imediato de morte. Emergência: risco imediato de morte.'),
@@ -664,7 +683,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_enf_epid',
-        name: 'Enfermagem - Epidemiologia',
+        name: 'Epidemiologia',
         flashcards: [
           card('pb2_ee_1', 'O que é epidemiologia?', 'Ciência que estuda distribuição, frequência e determinantes de doenças em populações.'),
           card('pb2_ee_2', 'O que é incidência?', 'Número de casos novos de uma doença em determinada população e período de tempo.'),
@@ -676,7 +695,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_enf_saude_col',
-        name: 'Enfermagem - Saúde Coletiva',
+        name: 'Saúde Coletiva',
         flashcards: [
           card('pb2_esc_1', 'O que é saúde coletiva?', 'Campo de conhecimento que articula epidemiologia, ciências sociais e políticas de saúde para cuidar de populações.'),
           card('pb2_esc_2', 'O que são doenças transmissíveis?', 'Doenças causadas por agentes infecciosos transmitidos de pessoa a pessoa ou por vetores.'),
@@ -688,7 +707,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_enf_trab',
-        name: 'Enfermagem - Saúde do Trabalhador',
+        name: 'Saúde do Trabalhador',
         flashcards: [
           card('pb2_et_1', 'O que é saúde do trabalhador?', 'Campo que visa compreender e intervir nas relações entre trabalho, saúde e doença.'),
           card('pb2_et_2', 'O que é doença ocupacional?', 'Doença produzida ou desencadeada pelo exercício do trabalho peculiar a determinada atividade.'),
@@ -700,7 +719,7 @@ export const initialData = [
       },
       {
         id: 'subj_pb2_enf_imun',
-        name: 'Enfermagem - Imunização e Vigilância',
+        name: 'Imunização e Vigilância',
         flashcards: [
           card('pb2_ei_1', 'O que é imunização?', 'Processo pelo qual o organismo adquire proteção contra doenças infecciosas por vacinas ou soros.'),
           card('pb2_ei_2', 'O que é imunidade ativa?', 'Imunidade adquirida pelo próprio organismo após contato com antígeno (doença ou vacina). Duradoura.'),
@@ -710,6 +729,8 @@ export const initialData = [
           card('pb2_ei_6', 'O que é notificação compulsória?', 'Comunicação obrigatória às autoridades de doenças e agravos previstos em lista nacional do Ministério da Saúde.'),
         ],
       },
+        ], // end topics for Enfermagem
+      }, // end Enfermagem subject
     ],
   },
   {
