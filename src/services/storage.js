@@ -3,7 +3,7 @@ import { initialData } from '../data/mockData';
 
 export const STORAGE_KEY = '@FlashcardsApp:data';
 const DATA_VERSION_KEY = '@FlashcardsApp:dataVersion';
-const CURRENT_DATA_VERSION = 'v2';
+const CURRENT_DATA_VERSION = 'v3';
 
 let _memoryCache = null;
 
@@ -21,8 +21,11 @@ export const getAppData = async () => {
         data = data.filter(deck =>
           deck.isUserCreated === true || deck.id === 'deck_exemplo'
         );
-        if (!data.some(d => d.id === 'deck_exemplo')) {
-          data.unshift({ ...initialData[0] });
+        // Adiciona decks padrão do initialData que ainda não existem
+        for (const defaultDeck of initialData) {
+          if (!data.some(d => d.id === defaultDeck.id)) {
+            data.unshift({ ...defaultDeck });
+          }
         }
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
