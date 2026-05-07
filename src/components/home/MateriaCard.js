@@ -40,7 +40,7 @@ const MateriaCard = ({
     <TouchableOpacity
       onPressIn={handlePressIn}
       onPress={handlePress}
-      onLongPress={onLongPress}
+      onLongPress={() => onLongPress?.({ nativeEvent: { pageX: touchStart.current?.x || 0, pageY: touchStart.current?.y || 0 } })}
       activeOpacity={0.80}
       style={[styles.card, { width: cardWidth, height: cardHeight }, isSelected && styles.cardSelected, isReview && styles.cardReview]}
     >

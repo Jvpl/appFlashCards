@@ -429,7 +429,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
             subject={toDisplaySubject(items[i])} deck={deckObj}
             width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
             onPress={() => isSelectionMode ? handleToggleSelection(items[i].id) : handleStudy(items[i])}
-            onLongPress={() => handleToggleSelection(items[i].id)}
+            onLongPress={(e) => { handleToggleSelection(items[i].id); handleMenuPress(items[i], e); }}
             onMenuPress={(e) => handleMenuPress(items[i], e)}
             isSelected={selectedSubjects.includes(items[i].id)}
             selectMode={isSelectionMode}
@@ -439,7 +439,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
               subject={toDisplaySubject(items[i + 1])} deck={deckObj}
               width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
               onPress={() => isSelectionMode ? handleToggleSelection(items[i + 1].id) : handleStudy(items[i + 1])}
-              onLongPress={() => handleToggleSelection(items[i + 1].id)}
+              onLongPress={(e) => { handleToggleSelection(items[i + 1].id); handleMenuPress(items[i + 1], e); }}
               onMenuPress={(e) => handleMenuPress(items[i + 1], e)}
               isSelected={selectedSubjects.includes(items[i + 1].id)}
               selectMode={isSelectionMode}
