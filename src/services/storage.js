@@ -31,6 +31,16 @@ export const getAppData = async () => {
         await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
       }
 
+      // Garante que decks padrão sempre existam (mesmo se deletados)
+      let changed = false;
+      for (const defaultDeck of initialData) {
+        if (defaultDeck.isDefaultDeck && !data.some(d => d.id === defaultDeck.id)) {
+          data.unshift({ ...defaultDeck });
+          changed = true;
+        }
+      }
+      if (changed) await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
       // Migração de campos dos cards (existente)
       data.forEach(deck => {
         deck.subjects.forEach(subject => {
