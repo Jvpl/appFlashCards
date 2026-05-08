@@ -20,5 +20,18 @@ allprojects {
   }
 }
 
+// Força CMake 3.30.5 em todos os subprojetos para evitar bug do 3.22.1 com caminhos Windows longos
+subprojects {
+  plugins.withId('com.android.library') {
+    android {
+      externalNativeBuild {
+        cmake {
+          version "3.30.5"
+        }
+      }
+    }
+  }
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"

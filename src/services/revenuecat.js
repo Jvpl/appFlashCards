@@ -2,10 +2,14 @@ import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 
 const API_KEY_ANDROID = 'test_XminOJMcZRQAKBbdDlTOUmXhEiV';
 
+// Em builds de release sem chave de produção, desativa RevenueCat
+// para evitar o dialog "Wrong API Key" que fecha o app.
+const RC_ENABLED = __DEV__;
+
 let _isConfigured = false;
 
 const ensureConfigured = async () => {
-  if (_isConfigured) return;
+  if (!RC_ENABLED || _isConfigured) return;
   Purchases.setLogLevel(LOG_LEVEL.DEBUG);
   await Purchases.configure({ apiKey: API_KEY_ANDROID });
   _isConfigured = true;
@@ -16,6 +20,7 @@ const ensureConfigured = async () => {
  * Deve ser chamado no App.js ao iniciar o app
  */
 export const initializeRevenueCat = async () => {
+  if (!RC_ENABLED) return;
   try {
     await ensureConfigured();
     console.log('✅ RevenueCat inicializado com sucesso');
@@ -110,6 +115,7 @@ export const getActiveEntitlements = async () => {
  * Cobre compras únicas (nonSubscriptionTransactions) e entitlements ativos.
  */
 export const getPurchasedProductIds = async () => {
+  if (!RC_ENABLED) return [];
   try {
     await ensureConfigured();
     const customerInfo = await Purchases.getCustomerInfo();
