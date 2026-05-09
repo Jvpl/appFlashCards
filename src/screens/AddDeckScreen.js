@@ -78,13 +78,23 @@ const CategoryTile = React.memo(({ item, selected, onPress, onBlurInput, deckCou
   </TouchableOpacity>
 ), (prev, next) => prev.selected === next.selected && prev.deckCount === next.deckCount && prev.showArrow === next.showArrow);
 
-const CustomCategoryTile = React.memo(({ item, selected, onPress, onLongPress, onBlurInput, deckCount = 0, onScrollToInput, showArrow, deleteMode, deleteSelected }) => (
+const CustomCategoryTile = React.memo(({ item, selected, onPress, onLongPress, onBlurInput, deckCount = 0, onScrollToInput, showArrow, deleteMode, deleteSelected }) => {
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const didSwipe = useRef(false);
+  return (
   <TouchableOpacity
-    onPress={() => { onPress(); onBlurInput?.(); Keyboard.dismiss(); }}
-    onLongPress={() => { onLongPress?.(); Keyboard.dismiss(); }}
+    onPress={() => { if (didSwipe.current) return; onPress(); onBlurInput?.(); Keyboard.dismiss(); }}
+    onLongPress={() => { if (didSwipe.current) return; onLongPress?.(); Keyboard.dismiss(); }}
     delayLongPress={400}
     activeOpacity={0.75}
     style={s.catTile}
+    onPressIn={e => { startX.current = e.nativeEvent.pageX; startY.current = e.nativeEvent.pageY; didSwipe.current = false; }}
+    onPressOut={e => {
+      const dx = Math.abs(e.nativeEvent.pageX - startX.current);
+      const dy = Math.abs(e.nativeEvent.pageY - startY.current);
+      if (dx > 8 || dy > 8) didSwipe.current = true;
+    }}
   >
     <SvgXml xml={CATEGORY_TILE_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />
     {selected && !deleteMode && <SvgXml xml={CATEGORY_TILE_SELECTED_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
@@ -115,7 +125,8 @@ const CustomCategoryTile = React.memo(({ item, selected, onPress, onLongPress, o
       <Text style={s.catTileBadgeText}>{String(deckCount).padStart(2, '0')}</Text>
     </View>
   </TouchableOpacity>
-), (prev, next) =>
+  );
+}, (prev, next) =>
   prev.selected === next.selected &&
   prev.deleteMode === next.deleteMode &&
   prev.deleteSelected === next.deleteSelected &&
@@ -174,6 +185,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
   const [catInputFocused, setCatInputFocused] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [customCategories, setCustomCategories] = useState([]);
+  const customCategoriesRef = useRef([]);
   const [deckCountMap, setDeckCountMap] = useState({}); // { categoryId: count }
   const [catFilter, setCatFilter] = useState('preset'); // 'preset' | 'custom'
   const [deleteMode, setDeleteMode] = useState(false);
@@ -260,8 +272,22 @@ export const AddDeckScreen = ({ route, navigation }) => {
     if (showArrowRef.current) scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, []);
 
+  const cardHeightMap = useRef({});
+  const scrollIfCoveredByFab = useCallback((cardId, getItems) => {
+    if (!cardId) return;
+    const allItems = typeof getItems === 'function' ? getItems() : getItems;
+    if (!allItems?.length) return;
+    const lastRowCount = allItems.length % 2 === 0 ? 2 : 1;
+    const lastRow = allItems.slice(-lastRowCount).map(i => i.id);
+    if (!lastRow.includes(cardId)) return;
+    setTimeout(() => {
+      scroll2Ref.current?.scrollToEnd({ animated: true });
+    }, 80);
+  }, []);
+
   // Mantém refs sincronizados com state para o listener beforeRemove
   useEffect(() => { nameRef.current = name; }, [name]);
+  useEffect(() => { customCategoriesRef.current = customCategories; }, [customCategories]);
   useEffect(() => { categoryRef.current = selectedCategory; }, [selectedCategory]);
 
   const hasChanges = () =>
@@ -612,7 +638,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
                                 <CategoryTile
                                   item={item}
                                   selected={selectedCategory === item.id}
-                                  onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
+                                  onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, CATEGORIES); } }}
                                   onBlurInput={() => inputRef.current?.blur()}
                                   deckCount={deckCountMap[item.id] || 0}
                                   showArrow={showArrow}
@@ -627,7 +653,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
                                 <CategoryTile
                                   item={item}
                                   selected={selectedCategory === item.id}
-                                  onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
+                                  onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, CATEGORIES); } }}
                                   onBlurInput={() => inputRef.current?.blur()}
                                   deckCount={deckCountMap[item.id] || 0}
                                   showArrow={showArrow}
@@ -847,7 +873,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
           {!editDeckId && <ScrollView
             ref={scroll2Ref}
             style={s.scroll}
-            contentContainerStyle={[s.scrollContent, { paddingBottom: keyboardHeight + 32 }]}
+            contentContainerStyle={[s.scrollContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + insets.bottom + 8 : selectedCategory ? insets.bottom + 80 : insets.bottom + 4 }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
@@ -901,11 +927,11 @@ export const AddDeckScreen = ({ route, navigation }) => {
                     <View style={[s.colsWrap, catFilter !== 'preset' && { display: 'none' }]}>
                       <View style={s.col}>
                         {left.map(item => (
-                          <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                          <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; const h = e.nativeEvent.layout.height; cardYMap.current[item.id] = y; cardHeightMap.current[item.id] = h; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
                             <CategoryTile
                               item={item}
                               selected={selectedCategory === item.id}
-                              onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
+                              onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, CATEGORIES); } }}
                               onBlurInput={() => inputRef.current?.blur()}
                               deckCount={deckCountMap[item.id] || 0}
                               showArrow={showArrow}
@@ -916,11 +942,11 @@ export const AddDeckScreen = ({ route, navigation }) => {
                       </View>
                       <View style={s.col}>
                         {right.map(item => (
-                          <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                          <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; const h = e.nativeEvent.layout.height; cardYMap.current[item.id] = y; cardHeightMap.current[item.id] = h; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
                             <CategoryTile
                               item={item}
                               selected={selectedCategory === item.id}
-                              onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }}
+                              onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, CATEGORIES); } }}
                               onBlurInput={() => inputRef.current?.blur()}
                               deckCount={deckCountMap[item.id] || 0}
                               showArrow={showArrow}
@@ -1028,15 +1054,15 @@ export const AddDeckScreen = ({ route, navigation }) => {
                       <View style={s.colsWrap}>
                         <View style={s.col}>
                           {left.map(item => (
-                            <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
-                              <CustomCategoryTile item={item} selected={selectedCategory === item.id} onPress={() => { if (deleteMode) { setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; }); return; } const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }} onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }} onBlurInput={() => inputRef.current?.blur()} deckCount={deckCountMap[item.id] || 0} showArrow={showArrow} onScrollToInput={scrollToInput} deleteMode={deleteMode} deleteSelected={deleteSelected.has(item.id)} />
+                            <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; const h = e.nativeEvent.layout.height; cardYMap.current[item.id] = y; cardHeightMap.current[item.id] = h; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                              <CustomCategoryTile item={item} selected={selectedCategory === item.id} onPress={() => { if (deleteMode) { setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; }); return; } const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, () => customCategoriesRef.current); } }} onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }} onBlurInput={() => inputRef.current?.blur()} deckCount={deckCountMap[item.id] || 0} showArrow={showArrow} onScrollToInput={scrollToInput} deleteMode={deleteMode} deleteSelected={deleteSelected.has(item.id)} />
                             </View>
                           ))}
                         </View>
                         <View style={s.col}>
                           {right.map(item => (
-                            <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
-                              <CustomCategoryTile item={item} selected={selectedCategory === item.id} onPress={() => { if (deleteMode) { setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; }); return; } const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); }} onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }} onBlurInput={() => inputRef.current?.blur()} deckCount={deckCountMap[item.id] || 0} showArrow={showArrow} onScrollToInput={scrollToInput} deleteMode={deleteMode} deleteSelected={deleteSelected.has(item.id)} />
+                            <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; const h = e.nativeEvent.layout.height; cardYMap.current[item.id] = y; cardHeightMap.current[item.id] = h; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                              <CustomCategoryTile item={item} selected={selectedCategory === item.id} onPress={() => { if (deleteMode) { setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; }); return; } const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, () => customCategoriesRef.current); } }} onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }} onBlurInput={() => inputRef.current?.blur()} deckCount={deckCountMap[item.id] || 0} showArrow={showArrow} onScrollToInput={scrollToInput} deleteMode={deleteMode} deleteSelected={deleteSelected.has(item.id)} />
                             </View>
                           ))}
                         </View>
@@ -1046,7 +1072,6 @@ export const AddDeckScreen = ({ route, navigation }) => {
                 })()}
               </View>
 
-              <View style={{ height: insets.bottom + 50 }} />
             </Pressable>
           </ScrollView>}
         </Animated.View>
