@@ -15,31 +15,18 @@ export const getAppData = async () => {
     if (jsonValue !== null) {
       let data = JSON.parse(jsonValue);
 
-      // Migração v2: remover decks de teste pré-carregados, manter apenas user-created + exemplo
+      // Migração: remove decks antigos pré-carregados, mantém só user-created + exemplo
       const version = await AsyncStorage.getItem(DATA_VERSION_KEY);
       if (version !== CURRENT_DATA_VERSION) {
         data = data.filter(deck =>
           deck.isUserCreated === true || deck.id === 'deck_exemplo'
         );
-        // Adiciona decks padrão do initialData que ainda não existem
-        for (const defaultDeck of initialData) {
-          if (!data.some(d => d.id === defaultDeck.id)) {
-            data.unshift({ ...defaultDeck });
-          }
+        if (!data.some(d => d.id === 'deck_exemplo')) {
+          data.unshift({ ...initialData[0] });
         }
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
       }
-
-      // Garante que decks padrão sempre existam (mesmo se deletados)
-      let changed = false;
-      for (const defaultDeck of initialData) {
-        if (defaultDeck.isDefaultDeck && !data.some(d => d.id === defaultDeck.id)) {
-          data.unshift({ ...defaultDeck });
-          changed = true;
-        }
-      }
-      if (changed) await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 
       // Migração de campos dos cards (existente)
       data.forEach(deck => {

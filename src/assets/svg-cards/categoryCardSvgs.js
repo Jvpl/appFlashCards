@@ -28,7 +28,6 @@ export const CATEGORY_TILE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBo
 export const CARD_FULL_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 <svg id="Camada_2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 212.13 212.13">
   <defs>
-    
     <linearGradient id="grad_cat_full" x1="106.06" y1="8.52" x2="106.06" y2="204.39" gradientUnits="userSpaceOnUse">
       <stop offset=".02" stop-color="#6fb630"/>
       <stop offset=".19" stop-color="#599d30"/>
@@ -62,7 +61,6 @@ export const CARD_FULL_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 export const CARD_EMPTY_SVG = `<?xml version="1.0" encoding="UTF-8"?>
 <svg id="Camada_2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 212.13 212.13">
   <defs>
-    
     <linearGradient id="grad_cat_empty" x1="106.06" y1="8.52" x2="106.06" y2="204.39" gradientUnits="userSpaceOnUse">
       <stop offset=".02" stop-color="#6fb630"/>
       <stop offset=".19" stop-color="#599d30"/>

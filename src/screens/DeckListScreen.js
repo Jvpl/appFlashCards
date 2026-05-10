@@ -969,6 +969,17 @@ export const DeckListScreen = ({ navigation }) => {
     });
   };
 
+  const pruneEmptyCategoryIds = async (remainingDecks) => {
+    const activeCatIds = new Set(
+      remainingDecks.filter(d => !d.isExample).map(d => getDeckCatId(d))
+    );
+    const customs = await getCustomCategories();
+    const customCatIds = new Set(customs.map(c => c.id));
+    const usedIds = await getUsedCategoryIds();
+    const pruned = new Set([...usedIds].filter(id => activeCatIds.has(id) || customCatIds.has(id)));
+    await saveUsedCategoryIds(pruned);
+  };
+
   const deleteSelectedDecks = useCallback(async () => {
     if (selectedIds.size === 0) return;
     setAlertConfig({
@@ -978,7 +989,8 @@ export const DeckListScreen = ({ navigation }) => {
         { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
         { text: 'Apagar', style: 'destructive', onPress: async () => {
           const allData = await getAppData();
-          await saveAppData(allData.filter(d => !selectedIds.has(d.id)));
+          const remaining = allData.filter(d => !selectedIds.has(d.id));
+          await saveAppData(remaining);
           await Promise.all(Array.from(selectedIds).map(id => removePurchasedDeck(id)));
           exitSelectMode();
           loadData(); setAlertConfig(p => ({ ...p, visible: false }));
@@ -986,6 +998,41 @@ export const DeckListScreen = ({ navigation }) => {
       ],
     });
   }, [selectedIds, exitSelectMode, loadData]);
+
+  const deleteSelectedCategories = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    const selectedItems = activeCategories.filter(i => selectedIds.has(i.category.id));
+    const totalDecks = selectedItems.reduce((sum, i) => sum + i.decks.length, 0);
+    setAlertConfig({
+      visible: true,
+      title: `Excluir ${selectedIds.size} categoria(s)?`,
+      message: `Isso apagará as categorias${totalDecks > 0 ? ` e todos os seus ${totalDecks} deck(s) e flashcards` : ''}. Essa ação não pode ser desfeita.`,
+      buttons: [
+        { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+        { text: 'Excluir', style: 'destructive', onPress: async () => {
+          setAlertConfig(p => ({ ...p, visible: false }));
+          const deckIds = new Set(selectedItems.flatMap(i => i.decks.map(d => d.id)));
+          const allData = await getAppData();
+          await saveAppData(allData.filter(d => !deckIds.has(d.id)));
+          await Promise.all(Array.from(deckIds).map(id => removePurchasedDeck(id)));
+
+          const usedIds = await getUsedCategoryIds();
+          const newUsedIds = new Set(usedIds);
+          selectedItems.forEach(i => newUsedIds.delete(i.category.id));
+          await saveUsedCategoryIds(Array.from(newUsedIds));
+
+          const customIdsToRemove = selectedItems.filter(i => i.category.isCustom).map(i => i.category.id);
+          if (customIdsToRemove.length > 0) {
+            const customs = await getCustomCategories();
+            await saveCustomCategories(customs.filter(c => !customIdsToRemove.includes(c.id)));
+          }
+
+          exitSelectMode();
+          loadData();
+        }},
+      ],
+    });
+  }, [selectedIds, activeCategories, exitSelectMode, loadData]);
 
   const performDelete = async () => {
     if (!selectedDeck) return;
@@ -1086,7 +1133,7 @@ export const DeckListScreen = ({ navigation }) => {
             {renderCard(displayItems[i], i)}
             {displayItems[i + 1]
               ? renderCard(displayItems[i + 1], i + 1)
-              : <View style={{ width: CARD_WIDTH }} />}
+              : <View style={{ width: CARD_WIDTH, opacity: 0 }} />}
           </View>
         );
       }
@@ -1345,7 +1392,7 @@ export const DeckListScreen = ({ navigation }) => {
                     <Ionicons name="checkmark-done-outline" size={17} color={theme.textSecondary} />
                   </TouchableOpacity>
                   {(activeTab === 'decks' || activeTab === 'categorias') && selectedIds.size > 0 && (
-                    <TouchableOpacity onPress={deleteSelectedDecks} hitSlop={HIT_SLOP} style={[s.selectBarAction, s.selectBarDelete]}>
+                    <TouchableOpacity onPress={activeTab === 'categorias' ? deleteSelectedCategories : deleteSelectedDecks} hitSlop={HIT_SLOP} style={[s.selectBarAction, s.selectBarDelete]}>
                       <Ionicons name="trash-outline" size={15} color={theme.danger} />
                     </TouchableOpacity>
                   )}

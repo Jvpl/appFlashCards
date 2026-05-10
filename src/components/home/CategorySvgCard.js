@@ -16,7 +16,7 @@
  */
 import React, { useMemo } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, Dimensions } from 'react-native';
-import { SvgXml, Svg, Path } from 'react-native-svg';
+import { SvgXml } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { CARD_FULL_SVG, CARD_EMPTY_SVG } from '../../assets/svg-cards/categoryCardSvgs';
 import {
@@ -96,7 +96,17 @@ const CategorySvgCard = ({
   const deckCount    = decks.length;
   const subjectCount = countSubjects(decks);
   const hasDeck      = deckCount > 0;
-  const svgXml       = hasDeck ? CARD_FULL_SVG : CARD_EMPTY_SVG;
+  const svgXml = useMemo(() => {
+    const uid = category.id.replace(/[^a-zA-Z0-9]/g, '_');
+    if (hasDeck) {
+      return CARD_FULL_SVG
+        .replace('id="grad_cat_full"', `id="gcf_${uid}"`)
+        .replace('url(#grad_cat_full)', `url(#gcf_${uid})`);
+    }
+    return CARD_EMPTY_SVG
+      .replace('id="grad_cat_empty"', `id="gce_${uid}"`)
+      .replace('url(#grad_cat_empty)', `url(#gce_${uid})`);
+  }, [hasDeck, category.id]);
   // Categorias customizadas usam Ionicons — não tenta carregar SVG pra elas
   const iconSvg      = useMemo(
     () => category.isCustom ? null : buildIconSvg(CATEGORY_ICONS[category.id]),
@@ -117,12 +127,7 @@ const CategorySvgCard = ({
       ]}
     >
       {/* ── Background SVG ── */}
-      <SvgXml
-        xml={svgXml}
-        width={CARD_WIDTH}
-        height={CARD_HEIGHT}
-        style={StyleSheet.absoluteFill}
-      />
+      <SvgXml xml={svgXml} width={CARD_WIDTH} height={CARD_HEIGHT} style={StyleSheet.absoluteFill} />
 
       {/* ── Pill do 3-dot (dark rounded button) ── */}
       {!selectMode && (
@@ -207,9 +212,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: theme.backgroundSecondary,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   wrapperSelected: {
-    borderWidth: 2,
     borderColor: theme.primary,
   },
 
@@ -274,8 +280,8 @@ const styles = StyleSheet.create({
   // Checkbox
   checkCircle: {
     position: 'absolute',
-    bottom: 8,
-    left: 8,
+    top: 8,
+    right: 8,
     width: 20,
     height: 20,
     borderRadius: 10,
