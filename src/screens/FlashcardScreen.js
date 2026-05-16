@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, useAnimatedReaction, interpolate } from 'react-native-reanimated';
-import { getAppData, saveAppData, saveStudySession } from '../services/storage';
+import { getAppData, saveAppData, saveStudySession, updateStudyUnit, findStudyUnit } from '../services/storage';
 import { calculateCardUpdate } from '../services/srs';
 import { FlashcardItem } from '../components/flashcard/FlashcardItem';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
@@ -163,13 +163,17 @@ export const FlashcardScreen = ({ route, navigation }) => {
     const data = allData;
     const deck = data.find(c => c.id === deckId);
     if (reviewAll) {
-      const allCards = (deck?.subjects || []).flatMap(s =>
-        (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }))
-      ).sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+      const allCards = (deck?.subjects || []).flatMap(s => {
+        const topics = s.topics || [];
+        if (topics.length > 0) {
+          return topics.flatMap(t => (t.flashcards || []).map(c => ({ ...c, _subjectId: t.id })));
+        }
+        return (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }));
+      }).sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
       setCards(allCards);
       setTotalCardsInSession(allCards.length);
     } else {
-      const subject = deck ? deck.subjects.find(s => s.id === subjectId) : null;
+      const subject = deck ? findStudyUnit(deck, subjectId) : null;
       if (subject) {
         const now = new Date();
         const allSubjectCards = subject.flashcards || [];
@@ -227,38 +231,25 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const saveSessionProgress = useCallback(async () => {
     if (reviewUpdates.current.length === 0) return;
-    const allCurrentData = await getAppData();
+    let allCurrentData = await getAppData();
     if (reviewAll) {
-      // Agrupa updates por matéria (_subjectId)
-      const bySubject = {};
+      // Agrupa updates por unit (_subjectId pode ser subject ou topic)
+      const byUnit = {};
       reviewUpdates.current.forEach(card => {
         const sid = card._subjectId;
-        if (!bySubject[sid]) bySubject[sid] = new Map();
-        bySubject[sid].set(card.id, card);
+        if (!byUnit[sid]) byUnit[sid] = new Map();
+        byUnit[sid].set(card.id, card);
       });
-      const newData = allCurrentData.map(deck =>
-        deck.id !== deckId ? deck : {
-          ...deck,
-          subjects: deck.subjects.map(subject => {
-            const updatesMap = bySubject[subject.id];
-            if (!updatesMap) return subject;
-            return { ...subject, flashcards: subject.flashcards.map(card => updatesMap.get(card.id) || card) };
-          })
-        }
-      );
-      await saveAppData(newData);
+      for (const [unitId, updatesMap] of Object.entries(byUnit)) {
+        allCurrentData = updateStudyUnit(allCurrentData, deckId, unitId, cards =>
+          cards.map(c => updatesMap.get(c.id) || c)
+        );
+      }
+      await saveAppData(allCurrentData);
     } else {
       const updatesMap = new Map(reviewUpdates.current.map(card => [card.id, card]));
-      const newData = allCurrentData.map(deck =>
-        deck.id !== deckId ? deck : {
-          ...deck,
-          subjects: deck.subjects.map(subject =>
-            subject.id !== subjectId ? subject : {
-              ...subject,
-              flashcards: subject.flashcards.map(card => updatesMap.get(card.id) || card)
-            }
-          )
-        }
+      const newData = updateStudyUnit(allCurrentData, deckId, subjectId, cards =>
+        cards.map(c => updatesMap.get(c.id) || c)
       );
       await saveAppData(newData);
     }
@@ -458,7 +449,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       await saveSessionProgress();
       const allData = await getAppData();
       const deck = allData.find(d => d.id === deckId);
-      const subject = deck?.subjects?.find(s => s.id === subjectId);
+      const subject = deck ? findStudyUnit(deck, subjectId) : null;
       const allSubjectCards = subject?.flashcards || [];
       let earliest = null;
       const now = Date.now();
@@ -488,10 +479,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
             // Recarrega cards e reseta índice
             const allData = await getAppData();
             const deck = allData.find(d => d.id === deckId);
-            const subject = deck?.subjects?.find(s => s.id === subjectId);
-            if (subject?.flashcards) {
-              setCards([...subject.flashcards]);
-              setTotalCardsInSession(subject.flashcards.length);
+            const unit = deck ? findStudyUnit(deck, subjectId) : null;
+            if (unit?.flashcards) {
+              setCards([...unit.flashcards]);
+              setTotalCardsInSession(unit.flashcards.length);
               currentIndex.value = 0;
               isFlipped.value = 0;
             } else {
@@ -537,13 +528,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
             const data = await getAppData();
             const deck = data.find(c => c.id === deckId);
             if (deck) {
-              const subject = deck.subjects.find(s => s.id === subjectId);
-              if (subject) {
-                subject.flashcards = subject.flashcards.filter(f => f.id !== currentCardForModal.id);
-                await saveAppData(data);
-                loadCards();
-                setAlertConfig(prev => ({ ...prev, visible: false }));
-              }
+              const newData = updateStudyUnit(data, deckId, subjectId, cards =>
+                cards.filter(f => f.id !== currentCardForModal.id)
+              );
+              await saveAppData(newData);
+              loadCards();
+              setAlertConfig(prev => ({ ...prev, visible: false }));
             }
           }
         }

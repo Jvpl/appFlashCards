@@ -212,12 +212,19 @@ export const SubjectListScreen = ({ route, navigation }) => {
   // ── Navigation ────────────────────────────────────────────────────
 
   const handleStudy = useCallback((subject) => {
-    navigation.navigate('Flashcard', {
-      deckId, deckName, subjectId: subject.id, subjectName: subject.name,
-      preloadedCards: subject.flashcards || [],
-      reviewMode: !!subject.reviewMode,
-    });
-  }, [navigation, deckId]);
+    if (subject.topics?.length > 0) {
+      navigation.navigate('TopicList', {
+        deckId, deckName, subjectId: subject.id, subjectName: subject.name,
+        preloadedTopics: subject.topics,
+      });
+    } else {
+      navigation.navigate('Flashcard', {
+        deckId, deckName, subjectId: subject.id, subjectName: subject.name,
+        preloadedCards: subject.flashcards || [],
+        reviewMode: !!subject.reviewMode,
+      });
+    }
+  }, [navigation, deckId, deckName]);
 
   const handleManageCards = useCallback((subject) => {
     navigation.navigate('ManageFlashcards', { deckId, subjectId: subject.id, preloadedCards: subject.flashcards, subjectName: subject.name });
@@ -407,26 +414,32 @@ export const SubjectListScreen = ({ route, navigation }) => {
 
   // ── Grid ──────────────────────────────────────────────────────────
 
+  // For subjects with topics, aggregate cards from all topics for display
+  const toDisplaySubject = (s) => {
+    if (!s.topics?.length) return s;
+    return { ...s, flashcards: s.topics.flatMap(t => t.flashcards || []) };
+  };
+
   const renderGrid = (items) => {
     const rows = [];
     for (let i = 0; i < items.length; i += 2) {
       rows.push(
         <View key={i} style={s.gridRow}>
           <MateriaCard
-            subject={items[i]} deck={deckObj}
+            subject={toDisplaySubject(items[i])} deck={deckObj}
             width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
             onPress={() => isSelectionMode ? handleToggleSelection(items[i].id) : handleStudy(items[i])}
-            onLongPress={() => handleToggleSelection(items[i].id)}
+            onLongPress={(e) => { handleToggleSelection(items[i].id); handleMenuPress(items[i], e); }}
             onMenuPress={(e) => handleMenuPress(items[i], e)}
             isSelected={selectedSubjects.includes(items[i].id)}
             selectMode={isSelectionMode}
           />
           {items[i + 1] ? (
             <MateriaCard
-              subject={items[i + 1]} deck={deckObj}
+              subject={toDisplaySubject(items[i + 1])} deck={deckObj}
               width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
               onPress={() => isSelectionMode ? handleToggleSelection(items[i + 1].id) : handleStudy(items[i + 1])}
-              onLongPress={() => handleToggleSelection(items[i + 1].id)}
+              onLongPress={(e) => { handleToggleSelection(items[i + 1].id); handleMenuPress(items[i + 1], e); }}
               onMenuPress={(e) => handleMenuPress(items[i + 1], e)}
               isSelected={selectedSubjects.includes(items[i + 1].id)}
               selectMode={isSelectionMode}
@@ -607,7 +620,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
         <TouchableWithoutFeedback onPress={closeContextMenu}>
           <View style={ctx.overlay}>
             {(() => {
-              const menuW = 210, menuH = 240;
+              const menuW = 210, menuH = sub?.topics?.length > 0 ? 200 : 290;
               let menuLeft = contextMenu.x - menuW + 16;
               let menuTop = contextMenu.y - menuH - 10;
               if (menuLeft < 8) menuLeft = 8;
@@ -615,24 +628,42 @@ export const SubjectListScreen = ({ route, navigation }) => {
               if (menuTop < 60) menuTop = contextMenu.y + 10;
               const sub = contextMenu.subject;
               const isReview = sub?.reviewMode;
+              const hasTopics = sub?.topics?.length > 0;
               return (
                 <View style={[ctx.menu, { left: menuLeft, top: menuTop }]}>
-                  <TouchableOpacity style={[ctx.item, ctx.itemReview, isReview && ctx.itemReviewActive]} onPress={() => { closeContextMenu(); if (sub) handleToggleReview(sub); }}>
-                    <View style={[ctx.reviewIconWrap, isReview && ctx.reviewIconWrapActive]}>
-                      <Ionicons name="repeat-outline" size={16} color={isReview ? '#0F0F0F' : theme.primary} />
-                    </View>
-                    <Text style={[ctx.itemText, ctx.reviewText, isReview && ctx.reviewTextActive]}>
-                      {isReview ? 'Desativar Revisão' : 'Modo Revisão'}
-                    </Text>
-                    {isReview && <Ionicons name="checkmark-circle" size={16} color={theme.primary} />}
-                  </TouchableOpacity>
-                  <View style={ctx.sep} />
-                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('ManageFlashcards', { deckId, subjectId: sub.id, preloadedCards: [], subjectName: sub.name }); }}>
-                    <Ionicons name="add-circle-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Criar card</Text>
-                  </TouchableOpacity>
-                  <View style={ctx.sep} />
-                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('FlashcardHistory', { deckId, subjectId: sub.id }); }}>
-                    <Ionicons name="layers-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Gerenciar Cards</Text>
+                  {/* Modo Revisão — só para matérias sem tópicos */}
+                  {!hasTopics && (
+                    <>
+                      <TouchableOpacity style={[ctx.item, ctx.itemReview, isReview && ctx.itemReviewActive]} onPress={() => { closeContextMenu(); if (sub) handleToggleReview(sub); }}>
+                        <View style={[ctx.reviewIconWrap, isReview && ctx.reviewIconWrapActive]}>
+                          <Ionicons name="repeat-outline" size={16} color={isReview ? '#0F0F0F' : theme.primary} />
+                        </View>
+                        <Text style={[ctx.itemText, ctx.reviewText, isReview && ctx.reviewTextActive]}>
+                          {isReview ? 'Desativar Revisão' : 'Modo Revisão'}
+                        </Text>
+                        {isReview && <Ionicons name="checkmark-circle" size={16} color={theme.primary} />}
+                      </TouchableOpacity>
+                      <View style={ctx.sep} />
+                      <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('ManageFlashcards', { deckId, subjectId: sub.id, preloadedCards: [], subjectName: sub.name }); }}>
+                        <Ionicons name="add-circle-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Criar card</Text>
+                      </TouchableOpacity>
+                      <View style={ctx.sep} />
+                      <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('FlashcardHistory', { deckId, subjectId: sub.id }); }}>
+                        <Ionicons name="layers-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Gerenciar Cards</Text>
+                      </TouchableOpacity>
+                      <View style={ctx.sep} />
+                    </>
+                  )}
+                  {/* Adicionar assunto — para qualquer matéria */}
+                  <TouchableOpacity style={ctx.item} onPress={() => {
+                    closeContextMenu();
+                    if (sub) navigation.navigate('TopicList', {
+                      deckId, deckName, subjectId: sub.id, subjectName: sub.name,
+                      preloadedTopics: sub.topics || [],
+                    });
+                  }}>
+                    <Ionicons name="albums-outline" size={16} color={theme.primary} />
+                    <Text style={[ctx.itemText, { color: theme.primary }]}>{hasTopics ? 'Ver assuntos' : 'Adicionar assunto'}</Text>
                   </TouchableOpacity>
                   <View style={ctx.sep} />
                   <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) setRenameModal({ visible: true, subject: sub, text: sub.name || '' }); }}>
@@ -641,9 +672,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
                   <View style={ctx.sep} />
                   <TouchableOpacity style={ctx.item} onPress={() => {
                     closeContextMenu();
-                    if (sub) {
-                      setTimeout(() => handleDeleteSubject(sub), 50);
-                    }
+                    if (sub) setTimeout(() => handleDeleteSubject(sub), 50);
                   }}>
                     <Ionicons name="trash-outline" size={16} color={theme.danger} /><Text style={[ctx.itemText, { color: theme.danger }]}>Excluir</Text>
                   </TouchableOpacity>
