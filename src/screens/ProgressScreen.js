@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, StyleSheet, Animated, useWindowDimensions,
+  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, StyleSheet, useWindowDimensions,
 } from 'react-native';
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Easing } from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { SvgXml } from 'react-native-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
@@ -17,9 +18,7 @@ import theme from '../styles/theme';
 const CARD_STREAK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 993.13 603.71">
   <rect fill="#2a2a2a" x="521.52" y="0" width="471.61" height="105.12" rx="52.51" ry="52.51"/>
   <path fill="#2a2a2a" d="M930.13,119.29h-358.69c-26.43,0-49.83-17.06-57.93-42.21l-11.16-34.67C494.26,17.25,470.86,.19,444.43,.19H62.13C27.82,.19,0,28.01,0,62.32v479.26c0,34.31,27.82,62.13,62.13,62.13H930.13c34.31,0,62.13-27.82,62.13-62.13V181.42c0-34.31-27.82-62.13-62.13-62.13ZM18.52,60.24c0-22.85,18.52-41.37,41.37-41.37H447.34c22.85,0,41.37,18.52,41.37,41.37v199.23c0,22.85-18.52,41.37-41.37,41.37H59.89c-22.85,0-41.37-18.52-41.37-41.37V60.24Z"/>
-  <path fill="#444" d="M59.89,300.84H447.34c22.85,0,41.37-18.52,41.37-41.37V60.24c0-22.85-18.52-41.37-41.37-41.37H59.89c-22.85,0-41.37,18.52-41.37,41.37v199.23c0,22.85,18.52,41.37,41.37,41.37Zm-20.74-158.86c2.21-8.64,6.89-15.9,12.24-22.84,5.74-7.46,11.84-14.66,15.77-23.37,3.85-8.52,5.28-17.48,5.29-27.46,22.08,13.32,33.78,31.89,33.39,57.93,5.36-3.17,7.23-7.98,8.19-14.02,3.42,4.92,5.65,9.7,7.59,14.62,5.12,13,8.12,26.31,4.07,40.17-4.19,14.3-13.36,24.21-27.37,29.53h0c-10.49,4.48-20.97,4.48-31.46,0-21.68-7.46-33.69-31.17-27.7-54.57Zm-14.02,99.37H482.1v1.23H25.13v-1.23Z"/>
-  <path fill="#ec6925" d="M66.84,196.54c-1.83-2-3.84-3.87-5.46-6.03-4.33-5.77-5.7-12.27-4.94-19.46,.74-7.02,3.36-13.23,7.06-19.88,.88,4.4,.68,8.54,3.37,11.75,.38,.46,.68,.98,1.08,1.42,1.24,1.39,2.55,3.45,4.37,3,1.05-.26,.22-2.75,.17-4.21-.37-9.81,.92-19.21,6.18-27.76,2.01-3.27,4.49-6.15,7.32-8.72,.49-.45,.93-1.23,1.78-.8,.64,.32,.48,1.02,.5,1.59,.32,9.26,4.78,16.68,10.24,23.76,5.4,6.99,10.34,14.12,10.03,23.75-.25,7.74-2.7,14.12-8.35,19.38-.67,.62-2.08,.78-1.87,2.2,14.01-5.32,23.19-15.24,27.37-29.53,4.06-13.86,1.05-27.17-4.07-40.17-1.94-4.92-4.17-9.7-7.59-14.62-.95,6.03-2.83,10.84-8.19,14.02,.39-26.04-11.31-44.61-33.39-57.93,0,9.97-1.44,18.93-5.29,27.46-3.93,8.71-10.03,15.91-15.77,23.37-5.35,6.94-10.03,14.21-12.24,22.84-5.99,23.39,6.01,47.11,27.7,54.57Z"/>
-  <path fill="#fbb926" d="M100.18,194.35c5.65-5.26,8.1-11.64,8.35-19.38,.31-9.63-4.63-16.76-10.03-23.75-5.47-7.08-9.92-14.5-10.24-23.76-.02-.57,.14-1.27-.5-1.59-.85-.42-1.29,.36-1.78,.8-2.83,2.58-5.3,5.45-7.32,8.72-5.26,8.55-6.55,17.95-6.18,27.76,.05,1.45,.88,3.95-.17,4.21-1.82,.45-3.14-1.61-4.37-3-.39-.44-.7-.97-1.08-1.42-2.69-3.21-2.49-7.35-3.37-11.75-3.7,6.65-6.31,12.86-7.06,19.88-.76,7.2,.61,13.69,4.94,19.46,1.62,2.16,3.63,4.03,5.46,6.03,10.49,4.48,20.97,4.48,31.46,0h0c-.2-1.41,1.21-1.58,1.87-2.2Z"/>
+  <rect fill="#2a2a2a" x="8" y="8" width="492" height="304" rx="41.37" ry="41.37"/>
   <rect fill="#444" x="9.68" y="358.49" width="972.9" height="1.22"/>
   <rect fill="#5e5e5e" x="25.13" y="241.35" width="456.97" height="1.23"/>
 </svg>`;
@@ -163,54 +162,67 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
   const MC_W = MC_R - MC_L;
   const MC_H = MC_B - MC_T;
   const FIRE_R = svgX(155);          // borda direita do fogo + margem
-  const CIR_R = svgX(47.65);
+  const CIR_R = svgX(52);
   const CIR_CY = svgY(453.03);
   const CIR_CX = [81.16, 220.05, 357.49, 495.16, 634.54, 772.34, 911.09].map(svgX);
 
   const [showStats, setShowStats] = useState(false);
-  const flipAnim = useRef(new Animated.Value(0)).current;
   const flippedRef = useRef(false);
-  const isAnimating = useRef(false);
+
   const weekDates = getWeekDates();
 
+  const flipProgress = useSharedValue(0);
+
   const doFlip = () => {
-    if (isAnimating.current) return;
-    isAnimating.current = true;
     const goTo = flippedRef.current ? 0 : 1;
     flippedRef.current = !flippedRef.current;
-    Animated.spring(flipAnim, { toValue: goTo, friction: 8, tension: 60, useNativeDriver: true })
-      .start(() => { isAnimating.current = false; });
+    flipProgress.value = withTiming(goTo, { duration: 400, easing: Easing.inOut(Easing.ease) });
   };
-  const frontOpacity = flipAnim.interpolate({ inputRange: [0, 0.49, 0.51, 1], outputRange: [1, 1, 0, 0] });
-  const backOpacity = flipAnim.interpolate({ inputRange: [0, 0.49, 0.51, 1], outputRange: [0, 0, 1, 1] });
+
+  const frontAnimStyle = useAnimatedStyle(() => {
+    const rotateX = interpolate(flipProgress.value, [0, 1], [0, 180]);
+    return {
+      transform: [{ perspective: 800 }, { rotateX: `${rotateX}deg` }],
+      opacity: flipProgress.value < 0.5 ? 1 : 0,
+    };
+  });
+
+  const backAnimStyle = useAnimatedStyle(() => {
+    const rotateX = interpolate(flipProgress.value, [0, 1], [-180, 0]);
+    return {
+      transform: [{ perspective: 800 }, { rotateX: `${rotateX}deg` }],
+      opacity: flipProgress.value >= 0.5 ? 1 : 0,
+    };
+  });
 
   // divisória interna do mini-card (y=241.35 no SVG)
   const MC_DIV_Y = svgY(241.35);
   // área superior do mini-card (acima da linha interna)
   const MC_TOP_H = MC_DIV_Y - MC_T;
-  // área de hint (abaixo da linha interna até o fim do mini-card)
-  const MC_HINT_H = MC_B - MC_DIV_Y;
 
-  const FaceContent = ({ label, num, unit, hint, opacity }) => (
-    <Animated.View style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H, opacity, flexDirection: 'column' }}>
-      {/* área superior: fogo (SVG) + textos lado a lado, centralizados verticalmente */}
-      <View style={{ height: MC_TOP_H, flexDirection: 'row', alignItems: 'center', paddingTop: 5 }}>
-        {/* espaço do fogo */}
-        <View style={{ width: FIRE_R - MC_L }} />
-        {/* label + número + unidade com posição independente */}
+
+  const FaceContent = ({ label, num, hint, icon }) => (
+    <View style={{ flex: 1, flexDirection: 'column' }}>
+      {/* área superior: ícone + textos lado a lado, centralizados verticalmente */}
+      <View style={{ height: MC_TOP_H, flexDirection: 'row', alignItems: 'center' }}>
+        {/* ícone da face */}
+        <View style={{ width: FIRE_R - MC_L, alignItems: 'flex-start', justifyContent: 'center', paddingLeft: 4 }}>
+          <Text style={{ fontSize: svgY(100) }}>{icon}</Text>
+        </View>
+        {/* label + número + unidade */}
         <View style={{ flex: 1, paddingRight: 6 }}>
-          <Text style={[sc.faceLabel, { textAlign: 'left', marginBottom: -7, marginTop: 0 }]}>{label}</Text>
-          <Text style={sc.faceRow} numberOfLines={1}>
-            <Text style={sc.faceNum}>{num}</Text>
-            <Text style={sc.faceUnit}> {unit}</Text>
-          </Text>
+          <Text style={[sc.faceLabel, { textAlign: 'left', marginBottom: -6 }]}>{label}</Text>
+          <Text style={[sc.faceNum, { marginTop: 0, marginBottom: -10 }]}>{num}</Text>
+          <Text style={sc.faceUnit}>Dias seguidos</Text>
         </View>
       </View>
+      {/* linha divisória */}
+      <View style={{ height: 1, backgroundColor: '#5e5e5e', marginHorizontal: svgX(6) }} />
       {/* hint abaixo da linha divisória interna */}
-      <View style={{ height: MC_HINT_H, justifyContent: 'flex-start', alignItems: 'center', paddingTop: -2 }}>
+      <View style={{ flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingTop: 0 }}>
         <Text style={sc.faceHint}>{hint}</Text>
       </View>
-    </Animated.View>
+    </View>
   );
 
   return (
@@ -227,14 +239,23 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
 
       {!showStats ? (
         <>
+          {/* Mini-card com flip */}
+          {/* Fundo fixo atrás do mini-card */}
+          <View style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H, backgroundColor: '#2a2a2a', borderRadius: svgX(41) }} />
+          <View style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H }}>
+            <Reanimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#444', borderRadius: svgX(41) }, frontAnimStyle]}>
+              <FaceContent label="Sequência" num={streak} hint="Ver seu record" icon="🔥" />
+            </Reanimated.View>
+            <Reanimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#444', borderRadius: svgX(41) }, backAnimStyle]}>
+              <FaceContent label="Record máximo" num={bestStreak} hint="Ver sua sequência" icon="🏆" />
+            </Reanimated.View>
+          </View>
+
           {/* Toque invisível sobre o mini-card inteiro */}
           <TouchableOpacity
             style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H, backgroundColor: 'transparent' }}
             onPress={doFlip} activeOpacity={1}
           />
-
-          <FaceContent label="Sequência" num={streak} unit="Dias seguidos" hint="Toque para ver seu record" opacity={frontOpacity} />
-          <FaceContent label="Melhor sequência" num={bestStreak} unit="Dias seguidos" hint="Toque para ver sequência" opacity={backOpacity} />
 
           {/* Stats */}
           <View style={{ position: 'absolute', top: TAB_H + 3, left: TAB_LEFT + 20, right: 6, height: MC_B - TAB_H, justifyContent: 'center', gap: 6, paddingTop: 18 }}>
@@ -256,10 +277,10 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
               <View key={i} style={{ position: 'absolute', top: CIR_CY - CIR_R, left: CIR_CX[i] - CIR_R, width: CIR_R * 2, alignItems: 'center', gap: 3 }}>
                 <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : sc.circleGray, day.isToday && sc.circleToday]}>
                   {green
-                    ? <Ionicons name="checkmark" size={CIR_R * 1.3} color="#0c0d0d" />
+                    ? <Ionicons name="checkmark-sharp" size={CIR_R * 1.4} color="#0c0d0d" />
                     : day.isToday
                       ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5d5d5d' }} />
-                      : <Ionicons name="checkmark" size={CIR_R} color="#5c5c5c" />
+                      : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5c5c5c" />
                   }
                 </View>
                 <Text style={[sc.dayLbl, day.isToday && sc.dayLblToday]}>{day.label}</Text>
@@ -280,7 +301,6 @@ const sc = StyleSheet.create({
   root: {
     marginHorizontal: 16,
     marginTop: 12,
-    overflow: 'hidden',
   },
 
   // Botão orelha
@@ -311,7 +331,7 @@ const sc = StyleSheet.create({
   faceLabel: {
     color: '#aaa',
     fontSize: 13,
-    lineHeight: 25,
+    lineHeight: 17,
     fontFamily: theme.fontFamily.uiMedium,
     textAlign: 'center',
     marginBottom: 6,
@@ -323,12 +343,14 @@ const sc = StyleSheet.create({
   },
   faceNum: {
     color: theme.primary,
-    fontSize: 28,
+    fontSize: 36,
+    includeFontPadding: false,
     fontFamily: theme.fontFamily.heading,
   },
   faceUnit: {
     color: '#e0e0e0',
     fontSize: 14,
+    lineHeight: 20,
     fontFamily: theme.fontFamily.uiBold,
   },
   faceHint: {
@@ -378,7 +400,7 @@ const sc = StyleSheet.create({
   },
   dayLbl: {
     color: '#ccc',
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: theme.fontFamily.uiMedium,
     textAlign: 'center',
   },
