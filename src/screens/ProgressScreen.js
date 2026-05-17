@@ -1,16 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, StyleSheet, Animated, useWindowDimensions,
 } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import { SvgXml } from 'react-native-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAppData, getStudyHistory } from '../services/storage';
-import { LEVEL_CONFIG } from '../services/srs';
+
+const FIRST_USE_KEY = '@FlashcardsApp:firstUseDate';
 import theme from '../styles/theme';
 
-// Cores e gradientes dos níveis — iguais ao CardFooter/FlashcardHistoryScreen
+// ── SVG do card de streak (background shape) ─────────────────────
+const CARD_STREAK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 993.13 603.71">
+  <rect fill="#2a2a2a" x="521.52" y="0" width="471.61" height="105.12" rx="52.51" ry="52.51"/>
+  <path fill="#2a2a2a" d="M930.13,119.29h-358.69c-26.43,0-49.83-17.06-57.93-42.21l-11.16-34.67C494.26,17.25,470.86,.19,444.43,.19H62.13C27.82,.19,0,28.01,0,62.32v479.26c0,34.31,27.82,62.13,62.13,62.13H930.13c34.31,0,62.13-27.82,62.13-62.13V181.42c0-34.31-27.82-62.13-62.13-62.13ZM18.52,60.24c0-22.85,18.52-41.37,41.37-41.37H447.34c22.85,0,41.37,18.52,41.37,41.37v199.23c0,22.85-18.52,41.37-41.37,41.37H59.89c-22.85,0-41.37-18.52-41.37-41.37V60.24Z"/>
+  <path fill="#444" d="M59.89,300.84H447.34c22.85,0,41.37-18.52,41.37-41.37V60.24c0-22.85-18.52-41.37-41.37-41.37H59.89c-22.85,0-41.37,18.52-41.37,41.37v199.23c0,22.85,18.52,41.37,41.37,41.37Zm-20.74-158.86c2.21-8.64,6.89-15.9,12.24-22.84,5.74-7.46,11.84-14.66,15.77-23.37,3.85-8.52,5.28-17.48,5.29-27.46,22.08,13.32,33.78,31.89,33.39,57.93,5.36-3.17,7.23-7.98,8.19-14.02,3.42,4.92,5.65,9.7,7.59,14.62,5.12,13,8.12,26.31,4.07,40.17-4.19,14.3-13.36,24.21-27.37,29.53h0c-10.49,4.48-20.97,4.48-31.46,0-21.68-7.46-33.69-31.17-27.7-54.57Zm-14.02,99.37H482.1v1.23H25.13v-1.23Z"/>
+  <path fill="#ec6925" d="M66.84,196.54c-1.83-2-3.84-3.87-5.46-6.03-4.33-5.77-5.7-12.27-4.94-19.46,.74-7.02,3.36-13.23,7.06-19.88,.88,4.4,.68,8.54,3.37,11.75,.38,.46,.68,.98,1.08,1.42,1.24,1.39,2.55,3.45,4.37,3,1.05-.26,.22-2.75,.17-4.21-.37-9.81,.92-19.21,6.18-27.76,2.01-3.27,4.49-6.15,7.32-8.72,.49-.45,.93-1.23,1.78-.8,.64,.32,.48,1.02,.5,1.59,.32,9.26,4.78,16.68,10.24,23.76,5.4,6.99,10.34,14.12,10.03,23.75-.25,7.74-2.7,14.12-8.35,19.38-.67,.62-2.08,.78-1.87,2.2,14.01-5.32,23.19-15.24,27.37-29.53,4.06-13.86,1.05-27.17-4.07-40.17-1.94-4.92-4.17-9.7-7.59-14.62-.95,6.03-2.83,10.84-8.19,14.02,.39-26.04-11.31-44.61-33.39-57.93,0,9.97-1.44,18.93-5.29,27.46-3.93,8.71-10.03,15.91-15.77,23.37-5.35,6.94-10.03,14.21-12.24,22.84-5.99,23.39,6.01,47.11,27.7,54.57Z"/>
+  <path fill="#fbb926" d="M100.18,194.35c5.65-5.26,8.1-11.64,8.35-19.38,.31-9.63-4.63-16.76-10.03-23.75-5.47-7.08-9.92-14.5-10.24-23.76-.02-.57,.14-1.27-.5-1.59-.85-.42-1.29,.36-1.78,.8-2.83,2.58-5.3,5.45-7.32,8.72-5.26,8.55-6.55,17.95-6.18,27.76,.05,1.45,.88,3.95-.17,4.21-1.82,.45-3.14-1.61-4.37-3-.39-.44-.7-.97-1.08-1.42-2.69-3.21-2.49-7.35-3.37-11.75-3.7,6.65-6.31,12.86-7.06,19.88-.76,7.2,.61,13.69,4.94,19.46,1.62,2.16,3.63,4.03,5.46,6.03,10.49,4.48,20.97,4.48,31.46,0h0c-.2-1.41,1.21-1.58,1.87-2.2Z"/>
+  <rect fill="#444" x="9.68" y="358.49" width="972.9" height="1.22"/>
+  <rect fill="#5e5e5e" x="25.13" y="241.35" width="456.97" height="1.23"/>
+</svg>`;
+
+// ── Rings de nível ───────────────────────────────────────────────
 const RING_GRADIENTS = [
   ['#2A2F3A', '#3D4451'],
   ['#0D2B1E', '#2D6A4F'],
@@ -20,18 +34,16 @@ const RING_GRADIENTS = [
   ['#2D9E00', '#5DD62C'],
 ];
 const RING_FILL = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
-const RING_R = 20;
-const CIRC = 2 * Math.PI * RING_R;
 
 const LevelRing = ({ level, size = 52 }) => {
   const lvl = Math.min(Math.max(level || 0, 0), 5);
   const [gradStart, gradEnd] = RING_GRADIENTS[lvl];
   const fill = RING_FILL[lvl];
   const cx = size / 2;
-  const strokeW = 4;
-  const r = (size / 2) - strokeW;
+  const strokeW = size * 0.08;
+  const r = cx - strokeW;
   const circ = 2 * Math.PI * r;
-  const gradId = `pg${lvl}`;
+  const gradId = `pg${lvl}_${size}`;
   return (
     <Svg width={size} height={size}>
       <Circle cx={cx} cy={cx} r={r} stroke="rgba(255,255,255,0.1)" strokeWidth={strokeW} fill="none" />
@@ -51,13 +63,345 @@ const LevelRing = ({ level, size = 52 }) => {
           strokeLinecap="round" rotation="-90" origin={`${cx},${cx}`}
         />
       )}
-      <SvgText x={cx} y={cx + 7} textAnchor="middle" fill="#F8F8F8" fontSize={size * 0.35} fontWeight="700">{lvl}</SvgText>
+      <SvgText x={cx} y={cx + size * 0.13} textAnchor="middle" fill="#F8F8F8" fontSize={size * 0.35} fontWeight="700">{lvl}</SvgText>
     </Svg>
   );
 };
 
 const LEVEL_NAMES = ['Marco Zero', 'Aprendiz', 'Em Progresso', 'Consolidando', 'Confiante', 'Dominado'];
 
+// ── Dias da semana (Seg → Dom) ───────────────────────────────────
+const WEEK_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+// Retorna o ISO date (YYYY-MM-DD) de cada dia da semana atual (Seg=0 ... Dom=6)
+const getWeekDates = () => {
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0=Dom, 1=Seg, ...
+  // Distância da Seg: se hoje é Dom(0) → 6 dias atrás, se Seg(1) → 0, etc.
+  const distFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  return WEEK_DAYS.map((label, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - distFromMon + i);
+    return { label, date: d.toISOString().split('T')[0], isFuture: i > distFromMon, isToday: i === distFromMon };
+  });
+};
+
+// ── Donut Chart (View 2) ─────────────────────────────────────────
+const DonutChart = ({ acertos, quase, erros, total, hoje }) => {
+  const size = 100;
+  const cx = size / 2;
+  const strokeW = 14;
+  const r = cx - strokeW / 2;
+  const circ = 2 * Math.PI * r;
+  const pct = total > 0 ? { a: acertos / total, q: quase / total, e: erros / total } : { a: 0, q: 0, e: 0 };
+  const gap = 2;
+  const segA = circ * pct.a - (pct.a > 0 ? gap : 0);
+  const segQ = circ * pct.q - (pct.q > 0 ? gap : 0);
+  const segE = circ * pct.e - (pct.e > 0 ? gap : 0);
+  const offE = 0;
+  const offA = segE + (pct.e > 0 ? gap : 0);
+  const offQ = offA + segA + (pct.a > 0 ? gap : 0);
+
+  return (
+    <View style={sc.donutWrap}>
+      <View style={sc.donutLeft}>
+        <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
+          {/* Track */}
+          <Circle cx={cx} cy={cx} r={r} stroke="rgba(255,255,255,0.06)" strokeWidth={strokeW} fill="none" />
+          {/* Erros (vermelho) */}
+          {pct.e > 0 && <Circle cx={cx} cy={cx} r={r} stroke={theme.danger} strokeWidth={strokeW} fill="none" strokeDasharray={`${segE} ${circ - segE}`} strokeDashoffset={-offE} strokeLinecap="round" />}
+          {/* Acertos (verde) */}
+          {pct.a > 0 && <Circle cx={cx} cy={cx} r={r} stroke={theme.primary} strokeWidth={strokeW} fill="none" strokeDasharray={`${segA} ${circ - segA}`} strokeDashoffset={-offA} strokeLinecap="round" />}
+          {/* Quase (amarelo) */}
+          {pct.q > 0 && <Circle cx={cx} cy={cx} r={r} stroke={theme.warning} strokeWidth={strokeW} fill="none" strokeDasharray={`${segQ} ${circ - segQ}`} strokeDashoffset={-offQ} strokeLinecap="round" />}
+        </Svg>
+        {/* Center label */}
+        <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+          <Text style={sc.donutCenter}>{total > 0 ? `${Math.round(pct.a * 100)}%` : '-'}</Text>
+          <Text style={sc.donutCenterSub}>acertos</Text>
+        </View>
+      </View>
+      <View style={sc.donutRight}>
+        <Text style={sc.donutHojeNum}>{hoje}</Text>
+        <Text style={sc.donutHojeLbl}>cards hoje</Text>
+        <View style={sc.donutLegendList}>
+          <View style={sc.donutLegendRow}>
+            <View style={[sc.donutDot, { backgroundColor: theme.primary }]} />
+            <Text style={sc.donutLegendTxt}>Acertos</Text>
+            <Text style={sc.donutLegendVal}>{acertos}</Text>
+          </View>
+          <View style={sc.donutLegendRow}>
+            <View style={[sc.donutDot, { backgroundColor: theme.warning }]} />
+            <Text style={sc.donutLegendTxt}>Quase</Text>
+            <Text style={sc.donutLegendVal}>{quase}</Text>
+          </View>
+          <View style={sc.donutLegendRow}>
+            <View style={[sc.donutDot, { backgroundColor: theme.danger }]} />
+            <Text style={sc.donutLegendTxt}>Erros</Text>
+            <Text style={sc.donutLegendVal}>{erros}</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDecks, totalSubjects, totalFlashcards, statsData }) => {
+  const { width: screenWidth } = useWindowDimensions();
+  const W = Math.max(300, screenWidth - 32);
+  const H = Math.round(W * 603.71 / 993.13);
+  const svgX = (x) => Math.round(W * x / 993.13);
+  const svgY = (y) => Math.round(H * y / 603.71);
+
+  // posições diretas do SVG exemplo3
+  const TAB_LEFT = svgX(521.52);
+  const TAB_H = svgY(105.12);
+  const MC_L = svgX(18.52);
+  const MC_T = svgY(18.87);
+  const MC_R = svgX(488.71);
+  const MC_B = svgY(300.84);
+  const MC_W = MC_R - MC_L;
+  const MC_H = MC_B - MC_T;
+  const FIRE_R = svgX(155);          // borda direita do fogo + margem
+  const CIR_R = svgX(47.65);
+  const CIR_CY = svgY(453.03);
+  const CIR_CX = [81.16, 220.05, 357.49, 495.16, 634.54, 772.34, 911.09].map(svgX);
+
+  const [showStats, setShowStats] = useState(false);
+  const flipAnim = useRef(new Animated.Value(0)).current;
+  const flippedRef = useRef(false);
+  const isAnimating = useRef(false);
+  const weekDates = getWeekDates();
+
+  const doFlip = () => {
+    if (isAnimating.current) return;
+    isAnimating.current = true;
+    const goTo = flippedRef.current ? 0 : 1;
+    flippedRef.current = !flippedRef.current;
+    Animated.spring(flipAnim, { toValue: goTo, friction: 8, tension: 60, useNativeDriver: true })
+      .start(() => { isAnimating.current = false; });
+  };
+  const frontOpacity = flipAnim.interpolate({ inputRange: [0, 0.49, 0.51, 1], outputRange: [1, 1, 0, 0] });
+  const backOpacity = flipAnim.interpolate({ inputRange: [0, 0.49, 0.51, 1], outputRange: [0, 0, 1, 1] });
+
+  // divisória interna do mini-card (y=241.35 no SVG)
+  const MC_DIV_Y = svgY(241.35);
+  // área superior do mini-card (acima da linha interna)
+  const MC_TOP_H = MC_DIV_Y - MC_T;
+  // área de hint (abaixo da linha interna até o fim do mini-card)
+  const MC_HINT_H = MC_B - MC_DIV_Y;
+
+  const FaceContent = ({ label, num, unit, hint, opacity }) => (
+    <Animated.View style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H, opacity, flexDirection: 'column' }}>
+      {/* área superior: fogo (SVG) + textos lado a lado, centralizados verticalmente */}
+      <View style={{ height: MC_TOP_H, flexDirection: 'row', alignItems: 'center', paddingTop: 5 }}>
+        {/* espaço do fogo */}
+        <View style={{ width: FIRE_R - MC_L }} />
+        {/* label + número + unidade com posição independente */}
+        <View style={{ flex: 1, paddingRight: 6 }}>
+          <Text style={[sc.faceLabel, { textAlign: 'left', marginBottom: -7, marginTop: 0 }]}>{label}</Text>
+          <Text style={sc.faceRow} numberOfLines={1}>
+            <Text style={sc.faceNum}>{num}</Text>
+            <Text style={sc.faceUnit}> {unit}</Text>
+          </Text>
+        </View>
+      </View>
+      {/* hint abaixo da linha divisória interna */}
+      <View style={{ height: MC_HINT_H, justifyContent: 'flex-start', alignItems: 'center', paddingTop: -2 }}>
+        <Text style={sc.faceHint}>{hint}</Text>
+      </View>
+    </Animated.View>
+  );
+
+  return (
+    <View style={[sc.root, { height: H }]}>
+      <SvgXml xml={CARD_STREAK_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none" />
+
+      {/* Orelha */}
+      <TouchableOpacity
+        style={{ position: 'absolute', top: 0, left: TAB_LEFT, right: 0, height: TAB_H, justifyContent: 'center', alignItems: 'center' }}
+        onPress={() => setShowStats(v => !v)} activeOpacity={0.8}
+      >
+        <Text style={sc.tabBtn}>{showStats ? '← Atividade' : 'Estatísticas →'}</Text>
+      </TouchableOpacity>
+
+      {!showStats ? (
+        <>
+          {/* Toque invisível sobre o mini-card inteiro */}
+          <TouchableOpacity
+            style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H, backgroundColor: 'transparent' }}
+            onPress={doFlip} activeOpacity={1}
+          />
+
+          <FaceContent label="Sequência" num={streak} unit="Dias seguidos" hint="Toque para ver seu record" opacity={frontOpacity} />
+          <FaceContent label="Melhor sequência" num={bestStreak} unit="Dias seguidos" hint="Toque para ver sequência" opacity={backOpacity} />
+
+          {/* Stats */}
+          <View style={{ position: 'absolute', top: TAB_H + 3, left: TAB_LEFT + 20, right: 6, height: MC_B - TAB_H, justifyContent: 'center', gap: 6, paddingTop: 18 }}>
+            <View style={{ flexDirection: 'row' }}>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalDecks}</Text><Text style={sc.statLbl}>Decks</Text></View>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{'-'}</Text><Text style={sc.statLbl}>Assuntos</Text></View>
+            </View>
+            <View style={{ flexDirection: 'row' }}>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalSubjects}</Text><Text style={sc.statLbl}>Matérias</Text></View>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalFlashcards}</Text><Text style={sc.statLbl}>Flashcards</Text></View>
+            </View>
+          </View>
+
+
+          {/* Círculos */}
+          {weekDates.map((day, i) => {
+            const green = studiedDatesSet.has(day.date) && !day.isToday;
+            return (
+              <View key={i} style={{ position: 'absolute', top: CIR_CY - CIR_R, left: CIR_CX[i] - CIR_R, width: CIR_R * 2, alignItems: 'center', gap: 3 }}>
+                <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : sc.circleGray, day.isToday && sc.circleToday]}>
+                  {green
+                    ? <Ionicons name="checkmark" size={CIR_R * 1.3} color="#0c0d0d" />
+                    : day.isToday
+                      ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5d5d5d' }} />
+                      : <Ionicons name="checkmark" size={CIR_R} color="#5c5c5c" />
+                  }
+                </View>
+                <Text style={[sc.dayLbl, day.isToday && sc.dayLblToday]}>{day.label}</Text>
+              </View>
+            );
+          })}
+        </>
+      ) : (
+        <View style={{ position: 'absolute', top: TAB_H + 4, left: 12, right: 12, bottom: 6, justifyContent: 'center' }}>
+          <DonutChart acertos={statsData.acertos} quase={statsData.quase} erros={statsData.erros} total={statsData.total} hoje={statsData.hoje} />
+        </View>
+      )}
+    </View>
+  );
+};
+
+const sc = StyleSheet.create({
+  root: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    overflow: 'hidden',
+  },
+
+  // Botão orelha
+  tabBtn: {
+    color: '#fff',
+    fontSize: 13,
+    fontFamily: theme.fontFamily.uiBold,
+    textAlign: 'center',
+  },
+
+  // Mini-card faces
+  face: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    flexDirection: 'column',
+  },
+  faceTop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingLeft: '28%',
+    paddingRight: 6,
+  },
+  faceBottom: {
+    paddingBottom: 6,
+    alignItems: 'center',
+  },
+  faceLabel: {
+    color: '#aaa',
+    fontSize: 13,
+    lineHeight: 25,
+    fontFamily: theme.fontFamily.uiMedium,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  faceRow: {
+    fontSize: 14,
+    color: '#e0e0e0',
+    includeFontPadding: false,
+  },
+  faceNum: {
+    color: theme.primary,
+    fontSize: 28,
+    fontFamily: theme.fontFamily.heading,
+  },
+  faceUnit: {
+    color: '#e0e0e0',
+    fontSize: 14,
+    fontFamily: theme.fontFamily.uiBold,
+  },
+  faceHint: {
+    color: '#8f8f8fff',
+    fontSize: 11,
+    fontFamily: theme.fontFamily.ui,
+    textAlign: 'center',
+  },
+
+  statInline: {
+    fontSize: 13,
+    includeFontPadding: false,
+  },
+  // Stats células
+  statCell: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statLbl: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: theme.fontFamily.uiMedium,
+    marginTop: -3,
+  },
+  statVal: {
+    color: theme.primary,
+    fontSize: 15,
+    fontFamily: theme.fontFamily.uiBold,
+    lineHeight: 20,
+    includeFontPadding: false,
+  },
+
+  // Círculos dos dias
+  circle: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleDone: {
+    backgroundColor: '#6fb637',
+  },
+  circleGray: {
+    backgroundColor: '#444',
+  },
+  circleToday: {
+    borderWidth: 2,
+    borderColor: theme.primary,
+  },
+  dayLbl: {
+    color: '#ccc',
+    fontSize: 10,
+    fontFamily: theme.fontFamily.uiMedium,
+    textAlign: 'center',
+  },
+  dayLblToday: {
+    color: '#fff',
+    fontFamily: theme.fontFamily.uiBold,
+  },
+
+  donutWrap: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  donutLeft: { width: 100, height: 100 },
+  donutRight: { flex: 1 },
+  donutCenter: { color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.heading, lineHeight: 20 },
+  donutCenterSub: { color: theme.textMuted, fontSize: 9, fontFamily: theme.fontFamily.uiMedium },
+  donutHojeNum: { color: theme.primary, fontSize: 22, fontFamily: theme.fontFamily.heading, lineHeight: 24 },
+  donutHojeLbl: { color: theme.textMuted, fontSize: 10, fontFamily: theme.fontFamily.uiMedium, marginBottom: 8 },
+  donutLegendList: { gap: 5 },
+  donutLegendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  donutDot: { width: 8, height: 8, borderRadius: 4 },
+  donutLegendTxt: { color: theme.textSecondary, fontSize: 11, fontFamily: theme.fontFamily.uiMedium, flex: 1 },
+  donutLegendVal: { color: theme.textPrimary, fontSize: 11, fontFamily: theme.fontFamily.uiBold },
+});
+
+// ── Tela principal ───────────────────────────────────────────────
 export const ProgressScreen = () => {
   const navigation = useNavigation();
   const scrollViewRef = useRef(null);
@@ -65,11 +409,19 @@ export const ProgressScreen = () => {
   const [progressData, setProgressData] = useState([]);
   const [todaySessions, setTodaySessions] = useState([]);
   const [studiedDatesSet, setStudiedDatesSet] = useState(new Set());
+  const [firstUseDate, setFirstUseDate] = useState(null);
   const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
   const [totalToday, setTotalToday] = useState(0);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('hoje');
   const [expandedDecks, setExpandedDecks] = useState({});
+
+  // Totais globais
+  const [totalDecks, setTotalDecks] = useState(0);
+  const [totalSubjects, setTotalSubjects] = useState(0);
+  const [totalFlashcards, setTotalFlashcards] = useState(0);
+  const [statsData, setStatsData] = useState({ acertos: 0, quase: 0, erros: 0, total: 0, hoje: 0 });
 
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
@@ -92,13 +444,39 @@ export const ProgressScreen = () => {
       }));
       setProgressData(structured);
 
+      // Totais globais (exclui deck exemplo)
+      const realDecks = data.filter(d => !d.isExample);
+      setTotalDecks(realDecks.length);
+      setTotalSubjects(realDecks.reduce((sum, d) => sum + d.subjects.length, 0));
+      const allCards = realDecks.flatMap(d => d.subjects.flatMap(s => s.flashcards));
+      setTotalFlashcards(allCards.length);
+      // Desempenho geral por nível
+      let acertos = 0, quase = 0, erros = 0;
+      allCards.forEach(c => {
+        const lvl = c.level || 0;
+        if (lvl >= 4) acertos++;
+        else if (lvl >= 2) quase++;
+        else erros++;
+      });
       const today = new Date().toISOString().split('T')[0];
       const todayEntries = history.filter(s => s.date === today);
       setTodaySessions(todayEntries);
       setTotalToday(todayEntries.reduce((sum, s) => sum + s.count, 0));
+      setStatsData({ acertos, quase, erros, total: allCards.length, hoje: todayEntries.reduce((sum, s) => sum + s.count, 0) });
 
       const daysWithStudy = new Set(history.map(s => s.date));
       setStudiedDatesSet(daysWithStudy);
+
+      // Primeiro uso: menor data do histórico, ou hoje se não há histórico
+      let fud = await AsyncStorage.getItem(FIRST_USE_KEY);
+      if (!fud) {
+        const sorted = [...daysWithStudy].sort();
+        fud = sorted.length > 0 ? sorted[0] : today;
+        await AsyncStorage.setItem(FIRST_USE_KEY, fud);
+      }
+      setFirstUseDate(fud);
+
+      // Streak atual
       let streakCount = 0;
       const d = new Date();
       if (!daysWithStudy.has(today)) d.setDate(d.getDate() - 1);
@@ -107,6 +485,20 @@ export const ProgressScreen = () => {
         if (daysWithStudy.has(dateStr)) { streakCount++; d.setDate(d.getDate() - 1); } else break;
       }
       setStreak(streakCount);
+
+      // Melhor streak
+      const sortedDates = [...daysWithStudy].sort();
+      let best = 0, cur = 0, prev = null;
+      for (const dateStr of sortedDates) {
+        if (prev) {
+          const diff = (new Date(dateStr) - new Date(prev)) / 86400000;
+          cur = diff === 1 ? cur + 1 : 1;
+        } else { cur = 1; }
+        if (cur > best) best = cur;
+        prev = dateStr;
+      }
+      setBestStreak(best);
+
       setLoading(false);
     };
     load();
@@ -147,11 +539,11 @@ export const ProgressScreen = () => {
     }
 
     const byDeck = {};
-    todaySessions.forEach(s => {
-      if (!byDeck[s.deckId]) byDeck[s.deckId] = { deckName: s.deckName, subjects: {} };
-      const key = s.subjectId || s.subjectName;
-      if (!byDeck[s.deckId].subjects[key]) byDeck[s.deckId].subjects[key] = { subjectName: s.subjectName, count: 0 };
-      byDeck[s.deckId].subjects[key].count += s.count;
+    todaySessions.forEach(sess => {
+      if (!byDeck[sess.deckId]) byDeck[sess.deckId] = { deckName: sess.deckName, subjects: {} };
+      const key = sess.subjectId || sess.subjectName;
+      if (!byDeck[sess.deckId].subjects[key]) byDeck[sess.deckId].subjects[key] = { subjectName: sess.subjectName, count: 0 };
+      byDeck[sess.deckId].subjects[key].count += sess.count;
     });
 
     return (
@@ -168,7 +560,6 @@ export const ProgressScreen = () => {
             </View>
           ))}
         </View>
-
         {Object.entries(byDeck).map(([deckId, deck]) => (
           <View key={deckId} style={s.card}>
             <Text style={s.cardLabel}>{deck.deckName}</Text>
@@ -188,92 +579,36 @@ export const ProgressScreen = () => {
 
   // ── Aba Níveis ──────────────────────────────────────────────────
   const renderNiveis = () => {
-    if (progressData.length === 0) return (
+    const realDecks = progressData.filter(deck => !deck.isExample);
+    if (realDecks.length === 0) return (
       <View style={s.emptyWrap}>
         <Ionicons name="bar-chart-outline" size={48} color={theme.textMuted} />
         <Text style={[s.emptyTitle, { color: theme.textMuted }]}>Nenhum deck encontrado.</Text>
       </View>
     );
 
-    // Agrega total de cards por nível (0–5)
-    const globalLevelCounts = [0, 0, 0, 0, 0, 0];
-    progressData.forEach(deck =>
-      deck.subjects.forEach(sub =>
-        sub.levelCounts.forEach((c, i) => { globalLevelCounts[i] += c; })
-      )
-    );
-
-    const totalCards = globalLevelCounts.reduce((a, b) => a + b, 0);
-
     return (
       <>
-        {/* ── Resumo: rings só dos níveis com cards, linha horizontal ── */}
-        <View style={s.card}>
-          <View style={s.summaryHeader}>
-            <Text style={s.cardLabel}>Distribuição</Text>
-            <Text style={s.summaryTotal}>{totalCards} cards no total</Text>
-          </View>
-          <View style={s.summaryRingRow}>
-            {globalLevelCounts.map((count, li) => count === 0 ? null : (
-              <View key={li} style={s.summaryRingItem}>
-                <LevelRing level={li} size={44} />
-                <Text style={s.summaryRingCount}>{count}</Text>
-                <Text style={s.summaryRingLabel}>{LEVEL_NAMES[li]}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* ── Decks — fechados por padrão ── */}
-        {progressData.map(deck => {
-          const isOpen = expandedDecks[deck.id] === true;
+        {realDecks.map(deck => {
           const deckTotal = deck.subjects.reduce((sum, sub) => sum + sub.flashcards.length, 0);
           const deckLevelCounts = [0, 0, 0, 0, 0, 0];
           deck.subjects.forEach(sub => sub.levelCounts.forEach((c, i) => { deckLevelCounts[i] += c; }));
 
           return (
             <View key={deck.id} style={s.card}>
-              <TouchableOpacity
-                style={s.deckHeader}
-                onPress={() => setExpandedDecks(p => ({ ...p, [deck.id]: !isOpen }))}
-                activeOpacity={0.75}
-              >
-                <View style={s.deckHeaderLeft}>
-                  <Text style={s.deckName} numberOfLines={1}>{deck.name}</Text>
-                  <Text style={s.deckMeta}>{deck.subjects.length} {deck.subjects.length === 1 ? 'matéria' : 'matérias'} · {deckTotal} cards</Text>
-                </View>
-                <View style={s.deckHeaderRight}>
-                  {!isOpen && deckLevelCounts.map((count, li) => count === 0 ? null : (
-                    <View key={li} style={s.deckMiniRing}>
-                      <LevelRing level={li} size={22} />
-                      <Text style={s.deckMiniCount}>{count}</Text>
-                    </View>
-                  ))}
-                  <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} style={{ marginLeft: 4 }} />
-                </View>
-              </TouchableOpacity>
-
-              {isOpen && deck.subjects.map((subject) => (
-                <TouchableOpacity
-                  key={subject.id}
-                  style={[s.subjectRow, s.rowDivider]}
-                  activeOpacity={0.7}
-                  onPress={() => navigation.navigate('Início', {
-                    screen: 'HomeDrawer',
-                    params: { screen: 'Flashcard', params: { deckId: deck.id, deckName: deck.name, subjectId: subject.id, subjectName: subject.name } }
-                  })}
-                >
-                  <Text style={s.subjectName} numberOfLines={1}>{subject.name}</Text>
-                  <View style={s.subjectRings}>
-                    {subject.levelCounts.map((count, li) => count > 0 ? (
-                      <View key={li} style={s.subjectRingItem}>
-                        <LevelRing level={li} size={28} />
-                        <Text style={s.subjectRingCount}>{count}</Text>
-                      </View>
-                    ) : null)}
+              <View style={s.deckHeader}>
+                <Text style={s.deckName} numberOfLines={1}>{deck.name}</Text>
+                <Text style={s.deckMeta}>{deck.subjects.length} {deck.subjects.length === 1 ? 'matéria' : 'matérias'} · {deckTotal} cards</Text>
+              </View>
+              <View style={s.deckRingsRow}>
+                {deckLevelCounts.map((count, li) => count === 0 ? null : (
+                  <View key={li} style={s.deckRingItem}>
+                    <LevelRing level={li} size={52} />
+                    <Text style={s.deckRingCount}>{count}</Text>
+                    <Text style={s.deckRingLabel}>{LEVEL_NAMES[li]}</Text>
                   </View>
-                </TouchableOpacity>
-              ))}
+                ))}
+              </View>
             </View>
           );
         })}
@@ -284,6 +619,7 @@ export const ProgressScreen = () => {
   // ── Aba Concluídos ──────────────────────────────────────────────
   const renderConcluidos = () => {
     const completed = progressData
+      .filter(d => !d.isExample)
       .map(deck => ({ ...deck, subjects: deck.subjects.filter(s => s.progress === 100) }))
       .filter(deck => deck.subjects.length > 0);
 
@@ -314,63 +650,21 @@ export const ProgressScreen = () => {
       <View style={[s.header, { paddingTop: insets.top }]}>
         <View style={s.headerInner}>
           <Text style={s.headerTitle}>Progresso</Text>
-          <Text style={s.headerSub}>
-            {totalToday > 0 ? `${totalToday} cards revisados hoje` : 'Nenhum card revisado hoje'}
-          </Text>
         </View>
         <View style={s.headerDivider} />
       </View>
 
       {/* Streak card */}
-      {(() => {
-        const today = new Date();
-        const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-        const last7 = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date(today);
-          d.setDate(today.getDate() - (6 - i));
-          return { label: dayNames[d.getDay()], date: d.toISOString().split('T')[0] };
-        });
-        const motivMsg = streak === 0
-          ? 'Revise pelo menos 1 card hoje para começar!'
-          : streak < 7 ? 'Não quebre a sequência, continue revisando!'
-          : 'Incrível! Mais de uma semana de dedicação 🏆';
-        return (
-          <View style={s.streakCard}>
-            <View style={s.streakTop}>
-              <Text style={s.streakFireEmoji}>🔥</Text>
-              <View>
-                <Text style={[s.streakBigNum, streak === 0 && { color: theme.textMuted }]}>{streak}</Text>
-                <Text style={s.streakSub}>
-                  {streak === 0
-                    ? 'Nenhum dia seguido ainda'
-                    : streak === 1 ? 'dia de revisão seguido' : 'dias de revisão seguidos'}
-                </Text>
-              </View>
-            </View>
-            <View style={s.streakWeek}>
-              {last7.map((day, i) => {
-                const done = studiedDatesSet.has(day.date);
-                const isToday = i === 6;
-                return (
-                  <View key={i} style={s.streakDayCol}>
-                    <View style={[
-                      s.streakDayCircle,
-                      done && s.streakDayDone,
-                      isToday && !done && s.streakDayToday,
-                    ]}>
-                      {done
-                        ? <Ionicons name="checkmark" size={13} color="#0F0F0F" />
-                        : <View style={[s.streakDayInner, isToday && { backgroundColor: theme.backgroundTertiary }]} />}
-                    </View>
-                    <Text style={[s.streakDayLabel, isToday && { color: theme.textSecondary }]}>{day.label}</Text>
-                  </View>
-                );
-              })}
-            </View>
-            <Text style={s.streakMotivation}>{motivMsg}</Text>
-          </View>
-        );
-      })()}
+      <StreakCard
+        streak={streak}
+        bestStreak={bestStreak}
+        studiedDatesSet={studiedDatesSet}
+        firstUseDate={firstUseDate}
+        totalDecks={totalDecks}
+        totalSubjects={totalSubjects}
+        totalFlashcards={totalFlashcards}
+        statsData={statsData}
+      />
 
       {/* Tabs */}
       <View style={s.tabsWrap}>
@@ -412,33 +706,8 @@ const s = StyleSheet.create({
 
   header: { backgroundColor: theme.background },
   headerInner: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12 },
-  headerTitle: { color: theme.textPrimary, fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
-  headerSub: { color: theme.textMuted, fontSize: 12, marginTop: 2 },
+  headerTitle: { color: theme.textPrimary, fontSize: 22, fontFamily: theme.fontFamily.heading, letterSpacing: -0.3 },
   headerDivider: { height: 1, backgroundColor: theme.backgroundSecondary },
-
-  // ── Streak ───────────────────────────────────────────────────────
-  streakCard: {
-    marginHorizontal: 16, marginTop: 14, marginBottom: 6,
-    backgroundColor: theme.backgroundSecondary,
-    borderRadius: 14, borderWidth: 1, borderColor: theme.backgroundTertiary,
-    paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, gap: 14,
-  },
-  streakTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  streakFireEmoji: { fontSize: 44 },
-  streakBigNum: { color: theme.primary, fontSize: 36, fontWeight: '700', letterSpacing: -1, lineHeight: 40 },
-  streakSub: { color: theme.textMuted, fontSize: 12, fontWeight: '500', marginTop: 2 },
-  streakWeek: { flexDirection: 'row', justifyContent: 'space-between' },
-  streakDayCol: { alignItems: 'center', gap: 5 },
-  streakDayCircle: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: theme.backgroundTertiary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  streakDayDone: { backgroundColor: theme.primary },
-  streakDayToday: { borderWidth: 2, borderColor: theme.primary, backgroundColor: 'transparent' },
-  streakDayInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.backgroundElevated },
-  streakDayLabel: { color: theme.textMuted, fontSize: 10, fontWeight: '600' },
-  streakMotivation: { color: theme.textMuted, fontSize: 12, textAlign: 'center' },
 
   // ── Tabs ─────────────────────────────────────────────────────────
   tabsWrap: { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: theme.background },
@@ -448,8 +717,8 @@ const s = StyleSheet.create({
   },
   tab: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
   tabActive: { backgroundColor: theme.primary },
-  tabText: { color: theme.textMuted, fontSize: 13, fontWeight: '600' },
-  tabTextActive: { color: '#0F0F0F', fontWeight: '700' },
+  tabText: { color: theme.textMuted, fontSize: 13, fontFamily: theme.fontFamily.uiSemiBold },
+  tabTextActive: { color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold },
 
   // ── Scroll ───────────────────────────────────────────────────────
   scroll: { flex: 1 },
@@ -462,7 +731,7 @@ const s = StyleSheet.create({
     overflow: 'hidden',
   },
   cardLabel: {
-    color: theme.textMuted, fontSize: 10, fontWeight: '600',
+    color: theme.textMuted, fontSize: 10, fontFamily: theme.fontFamily.uiBold,
     letterSpacing: 1, textTransform: 'uppercase',
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
   },
@@ -471,7 +740,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 13,
   },
   rowDivider: { borderTopWidth: 1, borderTopColor: theme.backgroundTertiary },
-  rowText: { color: theme.textSecondary, fontSize: 14, fontWeight: '500', flex: 1 },
+  rowText: { color: theme.textSecondary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium, flex: 1 },
 
   // ── Hoje ─────────────────────────────────────────────────────────
   statRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
@@ -480,53 +749,32 @@ const s = StyleSheet.create({
     borderRadius: 14, borderWidth: 1, borderColor: theme.backgroundTertiary,
     paddingVertical: 16, alignItems: 'center',
   },
-  statValue: { color: theme.primary, fontSize: 22, fontWeight: '700' },
-  statLabel: { color: theme.textMuted, fontSize: 10, marginTop: 3 },
+  statValue: { color: theme.primary, fontSize: 22, fontFamily: theme.fontFamily.heading },
+  statLabel: { color: theme.textMuted, fontSize: 10, fontFamily: theme.fontFamily.ui, marginTop: 3 },
   greenChip: {
     backgroundColor: theme.primaryTransparent, borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 3,
   },
-  greenChipText: { color: theme.primary, fontSize: 12, fontWeight: '700' },
-
-  // ── Níveis — resumo ──────────────────────────────────────────────
-  summaryHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 0,
-  },
-  summaryTotal: { color: theme.textMuted, fontSize: 11 },
-  summaryRingRow: {
-    flexDirection: 'row', paddingHorizontal: 16,
-    paddingVertical: 14, gap: 20, flexWrap: 'wrap',
-  },
-  summaryRingItem: { alignItems: 'center', gap: 4 },
-  summaryRingCount: { color: theme.textPrimary, fontSize: 13, fontWeight: '700' },
-  summaryRingLabel: { color: theme.textMuted, fontSize: 9, fontWeight: '500' },
+  greenChipText: { color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold },
 
   // ── Níveis — decks ────────────────────────────────────────────────
   deckHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4,
   },
-  deckHeaderLeft: { flex: 1, gap: 2 },
-  deckHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  deckName: { color: theme.textPrimary, fontSize: 15, fontWeight: '700' },
-  deckMeta: { color: theme.textMuted, fontSize: 11 },
-  deckMiniRing: { alignItems: 'center', gap: 1 },
-  deckMiniCount: { color: theme.textMuted, fontSize: 9, fontWeight: '700' },
-
-  subjectRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 10, gap: 8,
+  deckName: { color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.headingSemiBold },
+  deckMeta: { color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.ui, marginTop: 2 },
+  deckRingsRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 16,
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  subjectName: { color: theme.textSecondary, fontSize: 13, fontWeight: '600', flex: 1 },
-  subjectRings: { flexDirection: 'row', gap: 8 },
-  subjectRingItem: { alignItems: 'center', gap: 3 },
-  subjectRingCount: { color: theme.textMuted, fontSize: 10, fontWeight: '600' },
+  deckRingItem: { alignItems: 'center', gap: 4 },
+  deckRingCount: { color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.headingSemiBold },
+  deckRingLabel: { color: theme.textMuted, fontSize: 9, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center' },
 
   // ── Empty ────────────────────────────────────────────────────────
   emptyWrap: { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '700', textAlign: 'center', paddingHorizontal: 24 },
-  emptyDesc: { color: theme.textMuted, fontSize: 14, textAlign: 'center', paddingHorizontal: 32 },
+  emptyTitle: { color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.headingSemiBold, textAlign: 'center', paddingHorizontal: 24 },
+  emptyDesc: { color: theme.textMuted, fontSize: 14, fontFamily: theme.fontFamily.ui, textAlign: 'center', paddingHorizontal: 32 },
 });
 
 export default ProgressScreen;
