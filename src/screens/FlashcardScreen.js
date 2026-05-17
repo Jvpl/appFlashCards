@@ -264,13 +264,6 @@ export const FlashcardScreen = ({ route, navigation }) => {
       );
       await saveAppData(newData);
     }
-    await saveStudySession({
-      deckId,
-      deckName: deckName || deckId,
-      subjectId: reviewAll ? 'all' : subjectId,
-      subjectName: reviewAll ? 'Revisão Geral' : (subjectName || subjectId),
-      count: reviewUpdates.current.length,
-    });
     reviewUpdates.current = [];
   }, [deckId, subjectId, deckName, subjectName, reviewAll]);
 

@@ -273,9 +273,10 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
           {/* Círculos */}
           {weekDates.map((day, i) => {
             const studied = studiedDatesSet.has(day.date);
-            const isPast = !day.isToday;
+            const isPast = !day.isToday && !day.isFuture;
+            const afterFirstUse = firstUseDate && day.date >= firstUseDate;
             const green = studied && isPast;
-            const failed = !studied && isPast;
+            const failed = !studied && isPast && afterFirstUse;
             return (
               <View key={i} style={{ position: 'absolute', top: CIR_CY - CIR_R, left: CIR_CX[i] - CIR_R, width: CIR_R * 2, alignItems: 'center', gap: 3 }}>
                 <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : failed ? sc.circleFailed : sc.circleGray, day.isToday && sc.circleToday]}>
@@ -442,6 +443,7 @@ export const ProgressScreen = () => {
   const [firstUseDate, setFirstUseDate] = useState(null);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
+  const [weekStreak, setWeekStreak] = useState(0);
   const [totalToday, setTotalToday] = useState(0);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('hoje');
@@ -528,6 +530,15 @@ export const ProgressScreen = () => {
         prev = dateStr;
       }
       setBestStreak(best);
+
+      // Week streak: total de dias estudados na semana atual (Seg–Dom), a partir do firstUseDate
+      const currentWeekDates = getWeekDates();
+      const weekCount = currentWeekDates.filter(day => {
+        if (day.isToday || day.isFuture) return false;
+        if (day.date < fud) return false; // antes do primeiro uso não conta
+        return daysWithStudy.has(day.date);
+      }).length + (daysWithStudy.has(today) ? 1 : 0);
+      setWeekStreak(Math.min(weekCount, 7));
 
       setLoading(false);
     };
