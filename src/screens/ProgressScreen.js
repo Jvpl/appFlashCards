@@ -272,15 +272,20 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
 
           {/* Círculos */}
           {weekDates.map((day, i) => {
-            const green = studiedDatesSet.has(day.date) && !day.isToday;
+            const studied = studiedDatesSet.has(day.date);
+            const isPast = !day.isToday;
+            const green = studied && isPast;
+            const failed = !studied && isPast;
             return (
               <View key={i} style={{ position: 'absolute', top: CIR_CY - CIR_R, left: CIR_CX[i] - CIR_R, width: CIR_R * 2, alignItems: 'center', gap: 3 }}>
-                <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : sc.circleGray, day.isToday && sc.circleToday]}>
+                <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : failed ? sc.circleFailed : sc.circleGray, day.isToday && sc.circleToday]}>
                   {green
                     ? <Ionicons name="checkmark-sharp" size={CIR_R * 1.4} color="#0c0d0d" />
-                    : day.isToday
-                      ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5d5d5d' }} />
-                      : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5c5c5c" />
+                    : failed
+                      ? <Ionicons name="close-sharp" size={CIR_R * 1.4} color="#7a1a1a" />
+                      : day.isToday
+                        ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5d5d5d' }} />
+                        : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5c5c5c" />
                   }
                 </View>
                 <Text style={[sc.dayLbl, day.isToday && sc.dayLblToday]}>{day.label}</Text>
@@ -393,6 +398,9 @@ const sc = StyleSheet.create({
   },
   circleGray: {
     backgroundColor: '#444',
+  },
+  circleFailed: {
+    backgroundColor: '#3a1010',
   },
   circleToday: {
     borderWidth: 2,

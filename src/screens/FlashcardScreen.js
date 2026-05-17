@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, useAnimatedReaction, interpolate } from 'react-native-reanimated';
-import { getAppData, saveAppData, saveStudySession } from '../services/storage';
+import { getAppData, saveAppData, saveStudySession, hasStudiedToday } from '../services/storage';
 import { calculateCardUpdate } from '../services/srs';
 import { FlashcardItem } from '../components/flashcard/FlashcardItem';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
@@ -67,6 +67,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const hasLoadedOnce = useRef(false);
   const sessionDoneRef = useRef(false);
   const sessionStartRef = useRef(Date.now());
+  const dailyGoalSavedRef = useRef(false);
 
   const currentIndex = useSharedValue(0);
   const isFlipped = useSharedValue(0);
@@ -158,6 +159,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       setJsCurrentIndex(0);
       setJsIsFlipped(false);
       sessionStudiedIds.current = new Set();
+      dailyGoalSavedRef.current = false;
     }
 
     const data = allData;
@@ -308,8 +310,30 @@ export const FlashcardScreen = ({ route, navigation }) => {
     sessionStudiedIds.current.add(updatedCard.id);
     setSwipeReviewText('');
     console.log('[HR] card:', cardToReview?.id, 'isLast:', isLast, 'totalSV:', totalCardsInSessionSV.value, 'cardsRef.len:', cardsRef.current.length);
+
+    // Verifica meta diária: min(10, total de cards da sessão)
+    if (!dailyGoalSavedRef.current) {
+      const studied = sessionStudiedIds.current.size;
+      const total = totalCardsInSessionSV.value;
+      const goal = Math.min(10, total);
+      if (studied >= goal && goal > 0) {
+        dailyGoalSavedRef.current = true;
+        hasStudiedToday().then(alreadySaved => {
+          if (!alreadySaved) {
+            saveStudySession({
+              deckId,
+              deckName: deckName || deckId,
+              subjectId: reviewAll ? 'all' : subjectId,
+              subjectName: reviewAll ? 'Revisão Geral' : (subjectName || subjectId),
+              count: studied,
+            });
+          }
+        });
+      }
+    }
+
     if (isLast) handleReviewCompleteRef.current();
-  }, [getNextReviewText]);
+  }, [getNextReviewText, deckId, subjectId, deckName, subjectName, reviewAll]);
 
   useEffect(() => {
     const card = cards[jsCurrentIndex];

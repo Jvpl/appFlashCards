@@ -250,11 +250,23 @@ export const getStudyHistory = async () => {
   }
 };
 
+export const hasStudiedToday = async () => {
+  try {
+    const history = await getStudyHistory();
+    const today = new Date().toISOString().split('T')[0];
+    return history.some(s => s.date === today);
+  } catch (e) {
+    return false;
+  }
+};
+
 export const saveStudySession = async (session) => {
   try {
     if (!session.count || session.count === 0) return;
     const history = await getStudyHistory();
     const today = new Date().toISOString().split('T')[0];
+    // Não salva duplicata no mesmo dia
+    if (history.some(s => s.date === today)) return;
     history.push({
       ...session,
       date: today,
@@ -284,4 +296,5 @@ export default {
   clearContinueStudy,
   getStudyHistory,
   saveStudySession,
+  hasStudiedToday,
 };
