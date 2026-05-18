@@ -281,6 +281,36 @@ export const saveStudySession = async (session) => {
 };
 
 
+// ============================================
+// Performance Data — dados do pie chart por matéria (substitui, não acumula)
+// ============================================
+
+const PERFORMANCE_KEY = '@FlashcardsApp:performanceData';
+
+export const getPerformanceData = async () => {
+  try {
+    const json = await AsyncStorage.getItem(PERFORMANCE_KEY);
+    return json ? JSON.parse(json) : {};
+  } catch (e) {
+    return {};
+  }
+};
+
+// Atualiza os dados de uma matéria — guarda anterior e atual para comparação
+export const savePerformanceData = async (subjectId, data) => {
+  try {
+    const all = await getPerformanceData();
+    const existing = all[subjectId];
+    all[subjectId] = {
+      anterior: existing ? existing.atual : null,
+      atual: { ...data, updatedAt: Date.now() },
+    };
+    await AsyncStorage.setItem(PERFORMANCE_KEY, JSON.stringify(all));
+  } catch (e) {
+    console.error('Failed to save performance data', e);
+  }
+};
+
 export default {
   STORAGE_KEY,
   getAppData,
@@ -297,4 +327,6 @@ export default {
   getStudyHistory,
   saveStudySession,
   hasStudiedToday,
+  getPerformanceData,
+  savePerformanceData,
 };

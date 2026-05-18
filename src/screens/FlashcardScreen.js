@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, useAnimatedReaction, interpolate } from 'react-native-reanimated';
-import { getAppData, saveAppData, saveStudySession, hasStudiedToday } from '../services/storage';
+import { getAppData, saveAppData, saveStudySession, hasStudiedToday, savePerformanceData } from '../services/storage';
 import { calculateCardUpdate } from '../services/srs';
 import { FlashcardItem } from '../components/flashcard/FlashcardItem';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
@@ -68,6 +68,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const sessionDoneRef = useRef(false);
   const sessionStartRef = useRef(Date.now());
   const dailyGoalSavedRef = useRef(false);
+  const sessionRatings = useRef({ right: 0, up: 0, left: 0, levelUps: 0 });
 
   const currentIndex = useSharedValue(0);
   const isFlipped = useSharedValue(0);
@@ -159,6 +160,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       setJsCurrentIndex(0);
       setJsIsFlipped(false);
       sessionStudiedIds.current = new Set();
+      sessionRatings.current = { right: 0, up: 0, left: 0, levelUps: 0 };
       dailyGoalSavedRef.current = false;
     }
 
@@ -264,6 +266,34 @@ export const FlashcardScreen = ({ route, navigation }) => {
       );
       await saveAppData(newData);
     }
+    // Salva dados do pie chart por matéria (substitui sempre, independente do streak)
+    const ratings = sessionRatings.current;
+    const totalSwipes = ratings.right + ratings.up + ratings.left;
+    if (totalSwipes > 0) {
+      if (reviewAll) {
+        // Agrupa ratings por matéria
+        const ratingsBySubject = {};
+        reviewUpdates.current.forEach(card => {
+          // não temos o rating por card aqui, usamos os totais da sessão pro reviewAll
+        });
+        // Para reviewAll usa os totais globais da sessão
+        savePerformanceData('all', {
+          acertos: ratings.right,
+          quases: ratings.up,
+          erros: ratings.left,
+          totalSwipes,
+          levelUps: ratings.levelUps,
+        });
+      } else if (subjectId) {
+        savePerformanceData(subjectId, {
+          acertos: ratings.right,
+          quases: ratings.up,
+          erros: ratings.left,
+          totalSwipes,
+          levelUps: ratings.levelUps,
+        });
+      }
+    }
     reviewUpdates.current = [];
   }, [deckId, subjectId, deckName, subjectName, reviewAll]);
 
@@ -301,6 +331,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
     if (existingIndex > -1) reviewUpdates.current[existingIndex] = updatedCard;
     else reviewUpdates.current.push(updatedCard);
     sessionStudiedIds.current.add(updatedCard.id);
+    if (rating === 'right') sessionRatings.current.right++;
+    else if (rating === 'up') sessionRatings.current.up++;
+    else if (rating === 'left') sessionRatings.current.left++;
+    if (updatedCard.level > cardToReview.level) sessionRatings.current.levelUps++;
     setSwipeReviewText('');
     console.log('[HR] card:', cardToReview?.id, 'isLast:', isLast, 'totalSV:', totalCardsInSessionSV.value, 'cardsRef.len:', cardsRef.current.length);
 
@@ -319,6 +353,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
               subjectId: reviewAll ? 'all' : subjectId,
               subjectName: reviewAll ? 'Revisão Geral' : (subjectName || subjectId),
               count: studied,
+              acertos: sessionRatings.current.right,
+              quases: sessionRatings.current.up,
+              erros: sessionRatings.current.left,
             });
           }
         });

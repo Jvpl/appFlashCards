@@ -9,7 +9,7 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAppData, getStudyHistory } from '../services/storage';
+import { getAppData, getStudyHistory, getPerformanceData } from '../services/storage';
 
 const FIRST_USE_KEY = '@FlashcardsApp:firstUseDate';
 import theme from '../styles/theme';
@@ -85,59 +85,218 @@ const getWeekDates = () => {
   });
 };
 
+// ── Cálculo dos 3 pilares de confiança ───────────────────────────
+// performanceData: { subjectId: { anterior: {...}, atual: {...} } }
+// progressData: decks com subjects/flashcards (qtd + nível médio)
+// weekDaysStudied: dias estudados na semana atual (0-7)
+const calcDesempenho = (performanceData, progressData, weekDaysStudied = 0) => {
+  if (!performanceData || Object.keys(performanceData).length === 0)
+    return { pAcerto: 0, pQuase: 0, pErro: 0, confiancaGlobal: 0 };
+
+  // Mapa de cards por matéria (qtd + nível médio)
+  const subjectMeta = {};
+  for (const deck of (progressData || []).filter(d => !d.isExample)) {
+    for (const sub of (deck.subjects || [])) {
+      const cards = sub.flashcards || [];
+      const qtd = cards.length;
+      const nivelMedio = qtd > 0
+        ? cards.reduce((s, c) => s + (c.level || 0), 0) / qtd
+        : 0;
+      subjectMeta[sub.id] = { qtd, nivelMedio };
+    }
+  }
+
+  const weekBonus = (weekDaysStudied / 7) * 0.15;
+
+  let totalWeight = 0;
+  let wAcerto = 0, wQuase = 0, wErro = 0;
+
+  for (const [subjectId, entry] of Object.entries(performanceData)) {
+    if (subjectId === 'all') continue;
+
+    const atual = entry.atual || entry; // compatibilidade com formato antigo
+    const anterior = entry.anterior || null;
+
+    const totalAtual = (atual.acertos || 0) + (atual.quases || 0) + (atual.erros || 0);
+    if (totalAtual === 0) continue;
+
+    const { qtd = 1, nivelMedio = 0 } = subjectMeta[subjectId] || {};
+
+    // Proporções da sessão atual
+    let pAcerto = atual.acertos / totalAtual;
+    let pQuase  = atual.quases  / totalAtual;
+    let pErro   = atual.erros   / totalAtual;
+
+    // Tendência: compara atual vs anterior, ajusta proporções suavemente
+    if (anterior) {
+      const totalAnt = (anterior.acertos || 0) + (anterior.quases || 0) + (anterior.erros || 0);
+      if (totalAnt > 0) {
+        const pAcertoAnt = anterior.acertos / totalAnt;
+        const pErroAnt   = anterior.erros   / totalAnt;
+        // Diferença normalizada: quanto mudou em relação ao anterior
+        const deltaAcerto = pAcerto - pAcertoAnt; // positivo = melhorou, negativo = piorou
+        const deltaErro   = pErro   - pErroAnt;
+        // Aplica 30% de influência da tendência sobre as proporções atuais
+        pAcerto = Math.max(0, Math.min(1, pAcerto + deltaAcerto * 0.3));
+        pErro   = Math.max(0, Math.min(1, pErro   + deltaErro   * 0.3));
+        pQuase  = Math.max(0, 1 - pAcerto - pErro);
+      }
+    }
+
+    // Pilar 1 — consistência: proporção de cards estudados vs total da matéria
+    const propEstudada = Math.min(1, totalAtual / Math.max(qtd, 1));
+    const propUpgraded = Math.min(1, (atual.levelUps || 0) / Math.max(totalAtual, 1));
+    const consistencia = (Math.log1p(propEstudada * 4) / Math.log1p(4)) * (1 + propUpgraded * 0.2);
+
+    // Pilar 3 — quantidade: matéria maior = mais peso
+    const pesoQtd = Math.log1p(qtd) / Math.log1p(qtd + 20);
+
+    // Pilar 2 — credibilidade (contínua, sem thresholds)
+    const perfeicao = pAcerto >= 1 && pQuase === 0 && pErro === 0;
+    let credibilidade;
+    if (!perfeicao) {
+      credibilidade = 1;
+    } else {
+      const aceitacaoNivel = nivelMedio / 5;
+      const ceticismoQtd = Math.log1p(totalAtual) / Math.log1p(totalAtual + 10);
+      credibilidade = aceitacaoNivel * (1 - ceticismoQtd * 0.7)
+        + (1 - aceitacaoNivel) * (1 - ceticismoQtd) * 0.25;
+    }
+
+    const confianca = consistencia * credibilidade * pesoQtd * (1 + weekBonus);
+
+    wAcerto += pAcerto * confianca;
+    wQuase  += pQuase  * confianca;
+    wErro   += pErro   * confianca;
+    totalWeight += confianca;
+  }
+
+  if (totalWeight === 0) return { pAcerto: 0, pQuase: 0, pErro: 0, confiancaGlobal: 0 };
+
+  const pAcerto = wAcerto / totalWeight;
+  const pQuase  = wQuase  / totalWeight;
+  const pErro   = wErro   / totalWeight;
+
+  const nSubjects = Object.keys(performanceData).filter(k => k !== 'all').length;
+  const confiancaGlobal = Math.min(1, totalWeight / (nSubjects * 0.6));
+
+  return { pAcerto, pQuase, pErro, confiancaGlobal };
+};
+
+const DESEMPENHO_LABELS = [
+  { min: 0.0, label: 'Iniciando' },
+  { min: 0.2, label: 'Progredindo' },
+  { min: 0.4, label: 'Evoluindo' },
+  { min: 0.6, label: 'Bom' },
+  { min: 0.75, label: 'Ótimo' },
+  { min: 0.88, label: 'Excelente' },
+];
+
+const getDesempenhoLabel = (pAcerto, confiancaGlobal) => {
+  if (confiancaGlobal < 0.15) return null;
+  const score = pAcerto;
+  let label = DESEMPENHO_LABELS[0].label;
+  for (const { min, label: l } of DESEMPENHO_LABELS) {
+    if (score >= min) label = l;
+  }
+  return label;
+};
+
 // ── Donut Chart (View 2) ─────────────────────────────────────────
-const DonutChart = ({ acertos, quase, erros, total, hoje }) => {
-  const size = 100;
+const DonutChart = ({ performanceData, progressData, weekDaysStudied, hoje, levelCounts }) => {
+  const { pAcerto, pQuase, pErro, confiancaGlobal } = calcDesempenho(performanceData, progressData, weekDaysStudied);
+  const hasData = confiancaGlobal >= 0.15;
+
+  const size = 110;
   const cx = size / 2;
-  const strokeW = 14;
+  const strokeW = 15;
   const r = cx - strokeW / 2;
   const circ = 2 * Math.PI * r;
-  const pct = total > 0 ? { a: acertos / total, q: quase / total, e: erros / total } : { a: 0, q: 0, e: 0 };
   const gap = 2;
-  const segA = circ * pct.a - (pct.a > 0 ? gap : 0);
-  const segQ = circ * pct.q - (pct.q > 0 ? gap : 0);
-  const segE = circ * pct.e - (pct.e > 0 ? gap : 0);
-  const offE = 0;
-  const offA = segE + (pct.e > 0 ? gap : 0);
-  const offQ = offA + segA + (pct.a > 0 ? gap : 0);
+
+  const colorAcerto = hasData ? theme.primary : '#555';
+  const colorQuase = hasData ? theme.warning : '#555';
+  const colorErro = hasData ? theme.danger : '#555';
+
+  // Segmentos
+  const pcts = hasData
+    ? [pErro, pAcerto, pQuase]
+    : [0, 0, 0];
+  const colors = [colorErro, colorAcerto, colorQuase];
+
+  // Calcula offsets acumulados
+  const segs = pcts.map(p => circ * p - (p > 0 ? gap : 0));
+  const offs = [0, segs[0] + (pcts[0] > 0 ? gap : 0), segs[0] + (pcts[0] > 0 ? gap : 0) + segs[1] + (pcts[1] > 0 ? gap : 0)];
+
+  const label = getDesempenhoLabel(pAcerto, confiancaGlobal);
+  const pctText = hasData ? `${Math.round(pAcerto * 100)}%` : '–';
 
   return (
-    <View style={sc.donutWrap}>
-      <View style={sc.donutLeft}>
-        <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
-          {/* Track */}
-          <Circle cx={cx} cy={cx} r={r} stroke="rgba(255,255,255,0.06)" strokeWidth={strokeW} fill="none" />
-          {/* Erros (vermelho) */}
-          {pct.e > 0 && <Circle cx={cx} cy={cx} r={r} stroke={theme.danger} strokeWidth={strokeW} fill="none" strokeDasharray={`${segE} ${circ - segE}`} strokeDashoffset={-offE} strokeLinecap="round" />}
-          {/* Acertos (verde) */}
-          {pct.a > 0 && <Circle cx={cx} cy={cx} r={r} stroke={theme.primary} strokeWidth={strokeW} fill="none" strokeDasharray={`${segA} ${circ - segA}`} strokeDashoffset={-offA} strokeLinecap="round" />}
-          {/* Quase (amarelo) */}
-          {pct.q > 0 && <Circle cx={cx} cy={cx} r={r} stroke={theme.warning} strokeWidth={strokeW} fill="none" strokeDasharray={`${segQ} ${circ - segQ}`} strokeDashoffset={-offQ} strokeLinecap="round" />}
-        </Svg>
-        {/* Center label */}
-        <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-          <Text style={sc.donutCenter}>{total > 0 ? `${Math.round(pct.a * 100)}%` : '-'}</Text>
-          <Text style={sc.donutCenterSub}>acertos</Text>
+    <View style={sc.v2Wrap}>
+      {/* Título */}
+      <Text style={sc.v2Title}>Desempenho Geral</Text>
+
+      {/* Donut + legenda */}
+      <View style={sc.donutWrap}>
+        <View style={{ width: size, height: size }}>
+          <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
+            <Circle cx={cx} cy={cx} r={r} stroke="rgba(255,255,255,0.07)" strokeWidth={strokeW} fill="none" />
+            {hasData
+              ? pcts.map((p, i) => p > 0 && (
+                  <Circle key={i} cx={cx} cy={cx} r={r} stroke={colors[i]} strokeWidth={strokeW} fill="none"
+                    strokeDasharray={`${segs[i]} ${circ - segs[i]}`} strokeDashoffset={-offs[i]} strokeLinecap="round" />
+                ))
+              : <Circle cx={cx} cy={cx} r={r} stroke="#444" strokeWidth={strokeW} fill="none" />
+            }
+          </Svg>
+          <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+            <Text style={[sc.donutCenter, !hasData && { color: '#666' }]}>{pctText}</Text>
+            {label
+              ? <Text style={sc.donutCenterSub}>{label}</Text>
+              : <Text style={[sc.donutCenterSub, { color: '#555', fontSize: 8 }]}>coletando{'\n'}dados</Text>
+            }
+          </View>
+        </View>
+
+        {/* Legenda direita */}
+        <View style={sc.donutRight}>
+          <View style={sc.donutLegendList}>
+            {[
+              { label: 'Acertos', color: colorAcerto, pct: pAcerto },
+              { label: 'Quases',  color: colorQuase,  pct: pQuase },
+              { label: 'Erros',   color: colorErro,   pct: pErro },
+            ].map(({ label: lbl, color, pct }) => (
+              <View key={lbl} style={sc.donutLegendRow}>
+                <View style={[sc.donutDot, { backgroundColor: color }]} />
+                <Text style={sc.donutLegendTxt}>{lbl}</Text>
+                <Text style={[sc.donutLegendVal, !hasData && { color: '#555' }]}>
+                  {hasData ? `${Math.round(pct * 100)}%` : '–'}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
       </View>
-      <View style={sc.donutRight}>
-        <Text style={sc.donutHojeNum}>{hoje}</Text>
-        <Text style={sc.donutHojeLbl}>cards hoje</Text>
-        <View style={sc.donutLegendList}>
-          <View style={sc.donutLegendRow}>
-            <View style={[sc.donutDot, { backgroundColor: theme.primary }]} />
-            <Text style={sc.donutLegendTxt}>Acertos</Text>
-            <Text style={sc.donutLegendVal}>{acertos}</Text>
-          </View>
-          <View style={sc.donutLegendRow}>
-            <View style={[sc.donutDot, { backgroundColor: theme.warning }]} />
-            <Text style={sc.donutLegendTxt}>Quase</Text>
-            <Text style={sc.donutLegendVal}>{quase}</Text>
-          </View>
-          <View style={sc.donutLegendRow}>
-            <View style={[sc.donutDot, { backgroundColor: theme.danger }]} />
-            <Text style={sc.donutLegendTxt}>Erros</Text>
-            <Text style={sc.donutLegendVal}>{erros}</Text>
+
+      {/* Divisor */}
+      <View style={sc.v2Divider} />
+
+      {/* Cards hoje + distribuição por nível */}
+      <View style={sc.v2Bottom}>
+        <View style={sc.v2HojeWrap}>
+          <Text style={sc.v2HojeNum}>{hoje}</Text>
+          <Text style={sc.v2HojeLbl}>cards hoje</Text>
+        </View>
+        <View style={sc.v2LevelWrap}>
+          <Text style={sc.v2LevelTitle}>Distribuição por nível</Text>
+          <View style={sc.v2LevelRow}>
+            {levelCounts.map((count, lvl) => (
+              <View key={lvl} style={sc.v2LevelCol}>
+                <Text style={sc.v2LevelNum}>{count}</Text>
+                <View style={[sc.v2LevelBar, { backgroundColor: lvl === 0 ? '#444' : `rgba(111,182,55,${0.2 + lvl * 0.16})` }]} />
+                <Text style={sc.v2LevelLbl}>{lvl}</Text>
+              </View>
+            ))}
           </View>
         </View>
       </View>
@@ -145,7 +304,7 @@ const DonutChart = ({ acertos, quase, erros, total, hoje }) => {
   );
 };
 
-const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDecks, totalSubjects, totalFlashcards, statsData }) => {
+const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDecks, totalSubjects, totalFlashcards, statsData, progressData, performanceData, weekDaysStudied }) => {
   const { width: screenWidth } = useWindowDimensions();
   const W = Math.max(300, screenWidth - 32);
   const H = Math.round(W * 603.71 / 993.13);
@@ -296,7 +455,21 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
         </>
       ) : (
         <View style={{ position: 'absolute', top: TAB_H + 4, left: 12, right: 12, bottom: 6, justifyContent: 'center' }}>
-          <DonutChart acertos={statsData.acertos} quase={statsData.quase} erros={statsData.erros} total={statsData.total} hoje={statsData.hoje} />
+          <DonutChart
+            performanceData={performanceData}
+            progressData={progressData}
+            weekDaysStudied={weekDaysStudied}
+            hoje={statsData.hoje}
+            levelCounts={(() => {
+              const counts = [0, 0, 0, 0, 0, 0];
+              (progressData || []).filter(d => !d.isExample).forEach(d =>
+                (d.subjects || []).forEach(s =>
+                  (s.flashcards || []).forEach(c => { counts[Math.min(c.level || 0, 5)]++; })
+                )
+              );
+              return counts;
+            })()}
+          />
         </View>
       )}
     </View>
@@ -419,17 +592,29 @@ const sc = StyleSheet.create({
   },
 
   donutWrap: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  donutLeft: { width: 100, height: 100 },
+  donutCenter: { color: theme.textPrimary, fontSize: 20, fontFamily: theme.fontFamily.heading, lineHeight: 22, textAlign: 'center' },
+  donutCenterSub: { color: theme.textMuted, fontSize: 9, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center' },
   donutRight: { flex: 1 },
-  donutCenter: { color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.heading, lineHeight: 20 },
-  donutCenterSub: { color: theme.textMuted, fontSize: 9, fontFamily: theme.fontFamily.uiMedium },
-  donutHojeNum: { color: theme.primary, fontSize: 22, fontFamily: theme.fontFamily.heading, lineHeight: 24 },
-  donutHojeLbl: { color: theme.textMuted, fontSize: 10, fontFamily: theme.fontFamily.uiMedium, marginBottom: 8 },
-  donutLegendList: { gap: 5 },
+  donutLegendList: { gap: 6 },
   donutLegendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   donutDot: { width: 8, height: 8, borderRadius: 4 },
   donutLegendTxt: { color: theme.textSecondary, fontSize: 11, fontFamily: theme.fontFamily.uiMedium, flex: 1 },
   donutLegendVal: { color: theme.textPrimary, fontSize: 11, fontFamily: theme.fontFamily.uiBold },
+
+  v2Wrap: { flex: 1, paddingHorizontal: 4 },
+  v2Title: { color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.uiBold, marginBottom: 10 },
+  v2Divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.07)', marginVertical: 10 },
+  v2Bottom: { flexDirection: 'row', gap: 12 },
+  v2HojeWrap: { alignItems: 'center', justifyContent: 'center', paddingRight: 12, borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.07)' },
+  v2HojeNum: { color: theme.primary, fontSize: 28, fontFamily: theme.fontFamily.heading, lineHeight: 30 },
+  v2HojeLbl: { color: theme.textMuted, fontSize: 10, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center' },
+  v2LevelWrap: { flex: 1 },
+  v2LevelTitle: { color: theme.textMuted, fontSize: 10, fontFamily: theme.fontFamily.uiMedium, marginBottom: 6 },
+  v2LevelRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  v2LevelCol: { alignItems: 'center', gap: 3 },
+  v2LevelNum: { color: theme.textPrimary, fontSize: 11, fontFamily: theme.fontFamily.uiBold },
+  v2LevelBar: { width: 6, height: 20, borderRadius: 3 },
+  v2LevelLbl: { color: theme.textMuted, fontSize: 9, fontFamily: theme.fontFamily.uiMedium },
 });
 
 // ── Tela principal ───────────────────────────────────────────────
@@ -444,6 +629,8 @@ export const ProgressScreen = () => {
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [weekStreak, setWeekStreak] = useState(0);
+  const [performanceData, setPerformanceData] = useState({});
+  const [weekDaysStudied, setWeekDaysStudied] = useState(0);
   const [totalToday, setTotalToday] = useState(0);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('hoje');
@@ -535,10 +722,16 @@ export const ProgressScreen = () => {
       const currentWeekDates = getWeekDates();
       const weekCount = currentWeekDates.filter(day => {
         if (day.isToday || day.isFuture) return false;
-        if (day.date < fud) return false; // antes do primeiro uso não conta
+        if (day.date < fud) return false;
         return daysWithStudy.has(day.date);
       }).length + (daysWithStudy.has(today) ? 1 : 0);
-      setWeekStreak(Math.min(weekCount, 7));
+      const wc = Math.min(weekCount, 7);
+      setWeekStreak(wc);
+      setWeekDaysStudied(wc);
+
+      // Performance data para o pie chart
+      const perfData = await getPerformanceData();
+      setPerformanceData(perfData);
 
       setLoading(false);
     };
@@ -705,6 +898,9 @@ export const ProgressScreen = () => {
         totalSubjects={totalSubjects}
         totalFlashcards={totalFlashcards}
         statsData={statsData}
+        progressData={progressData}
+        performanceData={performanceData}
+        weekDaysStudied={weekDaysStudied}
       />
 
       {/* Tabs */}
