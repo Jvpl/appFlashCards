@@ -8,11 +8,16 @@ import { SvgXml } from 'react-native-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAppData, getStudyHistory, getPerformanceData } from '../services/storage';
 
 const FIRST_USE_KEY = '@FlashcardsApp:firstUseDate';
 import theme from '../styles/theme';
+
+const ICON_ACERTO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40.64 30.13"><path fill="#6fb631" d="M39.54,.95c-1.41-1.32-3.62-1.25-4.95,.16L15.13,21.84,5.73,14.08c-1.49-1.23-3.7-1.02-4.93,.47-1.23,1.49-1.02,3.7,.47,4.93l11.93,9.86c.65,.54,1.44,.8,2.23,.8,.94,0,1.87-.37,2.55-1.1L39.7,5.89c1.32-1.41,1.25-3.62-.16-4.95Z"/></svg>`;
+const ICON_QUASE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40.65 30.13"><path fill="#1cabcd" d="M5.32,10.13l5.75-2.55c2.27-1.01,5.39-.68,7.42,.77,2.45,1.75,5.52,2.67,8.57,2.67,1.99,0,3.97-.39,5.76-1.18l5.75-2.55c1.77-.78,2.56-2.85,1.78-4.62-.78-1.77-2.85-2.57-4.62-1.78l-5.75,2.55c-2.27,1.01-5.39,.68-7.42-.77C18.52-.23,12.76-.83,8.23,1.18L2.48,3.73C.72,4.51-.08,6.58,.7,8.35s2.85,2.56,4.62,1.78Z"/><path fill="#1cabcd" d="M35.33,20l-5.75,2.55c-2.27,1.01-5.39,.68-7.42-.77-4.04-2.9-9.8-3.49-14.33-1.49l-5.75,2.55c-1.77,.78-2.57,2.85-1.78,4.62,.78,1.77,2.85,2.56,4.62,1.78l5.75-2.55c2.27-1,5.39-.68,7.42,.77,2.45,1.75,5.52,2.67,8.57,2.67,1.99,0,3.97-.39,5.76-1.18l5.75-2.55c1.77-.78,2.57-2.85,1.78-4.62-.78-1.77-2.85-2.57-4.62-1.78Z"/></svg>`;
+const ICON_ERRO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38.75 38.75"><path fill="#e94542" d="M24.32,19.37l13.4-13.4c1.37-1.37,1.37-3.58,0-4.95-1.37-1.37-3.58-1.37-4.95,0l-13.4,13.4L5.97,1.03C4.61-.34,2.39-.34,1.03,1.03-.34,2.39-.34,4.61,1.03,5.97l13.4,13.4L1.03,32.77c-1.37,1.37-1.37,3.58,0,4.95,.68,.68,1.58,1.03,2.47,1.03s1.79-.34,2.47-1.03l13.4-13.4,13.4,13.4c.68,.68,1.58,1.03,2.47,1.03s1.79-.34,2.47-1.03c1.37-1.37,1.37-3.58,0-4.95l-13.4-13.4Z"/></svg>`;
 
 // ── SVG do card de streak (background shape) ─────────────────────
 const CARD_STREAK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 993.13 603.71">
@@ -23,29 +28,6 @@ const CARD_STREAK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 99
   <rect fill="#5e5e5e" x="25.13" y="241.35" width="456.97" height="1.23"/>
 </svg>`;
 
-// SVG base da view de estatísticas — cópia fiel do estatisticas-base.svg (sem barras de exemplo)
-const STATS_BASE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 993.13 603.71">
-  <path fill="#2a2a2a" d="M930.13,119.29h-358.69c-26.43,0-49.83-17.06-57.93-42.21l-11.16-34.67C494.26,17.25,470.86,.19,444.43,.19H62.13C27.82,.19,0,28.01,0,62.32v479.26c0,34.31,27.82,62.13,62.13,62.13H930.13c34.31,0,62.13-27.82,62.13-62.13V181.42c0-34.31-27.82-62.13-62.13-62.13Zm-438.33,417.59c0,27.52-22.31,49.82-49.82,49.82H63.98c-27.52,0-49.82-22.31-49.82-49.82v-41.23H491.8v41.23Zm0-54.11H14.13V66.13c0-27.01,21.9-48.9,48.9-48.9H442.9c27.01,0,48.9,21.89,48.9,48.9V482.77Zm486.34,54.39c0,27.36-22.18,49.54-49.54,49.54h-373.13c-27.36,0-49.54-22.18-49.54-49.54v-41.51h472.2v41.51Zm0-54.38H505.97V187.6c0-28.28,22.92-51.2,51.2-51.2h369.76c28.28,0,51.2,22.92,51.2,51.2V482.78Z"/>
-  <path fill="#333" d="M442.9,17.23H63.03c-27.01,0-48.9,21.89-48.9,48.9V482.77H491.81V66.13c0-27.01-21.9-48.9-48.9-48.9Zm-96.86,396.61l-5.29,4.58-7.71-8.9c30.73-23.89,50.51-61.21,50.51-103.15,0-72.12-58.46-130.58-130.58-130.58s-130.58,58.46-130.58,130.58c0,41.97,19.81,79.32,50.58,103.21l-7.71,8.91-5.29-4.58c-31.25-27.03-49.17-66.22-49.17-107.54,0-37.73,14.86-73.37,41.83-100.34s62.61-41.83,100.34-41.83,73.37,14.86,100.35,41.83,41.83,62.61,41.83,100.34c0,41.28-17.89,80.45-49.09,107.47ZM481.1,116.37H27.94v-2H481.1v2Z"/>
-  <rect fill="#444" x="27.94" y="114.37" width="453.16" height="2"/>
-  <rect fill="#2a2a2a" x="521.52" y="0" width="471.61" height="105.12" rx="52.51" ry="52.51"/>
-  <path fill="#333" d="M505.94,537.16c0,27.36,22.18,49.54,49.54,49.54h373.13c27.36,0,49.54-22.18,49.54-49.54v-41.51H505.94v41.51Zm294.71-34.7h2v78.61h-2v-78.61Z"/>
-  <path fill="#333" d="M14.15,536.88c0,27.52,22.31,49.82,49.82,49.82H441.98c27.52,0,49.82-22.31,49.82-49.82v-41.23H14.15v41.23Zm308.51-28.65c0-.55,.45-1,1-1s1,.45,1,1v67.07c0,.55-.45,1-1,1s-1-.45-1-1v-67.07Zm-141.38,0c0-.55,.45-1,1-1s1,.45,1,1v67.07c0,.55-.45,1-1,1s-1-.45-1-1v-67.07Z"/>
-  <path fill="#444" d="M182.29,576.3c.55,0,1-.45,1-1v-67.07c0-.55-.45-1-1-1s-1,.45-1,1v67.07c0,.55,.45,1,1,1Z"/>
-  <path fill="#444" d="M323.67,576.3c.55,0,1-.45,1-1v-67.07c0-.55-.45-1-1-1s-1,.45-1,1v67.07c0,.55,.45,1,1,1Z"/>
-  <path fill="#333" d="M926.94,136.4h-369.76c-28.28,0-51.2,22.92-51.2,51.2V482.78h472.17V187.6c0-28.28-22.92-51.2-51.2-51.2Zm13.52,184.27h-99.67v69.64h99.49v2h-99.49v70.45h-2v-70.45h-85.5v65.36c0,2.76-2.51,5-5.61,5s-5.61-2.24-5.61-5v-65.36h-99.7v70.45h-2v-70.45h-85.5v65.36c0,2.76-2.51,5-5.61,5s-5.61-2.24-5.61-5V253.42c0-2.76,2.51-5,5.61-5s5.61,2.24,5.61,5v65.25h85.5v-70.29h2v70.29h99.7v-65.25c0-2.76,2.51-5,5.61-5s5.61,2.24,5.61,5v65.25h85.5v-70.29h2v70.29h99.67v2Zm29.14-97.36h-455.09v-1.07h0v-1.07h455.09v2.14Z"/>
-  <polygon fill="#444" points="514.51 222.24 514.51 223.31 969.6 223.31 969.6 221.17 514.51 221.17 514.51 222.24"/>
-  <path fill="#444" d="M840.79,248.38h-2v70.29h-196.42v-70.29h-2v70.29h-85.5v-65.25c0-2.76-2.51-5-5.61-5s-5.61,2.24-5.61,5v67.09h.03v.15h96.69v69.64h-96.71v2h96.71v70.45h2v-70.45h99.7v-2h-99.7v-69.64h196.42v69.64h-96.71v2h96.71v70.45h2v-70.45h99.49v-2h-99.49v-69.64h99.67v-2h-99.67v-70.29Z"/>
-  <polygon fill="#333" points="742.07 324.13 742.07 320.67 742.04 320.67 742.03 320.67 642.37 320.67 642.37 390.31 742.07 390.31 742.07 379.44 742.07 324.13"/>
-  <polygon fill="#333" points="554.86 379.44 554.86 390.31 640.37 390.31 640.37 320.67 554.86 320.67 554.86 324.13 554.86 379.44"/>
-  <polygon fill="#333" points="753.28 379.44 753.28 390.31 838.79 390.31 838.79 320.67 753.28 320.67 753.28 324.13 753.28 379.44"/>
-  <polygon fill="#2D6A4F" points="543.65 390.31 554.86 390.31 554.86 379.44 554.86 324.13 554.86 320.67 543.68 320.67 543.68 320.52 543.65 320.52 543.65 324.13 543.65 379.44 543.65 392.02 543.65 392.02 543.65 390.31"/>
-  <path fill="#40916C" d="M543.65,392.02h0v65.65c0,2.76,2.51,5,5.61,5s5.61-2.24,5.61-5v-65.36h-11.21v-.29Z"/>
-  <path fill="#52B788" d="M753.28,253.42c0-2.76-2.51-5-5.61-5s-5.61,2.24-5.61,5v65.25h11.21v-65.25Z"/>
-  <polygon fill="#74C69D" points="742.07 390.31 742.08 390.31 753.28 390.31 753.28 379.44 753.28 324.13 753.28 320.67 742.07 320.67 742.07 324.13 742.07 379.44 742.07 390.31 742.07 392.02 742.07 392.02 742.07 390.31"/>
-  <path fill="#5DD62C" d="M742.07,392.31v-.29h0v65.65c0,2.76,2.51,5,5.61,5s5.61-2.24,5.61-5v-65.36h-11.21Z"/>
-  <rect fill="#444" x="800.65" y="502.46" width="2" height="78.61"/>
-</svg>`;
 
 // ── Rings de nível ───────────────────────────────────────────────
 const RING_GRADIENTS = [
@@ -546,15 +528,7 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
 
   return (
     <View style={[sc.root, { height: H }]}>
-      <SvgXml xml={showStats ? STATS_BASE_SVG : CARD_STREAK_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />
-
-      {/* Orelha — pill superior direito */}
-      <TouchableOpacity
-        style={{ position: 'absolute', top: 0, left: TAB_LEFT, right: 0, height: TAB_H, justifyContent: 'center', alignItems: 'center' }}
-        onPress={() => setShowStats(v => !v)} activeOpacity={0.8}
-      >
-        <Text style={sc.tabBtn}>{showStats ? '← Atividade' : 'Estatísticas →'}</Text>
-      </TouchableOpacity>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#2a2a2a', borderRadius: 20 }]} />
 
       {!showStats ? (
         <>
@@ -576,17 +550,20 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
             onPress={doFlip} activeOpacity={1}
           />
 
-          {/* Stats */}
-          <View style={{ position: 'absolute', top: TAB_H + 3, left: TAB_LEFT + 20, right: 6, height: MC_B - TAB_H, justifyContent: 'center', gap: 6, paddingTop: 18 }}>
+          {/* Contadores — centralizados verticalmente com o mini-card */}
+          <View style={{ position: 'absolute', top: MC_T, left: TAB_LEFT + 16, right: 12, height: MC_H, justifyContent: 'center', gap: 18 }}>
             <View style={{ flexDirection: 'row' }}>
               <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalDecks}</Text><Text style={sc.statLbl}>Decks</Text></View>
-              <View style={{ flex: 1 }}><Text style={sc.statVal}>{'-'}</Text><Text style={sc.statLbl}>Assuntos</Text></View>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalSubjects}</Text><Text style={sc.statLbl}>Assuntos</Text></View>
             </View>
             <View style={{ flexDirection: 'row' }}>
               <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalSubjects}</Text><Text style={sc.statLbl}>Matérias</Text></View>
               <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalFlashcards}</Text><Text style={sc.statLbl}>Flashcards</Text></View>
             </View>
           </View>
+
+          {/* Linha divisória entre mini-card e círculos */}
+          <View style={{ position: 'absolute', top: Math.round((MC_B + (CIR_CY - CIR_R)) / 2), left: svgX(14), right: svgX(14), height: 1, backgroundColor: 'rgba(255,255,255,0.12)' }} />
 
 
           {/* Círculos */}
@@ -602,7 +579,7 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
                   {green
                     ? <Ionicons name="checkmark-sharp" size={CIR_R * 1.4} color="#0c0d0d" />
                     : failed
-                      ? <Ionicons name="close-sharp" size={CIR_R * 1.4} color="#7a1a1a" />
+                      ? <Ionicons name="close-sharp" size={CIR_R * 1.4} color="#e94542" />
                       : day.isToday
                         ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5d5d5d' }} />
                         : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5c5c5c" />
@@ -712,7 +689,7 @@ const sc = StyleSheet.create({
   },
   statLbl: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: theme.fontFamily.uiMedium,
     marginTop: -3,
   },
@@ -736,7 +713,9 @@ const sc = StyleSheet.create({
     backgroundColor: '#444',
   },
   circleFailed: {
-    backgroundColor: '#3a1010',
+    backgroundColor: '#512828',
+    borderWidth: 2,
+    borderColor: '#c32926',
   },
   circleToday: {
     borderWidth: 2,
@@ -783,6 +762,7 @@ const sc = StyleSheet.create({
 export const ProgressScreen = () => {
   useNavigation();
   const scrollViewRef = useRef(null);
+  const { width: screenWidth } = useWindowDimensions();
 
   const [progressData, setProgressData] = useState([]);
   const [todaySessions, setTodaySessions] = useState([]);
@@ -1039,6 +1019,221 @@ export const ProgressScreen = () => {
     ));
   };
 
+  const renderStats = () => {
+    const CA = '#6fb633';
+    const CQ = '#1cabcd';
+    const CE = '#e94542';
+    const SL = [theme.srsLevel0, theme.srsLevel1, theme.srsLevel2, theme.srsLevel3, theme.srsLevel4, theme.srsLevel5];
+
+    let totA = 0, totQ = 0, totE = 0;
+    if (performanceData) {
+      for (const [sid, e] of Object.entries(performanceData)) {
+        if (sid === 'all') continue;
+        const a = e.atual || e;
+        totA += a.acertos || 0;
+        totQ += a.quases || 0;
+        totE += a.erros || 0;
+      }
+    }
+    const tot = totA + totQ + totE;
+    const { confiancaGlobal } = calcDesempenho(performanceData, progressData, weekDaysStudied);
+    const ok = confiancaGlobal >= 0.15;
+
+    const lvCounts = [0, 0, 0, 0, 0, 0];
+    (progressData || []).filter(d => !d.isExample).forEach(d =>
+      (d.subjects || []).forEach(s =>
+        (s.flashcards || []).forEach(c => { lvCounts[Math.min(c.level || 0, 5)]++; })
+      )
+    );
+    const maxLv = Math.max(...lvCounts, 1);
+
+    // lado esquerdo do card: ~48% da largura disponível
+    const cardW = screenWidth - 32;
+    const leftW = cardW * 0.48;
+    // arco preenche quase toda a largura do lado esq com padding
+    const arcSize = leftW - 24;
+    const R = arcSize / 2 - 10;
+    const SW = 13;
+    const CX = arcSize / 2;
+    const CY = arcSize / 2;
+    const C = 2 * Math.PI * R;
+    const AL = C * 0.75;
+    const G = 3;
+    const sA = tot > 0 ? AL * totA / tot : 0;
+    const sQ = tot > 0 ? AL * totQ / tot : 0;
+    const sE = tot > 0 ? AL * totE / tot : 0;
+    const oQ = sA > 0 ? sA + G : 0;
+    const oE = oQ + (sQ > 0 ? sQ + G : 0);
+
+    const BAR_H = 58;
+    const BAR_W = 10;
+    const lvPairs = [[0, 3], [1, 4], [2, 5]];
+
+    return (
+      <>
+        {/* LINHA TOPO: "Flashcards estudados hoje  |  27" — sem card, texto solto */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 0 }}>
+          <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 17, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1} adjustsFontSizeToFit>
+            Flashcards estudados hoje
+          </Text>
+          <View style={{ width: 1, height: 44, backgroundColor: '#444', marginRight: 9 }} />
+          <View style={{ width: 48, alignItems: 'center' }}>
+            <Text style={{ color: CA, fontSize: 44, fontFamily: theme.fontFamily.heading, includeFontPadding: false, lineHeight: 50 }}>
+              {statsData.hoje || 0}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ height: 1, backgroundColor: '#2A2A2A', marginBottom: 16 }} />
+        {/* DESEMPENHO GERAL: card esquerdo + contadores direito (sem card) lado a lado */}
+        <View style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'stretch' }}>
+
+          {/* Card esquerdo: arco */}
+          <View style={{ width: leftW, backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', paddingTop: 14, paddingBottom: 14 }}>
+            <Text style={{ color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold, marginBottom: 10, alignSelf: 'center' }}>
+              Desempenho Geral
+            </Text>
+            <View style={{ width: leftW - 15, height: 1, backgroundColor: '#2A2A2A', marginBottom: 10 }} />
+            <View style={{ width: arcSize, height: arcSize }}>
+              <Svg width={arcSize} height={arcSize}>
+                <Circle cx={CX} cy={CY} r={R} stroke="#333" strokeWidth={SW} fill="none"
+                  strokeDasharray={`${AL} ${C - AL}`} strokeLinecap="round"
+                  transform={`rotate(135 ${CX} ${CY})`} />
+                {ok && sA > 0 && <Circle cx={CX} cy={CY} r={R} stroke={CA} strokeWidth={SW} fill="none"
+                  strokeDasharray={`${sA - G} ${C}`} strokeLinecap="round"
+                  transform={`rotate(135 ${CX} ${CY})`} />}
+                {ok && sQ > 0 && <Circle cx={CX} cy={CY} r={R} stroke={CQ} strokeWidth={SW} fill="none"
+                  strokeDasharray={`${sQ - G} ${C}`} strokeDashoffset={-oQ} strokeLinecap="round"
+                  transform={`rotate(135 ${CX} ${CY})`} />}
+                {ok && sE > 0 && <Circle cx={CX} cy={CY} r={R} stroke={CE} strokeWidth={SW} fill="none"
+                  strokeDasharray={`${sE - G} ${C}`} strokeDashoffset={-oE} strokeLinecap="round"
+                  transform={`rotate(135 ${CX} ${CY})`} />}
+              </Svg>
+              <View style={{ position: 'absolute', top: CY - 10, left: 0, width: arcSize, alignItems: 'center' }}>
+                {ok ? (
+                  <>
+                    <Text style={{ color: '#F0F0F0', fontSize: 20, fontFamily: theme.fontFamily.heading, includeFontPadding: false }}>
+                      {Math.round(confiancaGlobal * 100)}%
+                    </Text>
+                    <Text style={{ color: CA, fontSize: 10, fontFamily: theme.fontFamily.uiBold, marginTop: 2 }}>
+                      {getDesempenhoLabel(confiancaGlobal)}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={{ color: '#666', fontSize: 12, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center' }}>em análise</Text>
+                )}
+              </View>
+              {!ok && (
+                <View style={{ position: 'absolute', bottom: SW + R * (1 - Math.cos(Math.PI * 0.25)) - 15, left: 0, right: 0, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 5 }}>
+                  {[0, 1, 2].map(k => <View key={k} style={{ width: 16, height: 3, backgroundColor: CA, borderRadius: 2 }} />)}
+                </View>
+              )}
+            </View>
+            {!ok && (
+              <Text style={{ color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium, marginTop: 4 }}>
+                continue estudando
+              </Text>
+            )}
+          </View>
+
+          {/* Direita: Acertos / Quases / Erros — sem card, fundo transparente */}
+          <View style={{ flex: 1, justifyContent: 'center', paddingLeft: 16 }}>
+            {[
+              { svg: ICON_ACERTO_SVG, val: totA, label: 'Acertos' },
+              { svg: ICON_QUASE_SVG, val: totQ, label: 'Quases' },
+              { svg: ICON_ERRO_SVG, val: totE, label: 'Erros' },
+            ].map((it, i) => (
+              <View key={i} style={{
+                flexDirection: 'row', alignItems: 'center',
+                paddingVertical: 26,
+                borderTopWidth: i > 0 ? 1 : 0,
+                borderTopColor: '#2A2A2A',
+              }}>
+                <SvgXml xml={it.svg} width={18} height={18} style={{ marginRight: 8, marginTop: 3 }} />
+                <Text style={{ flex: 1, color: '#aaa', fontSize: 14, fontFamily: theme.fontFamily.uiMedium }}>
+                  {it.label}
+                </Text>
+                <Text style={{ color: theme.textPrimary, fontSize: 17, fontFamily: theme.fontFamily.heading, paddingRight: 8 }}>
+                  {it.val}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+        </View>
+
+        {/* CARD NÍVEIS */}
+        <View style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, textAlign: 'center' }}>
+            Total de flashcards por nivel
+          </Text>
+          <View style={{ height: 1, backgroundColor: '#2A2A2A', marginHorizontal: 10, marginBottom: 15 }} />
+          <View style={{ paddingBottom: 16, position: 'relative' }}>
+            {/* linha 1 e 2 verticais */}
+            {(() => {
+              const halfW = (cardW - 32) / 2;
+              const lineOffX = BAR_W + 12 + 30 + 8;
+              const totalBarH = BAR_H * 3;
+              return <>
+                <View style={{ position: 'absolute', top: 0, bottom: 16, left: 16 + lineOffX, width: 1, backgroundColor: '#2A2A2A' }} />
+                <View style={{ position: 'absolute', top: 0, bottom: 16, left: 16 + halfW + lineOffX, width: 1, backgroundColor: '#2A2A2A' }} />
+                {/* barra esquerda — 3 segmentos sólidos */}
+                {[0, 1, 2].map(lv => (
+                  <View key={lv} style={{
+                    position: 'absolute', left: 16, width: BAR_W, height: BAR_H,
+                    top: lv * BAR_H,
+                    backgroundColor: SL[lv],
+                    borderTopLeftRadius: lv === 0 ? BAR_W / 2 : 0,
+                    borderTopRightRadius: lv === 0 ? BAR_W / 2 : 0,
+                    borderBottomLeftRadius: lv === 2 ? BAR_W / 2 : 0,
+                    borderBottomRightRadius: lv === 2 ? BAR_W / 2 : 0,
+                  }} />
+                ))}
+                {/* barra direita — 3 segmentos sólidos */}
+                {[3, 4, 5].map((lv, i) => (
+                  <View key={lv} style={{
+                    position: 'absolute', left: 16 + halfW, width: BAR_W, height: BAR_H,
+                    top: i * BAR_H,
+                    backgroundColor: SL[lv],
+                    borderTopLeftRadius: i === 0 ? BAR_W / 2 : 0,
+                    borderTopRightRadius: i === 0 ? BAR_W / 2 : 0,
+                    borderBottomLeftRadius: i === 2 ? BAR_W / 2 : 0,
+                    borderBottomRightRadius: i === 2 ? BAR_W / 2 : 0,
+                  }} />
+                ))}
+              </>;
+            })()}
+            {lvPairs.map(([lvA, lvB], row) => (
+              <View key={row} style={{
+                flexDirection: 'row', alignItems: 'center',
+                borderTopWidth: row > 0 ? 1 : 0, borderTopColor: '#2A2A2A',
+                marginHorizontal: 16,
+                paddingVertical: 0,
+                height: BAR_H,
+              }}>
+                {/* metade esquerda — espaço reservado para barra + textos */}
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: BAR_W }} />
+                  <Text style={{ color: theme.textPrimary, fontSize: 24, fontFamily: theme.fontFamily.heading, includeFontPadding: false, marginLeft: 18, width: 30 }}>{lvA}</Text>
+                  <View style={{ width: 16 }} />
+                  <Text style={{ color: '#666', fontSize: 15, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>{lvCounts[lvA]}</Text>
+                </View>
+                {/* metade direita */}
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: BAR_W }} />
+                  <Text style={{ color: theme.textPrimary, fontSize: 24, fontFamily: theme.fontFamily.heading, includeFontPadding: false, marginLeft: 18, width: 30 }}>{lvB}</Text>
+                  <View style={{ width: 16 }} />
+                  <Text style={{ color: '#666', fontSize: 14, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>{lvCounts[lvB]}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+      </>
+    );
+  };
+
   return (
     <View style={s.root}>
       {/* Header */}
@@ -1062,25 +1257,49 @@ export const ProgressScreen = () => {
         progressData={progressData}
         performanceData={performanceData}
         weekDaysStudied={weekDaysStudied}
+        showStats={viewMode === 'stats'}
       />
 
       {/* Tabs */}
       <View style={s.tabsWrap}>
-        <View style={s.tabsInner}>
-          {[
-            { key: 'hoje', label: 'Hoje' },
-            { key: 'niveis', label: 'Níveis' },
-            { key: 'concluidos', label: 'Concluídos' },
-          ].map(tab => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[s.tab, viewMode === tab.key && s.tabActive]}
-              onPress={() => setViewMode(tab.key)}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.tabText, viewMode === tab.key && s.tabTextActive]}>{tab.label}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={[s.tabsInner, { flex: 1 }]}>
+            {[
+              { key: 'hoje', label: 'Hoje' },
+              { key: 'niveis', label: 'Níveis' },
+              { key: 'concluidos', label: 'Concluídos' },
+            ].map((tab, i, arr) => {
+              const isActive = viewMode === tab.key;
+              const prevActive = i > 0 && viewMode === arr[i - 1].key;
+              const showDivider = i > 0 && !isActive && !prevActive;
+              return (
+                <React.Fragment key={tab.key}>
+                  {i > 0 && (
+                    <View style={{ width: 1, height: 28, backgroundColor: showDivider ? '#444' : 'transparent', alignSelf: 'center', marginVertical: 4 }} />
+                  )}
+                  <TouchableOpacity
+                    style={[s.tab, isActive && s.tabActive]}
+                    onPress={() => setViewMode(tab.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.tabText, isActive && s.tabTextActive]}>{tab.label}</Text>
+                  </TouchableOpacity>
+                </React.Fragment>
+              );
+            })}
+          </View>
+          {/* Botão estatísticas — fora da barra, separado */}
+          <TouchableOpacity
+            style={[s.tabStats, viewMode === 'stats' && s.tabStatsActive]}
+            onPress={() => setViewMode(viewMode === 'stats' ? 'hoje' : 'stats')}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="pulse"
+              size={22}
+              color={viewMode === 'stats' ? '#0F0F0F' : theme.textMuted}
+            />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -1093,6 +1312,7 @@ export const ProgressScreen = () => {
         {viewMode === 'hoje' && renderHoje()}
         {viewMode === 'niveis' && renderNiveis()}
         {viewMode === 'concluidos' && renderConcluidos()}
+        {viewMode === 'stats' && renderStats()}
       </ScrollView>
     </View>
   );
@@ -1111,11 +1331,13 @@ const s = StyleSheet.create({
   tabsWrap: { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: theme.background },
   tabsInner: {
     flexDirection: 'row', backgroundColor: theme.backgroundSecondary,
-    borderRadius: 12, padding: 4, gap: 4,
+    borderRadius: 12, padding: 4, height: 48,
   },
-  tab: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
+  tab: { flex: 1, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   tabActive: { backgroundColor: theme.primary },
-  tabText: { color: theme.textMuted, fontSize: 13, fontFamily: theme.fontFamily.uiSemiBold },
+  tabStats: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.backgroundSecondary },
+  tabStatsActive: { backgroundColor: theme.primary },
+  tabText: { color: theme.textMuted, fontSize: 14, fontFamily: theme.fontFamily.uiSemiBold },
   tabTextActive: { color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold },
 
   // ── Scroll ───────────────────────────────────────────────────────
