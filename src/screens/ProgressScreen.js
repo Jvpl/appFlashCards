@@ -190,12 +190,12 @@ const calcDesempenho = (performanceData, progressData, weekDaysStudied = 0) => {
 };
 
 const DESEMPENHO_LABELS = [
-  { min: 0.0, label: 'Iniciando' },
-  { min: 0.2, label: 'Progredindo' },
-  { min: 0.4, label: 'Evoluindo' },
-  { min: 0.6, label: 'Bom' },
-  { min: 0.75, label: 'Ótimo' },
-  { min: 0.88, label: 'Excelente' },
+  { min: 0.0, label: 'Iniciante' },
+  { min: 0.2, label: 'Regular' },
+  { min: 0.4, label: 'Bom' },
+  { min: 0.6, label: 'Ótimo' },
+  { min: 0.75, label: 'Excelente' },
+  { min: 0.88, label: 'Elite' },
 ];
 
 const getDesempenhoLabel = (confiancaGlobal) => {
@@ -1025,33 +1025,19 @@ export const ProgressScreen = () => {
     const CE = '#e94542';
     const SL = [theme.srsLevel0, theme.srsLevel1, theme.srsLevel2, theme.srsLevel3, theme.srsLevel4, theme.srsLevel5];
 
-    let totA = 0, totQ = 0, totE = 0;
-    if (performanceData) {
-      for (const [sid, e] of Object.entries(performanceData)) {
-        if (sid === 'all') continue;
-        const a = e.atual || e;
-        totA += a.acertos || 0;
-        totQ += a.quases || 0;
-        totE += a.erros || 0;
-      }
-    }
+    // SIMULAÇÃO — remover depois
+    let totA = 5, totQ = 2, totE = 8;
     const tot = totA + totQ + totE;
-    const { confiancaGlobal } = calcDesempenho(performanceData, progressData, weekDaysStudied);
-    const ok = confiancaGlobal >= 0.15;
-
+    const confiancaGlobal = 0.80;
+    const ok = true;
     const lvCounts = [0, 0, 0, 0, 0, 0];
-    (progressData || []).filter(d => !d.isExample).forEach(d =>
-      (d.subjects || []).forEach(s =>
-        (s.flashcards || []).forEach(c => { lvCounts[Math.min(c.level || 0, 5)]++; })
-      )
-    );
     const maxLv = Math.max(...lvCounts, 1);
 
     // lado esquerdo do card: ~48% da largura disponível
     const cardW = screenWidth - 32;
-    const leftW = cardW * 0.48;
+    const leftW = cardW * 0.52;
     // arco preenche quase toda a largura do lado esq com padding
-    const arcSize = leftW - 24;
+    const arcSize = leftW - 28;
     const R = arcSize / 2 - 10;
     const SW = 13;
     const CX = arcSize / 2;
@@ -1077,9 +1063,9 @@ export const ProgressScreen = () => {
             Flashcards estudados hoje
           </Text>
           <View style={{ width: 1, height: 44, backgroundColor: '#444', marginRight: 9 }} />
-          <View style={{ width: 48, alignItems: 'center' }}>
-            <Text style={{ color: CA, fontSize: 44, fontFamily: theme.fontFamily.heading, includeFontPadding: false, lineHeight: 50 }}>
-              {statsData.hoje || 0}
+          <View style={{ minWidth: 48, alignItems: 'center' }}>
+            <Text style={{ color: CA, fontSize: 40, fontFamily: theme.fontFamily.heading, includeFontPadding: false, lineHeight: 50 }}>
+              {0}
             </Text>
           </View>
         </View>
@@ -1090,7 +1076,7 @@ export const ProgressScreen = () => {
 
           {/* Card esquerdo: arco */}
           <View style={{ width: leftW, backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', paddingTop: 14, paddingBottom: 14 }}>
-            <Text style={{ color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold, marginBottom: 10, alignSelf: 'center' }}>
+            <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, marginBottom: 10, alignSelf: 'center' }}>
               Desempenho Geral
             </Text>
             <View style={{ width: leftW - 15, height: 1, backgroundColor: '#2A2A2A', marginBottom: 10 }} />
@@ -1099,30 +1085,29 @@ export const ProgressScreen = () => {
                 <Circle cx={CX} cy={CY} r={R} stroke="#333" strokeWidth={SW} fill="none"
                   strokeDasharray={`${AL} ${C - AL}`} strokeLinecap="round"
                   transform={`rotate(135 ${CX} ${CY})`} />
-                {ok && sA > 0 && <Circle cx={CX} cy={CY} r={R} stroke={CA} strokeWidth={SW} fill="none"
-                  strokeDasharray={`${sA - G} ${C}`} strokeLinecap="round"
-                  transform={`rotate(135 ${CX} ${CY})`} />}
-                {ok && sQ > 0 && <Circle cx={CX} cy={CY} r={R} stroke={CQ} strokeWidth={SW} fill="none"
-                  strokeDasharray={`${sQ - G} ${C}`} strokeDashoffset={-oQ} strokeLinecap="round"
-                  transform={`rotate(135 ${CX} ${CY})`} />}
-                {ok && sE > 0 && <Circle cx={CX} cy={CY} r={R} stroke={CE} strokeWidth={SW} fill="none"
-                  strokeDasharray={`${sE - G} ${C}`} strokeDashoffset={-oE} strokeLinecap="round"
+                {ok && <Circle cx={CX} cy={CY} r={R} stroke={CA} strokeWidth={SW} fill="none"
+                  strokeDasharray={`${confiancaGlobal >= 1 ? AL : AL * confiancaGlobal - G} ${C}`} strokeLinecap="round"
                   transform={`rotate(135 ${CX} ${CY})`} />}
               </Svg>
-              <View style={{ position: 'absolute', top: CY - 10, left: 0, width: arcSize, alignItems: 'center' }}>
+              {/* Label grande centralizado no arco */}
+              <View style={{ position: 'absolute', top: CY - R / 3 + 8, left: SW - 2, right: SW - 2, alignItems: 'center' }}>
                 {ok ? (
-                  <>
-                    <Text style={{ color: '#F0F0F0', fontSize: 20, fontFamily: theme.fontFamily.heading, includeFontPadding: false }}>
-                      {Math.round(confiancaGlobal * 100)}%
-                    </Text>
-                    <Text style={{ color: CA, fontSize: 10, fontFamily: theme.fontFamily.uiBold, marginTop: 2 }}>
-                      {getDesempenhoLabel(confiancaGlobal)}
-                    </Text>
-                  </>
+                  <Text style={{ color: '#F0F0F0', fontSize: 22, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false }}>
+                    {getDesempenhoLabel(confiancaGlobal)}
+                  </Text>
                 ) : (
-                  <Text style={{ color: '#666', fontSize: 12, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center' }}>em análise</Text>
+                  <Text style={{ color: '#666', fontSize: 15, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center' }}>em análise</Text>
                 )}
               </View>
+              {/* % entre as pontas do arco */}
+              {ok && (
+                <View style={{ position: 'absolute', bottom: SW + R * (1 - Math.cos(Math.PI * 0.25)) - 26, left: 0, right: 0, alignItems: 'center', marginLeft: 4 }}>
+                  <Text style={{ color: '#aaa', fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>
+                    <Text style={{ fontSize: 22 }}>{Math.round(confiancaGlobal * 100)}</Text>
+                    <Text style={{ fontSize: 15 }}>%</Text>
+                  </Text>
+                </View>
+              )}
               {!ok && (
                 <View style={{ position: 'absolute', bottom: SW + R * (1 - Math.cos(Math.PI * 0.25)) - 15, left: 0, right: 0, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 5 }}>
                   {[0, 1, 2].map(k => <View key={k} style={{ width: 16, height: 3, backgroundColor: CA, borderRadius: 2 }} />)}
@@ -1130,7 +1115,7 @@ export const ProgressScreen = () => {
               )}
             </View>
             {!ok && (
-              <Text style={{ color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium, marginTop: 4 }}>
+              <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium, marginTop: 4 }}>
                 continue estudando
               </Text>
             )}
@@ -1164,7 +1149,7 @@ export const ProgressScreen = () => {
 
         {/* CARD NÍVEIS */}
         <View style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
-          <Text style={{ color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, textAlign: 'center' }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, textAlign: 'center' }}>
             Total de flashcards por nivel
           </Text>
           <View style={{ height: 1, backgroundColor: '#2A2A2A', marginHorizontal: 10, marginBottom: 15 }} />
@@ -1223,7 +1208,7 @@ export const ProgressScreen = () => {
                   <View style={{ width: BAR_W }} />
                   <Text style={{ color: theme.textPrimary, fontSize: 24, fontFamily: theme.fontFamily.heading, includeFontPadding: false, marginLeft: 18, width: 30 }}>{lvB}</Text>
                   <View style={{ width: 16 }} />
-                  <Text style={{ color: '#666', fontSize: 14, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>{lvCounts[lvB]}</Text>
+                  <Text style={{ color: '#666', fontSize: 15, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>{lvCounts[lvB]}</Text>
                 </View>
               </View>
             ))}
