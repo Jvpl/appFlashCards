@@ -104,6 +104,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
 
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
+  const tutorialRef = useRef(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -111,14 +112,23 @@ export const FlashcardScreen = ({ route, navigation }) => {
       headerTitleAlign: 'center',
       headerTitle: undefined,
       headerRight: () => (
-        <TouchableOpacity
-          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8, opacity: sessionDone ? 0.3 : 1 }}
-          onPress={() => { if (!sessionDone) setHeaderMenuVisible(v => !v); }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          disabled={sessionDone}
-        >
-          <Ionicons name="ellipsis-vertical" size={22} color={theme.textPrimary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+            onPress={() => tutorialRef.current?.show()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="help-circle-outline" size={22} color={theme.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8, opacity: sessionDone ? 0.3 : 1 }}
+            onPress={() => { if (!sessionDone) setHeaderMenuVisible(v => !v); }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            disabled={sessionDone}
+          >
+            <Ionicons name="ellipsis-vertical" size={22} color={theme.textPrimary} />
+          </TouchableOpacity>
+        </View>
       ),
     });
   }, [navigation, subjectName, deckId, subjectId, sessionDone]);
@@ -747,7 +757,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       </View>
 
 
-      <SwipeTutorial />
+      <SwipeTutorial ref={tutorialRef} />
 
       <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
 
