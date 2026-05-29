@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, StyleSheet, useWindowDimensions,
+  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Pressable, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Easing } from 'react-native-reanimated';
 import Svg, { Circle, Path as SvgPath, Polygon as SvgPolygon, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
@@ -776,6 +776,8 @@ export const ProgressScreen = () => {
   const [totalToday, setTotalToday] = useState(0);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('hoje');
+  const [expandedDecks, setExpandedDecks] = useState({});
+  const [deckView, setDeckView] = useState({});
 
   // Totais globais
   const [totalDecks, setTotalDecks] = useState(0);
@@ -955,6 +957,14 @@ export const ProgressScreen = () => {
   // ── Aba Níveis ──────────────────────────────────────────────────
   const renderNiveis = () => {
     const realDecks = progressData.filter(deck => !deck.isExample);
+    const SL = [theme.srsLevel0, theme.srsLevel1, theme.srsLevel2, theme.srsLevel3, theme.srsLevel4, theme.srsLevel5];
+    const LEVEL_NAMES_SHORT = ['marco zero', 'aprendiz', 'em progresso', 'consolidando', 'confiante', 'dominado'];
+    const tableW = screenWidth - 52; // card padding 16x2 + tabela margin 10x2
+    const NAME_W = Math.floor(tableW * 0.25);
+    const COL_W = Math.floor((tableW - NAME_W) / 6);
+    const GAUGE_R = Math.floor(COL_W * 0.38);
+    const GAUGE_SW = 3;
+
     if (realDecks.length === 0) return (
       <View style={s.emptyWrap}>
         <Ionicons name="bar-chart-outline" size={48} color={theme.textMuted} />
@@ -965,25 +975,159 @@ export const ProgressScreen = () => {
     return (
       <>
         {realDecks.map(deck => {
-          const deckTotal = deck.subjects.reduce((sum, sub) => sum + sub.flashcards.length, 0);
-          const deckLevelCounts = [0, 0, 0, 0, 0, 0];
-          deck.subjects.forEach(sub => sub.levelCounts.forEach((c, i) => { deckLevelCounts[i] += c; }));
+          const expanded = !!expandedDecks[deck.id];
+          const showLegend = (deckView[deck.id] ?? 'legend') === 'legend';
+          const allCards = deck.subjects.flatMap(s => s.flashcards || []);
+          const deckTotal = allCards.length;
+          const dominated = allCards.filter(c => (c.level || 0) >= 5).length;
+          const pct = deckTotal > 0 ? Math.round(dominated / deckTotal * 100) : 0;
+          const subjectRows = deck.subjects.map(sub => {
+            const counts = [0, 0, 0, 0, 0, 0];
+            (sub.flashcards || []).forEach(c => { counts[Math.min(c.level || 0, 5)]++; });
+            const total = counts.reduce((a, b) => a + b, 0);
+            const dominated5 = counts[5];
+            const subPct = total > 0 ? Math.round(dominated5 / total * 100) : 0;
+            return { name: sub.name, counts, total, subPct };
+          });
+
+          // gauge circular mini para cabeçalho
+          const GaugeCircle = ({ level }) => {
+            const R = GAUGE_R;
+            const SW = GAUGE_SW;
+            const C = 2 * Math.PI * R;
+            const ratio = level / 5;
+            const fill = ratio > 0 ? C * ratio : 0;
+            const size = R * 2 + SW * 2;
+            const cx = R + SW;
+            const cy = R + SW;
+            const color = SL[level];
+            return (
+              <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+                <Svg width={size} height={size}>
+                  <Circle cx={cx} cy={cy} r={R} stroke="#333" strokeWidth={SW} fill="none" />
+                  {fill > 0 && <Circle cx={cx} cy={cy} r={R} stroke={color} strokeWidth={SW} fill="none"
+                    strokeDasharray={`${fill} ${C}`} strokeLinecap="round"
+                    transform={`rotate(-90 ${cx} ${cy})`} />}
+                </Svg>
+                <Text style={{ position: 'absolute', color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false, textAlignVertical: 'center', lineHeight: 13 }}>{level}</Text>
+              </View>
+            );
+          };
 
           return (
-            <View key={deck.id} style={s.card}>
-              <View style={s.deckHeader}>
-                <Text style={s.deckName} numberOfLines={1}>{deck.name}</Text>
-                <Text style={s.deckMeta}>{deck.subjects.length} {deck.subjects.length === 1 ? 'matéria' : 'matérias'} · {deckTotal} cards</Text>
-              </View>
-              <View style={s.deckRingsRow}>
-                {deckLevelCounts.map((count, li) => count === 0 ? null : (
-                  <View key={li} style={s.deckRingItem}>
-                    <LevelRing level={li} size={52} />
-                    <Text style={s.deckRingCount}>{count}</Text>
-                    <Text style={s.deckRingLabel}>{LEVEL_NAMES[li]}</Text>
+            <View key={deck.id} style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
+              {/* Cabeçalho tocável */}
+              <Pressable
+                onPress={() => setExpandedDecks(prev => ({ ...prev, [deck.id]: !prev[deck.id] }))}
+                style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}
+              >
+                <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1}>{deck.name}</Text>
+                <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
+              </Pressable>
+
+              {expanded && (
+                <>
+                  <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />
+
+                  {/* Bloco toggle: legendas OU progresso do deck */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      {showLegend ? (
+                        /* Legendas — 2 colunas ordenadas */
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                          <View style={{ gap: 8 }}>
+                            {[0, 1, 2].map(i => (
+                              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: SL[i] }} />
+                                <Text style={{ color: theme.textPrimary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{LEVEL_NAMES_SHORT[i]}</Text>
+                              </View>
+                            ))}
+                          </View>
+                          <View style={{ gap: 8 }}>
+                            {[3, 4, 5].map(i => (
+                              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: SL[i] }} />
+                                <Text style={{ color: theme.textPrimary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{LEVEL_NAMES_SHORT[i]}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      ) : (
+                        /* Progresso do deck — mini-card interno */
+                        <View style={{ backgroundColor: '#2A2A2A', borderRadius: 10, padding: 12 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                            <View style={{ flex: 1, height: 7, backgroundColor: '#444', borderRadius: 4, overflow: 'hidden', marginTop: 2 }}>
+                              <View style={{ width: `${pct}%`, height: 7, backgroundColor: SL[5], borderRadius: 4 }} />
+                            </View>
+                            <Text style={{ color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false }}>{pct}%</Text>
+                          </View>
+                          <View style={{ height: 1, backgroundColor: '#3A3A3A', marginBottom: 12 }} />
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ color: theme.textPrimary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>
+                              {String(deck.subjects.length).padStart(2, '0')} {deck.subjects.length === 1 ? 'matéria' : 'matérias'}
+                            </Text>
+                            <View style={{ width: 1, height: 16, backgroundColor: SL[5], marginHorizontal: 12 }} />
+                            <Text style={{ color: theme.textPrimary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>
+                              {String(deckTotal).padStart(2, '0')} flashcards
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                    <Pressable
+                      onPress={() => setDeckView(prev => ({ ...prev, [deck.id]: showLegend ? 'table' : 'legend' }))}
+                      style={{ backgroundColor: '#2A2A2A', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 12 }}
+                    >
+                      <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiBold }}>
+                        {showLegend ? 'Progresso' : 'Legendas'}
+                      </Text>
+                    </Pressable>
                   </View>
-                ))}
-              </View>
+
+                  {/* Tabela sempre visível — mini-card com fundo diferente */}
+                  {(() => {
+                    const COL_BG = ['#222222', '#1A1A1A', '#222222', '#1A1A1A', '#222222', '#1A1A1A'];
+                    return (
+                      <View style={{ borderRadius: 10, marginHorizontal: 10, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#333' }}>
+                        {/* Cabeçalho */}
+                        <View style={{ flexDirection: 'row' }}>
+                          <View style={{ width: NAME_W, paddingHorizontal: 8, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' }}>
+                            <Text style={{ color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold }}>Matérias</Text>
+                          </View>
+                          {[0, 1, 2, 3, 4, 5].map(i => (
+                            <View key={i} style={{ width: COL_W, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, backgroundColor: COL_BG[i], borderLeftWidth: 1, borderLeftColor: '#2A2A2A' }}>
+                              <GaugeCircle level={i} />
+                            </View>
+                          ))}
+                        </View>
+                        {/* Linhas de matérias */}
+                        {subjectRows.map((row, ri) => (
+                          <View key={ri} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#333' }}>
+                            <View style={{ width: NAME_W, paddingHorizontal: 8, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' }}>
+                              <Text style={{ color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.uiBold }} numberOfLines={2}>{row.name}</Text>
+                              {row.total > 0 && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
+                                  <View style={{ width: 40, height: 5, backgroundColor: '#333', borderRadius: 3, overflow: 'hidden', marginTop: 2 }}>
+                                    <View style={{ width: `${row.subPct}%`, height: 5, backgroundColor: SL[5], borderRadius: 3 }} />
+                                  </View>
+                                  <Text style={{ color: theme.textSecondary, fontSize: 10, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>{row.subPct}%</Text>
+                                </View>
+                              )}
+                            </View>
+                            {row.counts.map((count, ci) => (
+                              <View key={ci} style={{ width: COL_W, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, backgroundColor: COL_BG[ci], borderLeftWidth: 1, borderLeftColor: '#2A2A2A' }}>
+                                <Text style={{ color: count > 0 ? theme.primary : 'rgba(255,255,255,0.35)', fontSize: 13, fontFamily: theme.fontFamily.uiMedium }}>
+                                  {count}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        ))}
+                      </View>
+                    );
+                  })()}
+                </>
+              )}
             </View>
           );
         })}
@@ -1163,7 +1307,6 @@ export const ProgressScreen = () => {
             {(() => {
               const halfW = (cardW - 32) / 2;
               const lineOffX = BAR_W + 12 + 30 + 8;
-              const totalBarH = BAR_H * 3;
               return <>
                 <View style={{ position: 'absolute', top: 0, bottom: 16, left: 16 + lineOffX, width: 1, backgroundColor: '#2A2A2A' }} />
                 <View style={{ position: 'absolute', top: 0, bottom: 16, left: 16 + halfW + lineOffX, width: 1, backgroundColor: '#2A2A2A' }} />
