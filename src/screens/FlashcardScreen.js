@@ -9,6 +9,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, run
 import { getAppData, saveAppData, saveStudySession, updateStudyUnit, findStudyUnit } from '../services/storage';
 import { calculateCardUpdate } from '../services/srs';
 import { FlashcardItem } from '../components/flashcard/FlashcardItem';
+import { SwipeTutorial } from '../components/flashcard/SwipeTutorial';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
@@ -745,6 +746,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
         {!reviewAll && <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, opacity: swipeReviewText ? 1 : 0 }}>{swipeReviewText || ' '}</Text>}
       </View>
 
+
+      <SwipeTutorial />
 
       <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
 
