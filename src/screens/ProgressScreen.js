@@ -192,7 +192,7 @@ const calcDesempenho = (performanceData, progressData, weekDaysStudied = 0) => {
 const DESEMPENHO_LABELS = [
   { min: 0.0, label: 'Iniciante' },
   { min: 0.2, label: 'Regular' },
-  { min: 0.4, label: 'Bom' },
+  { min: 0.4, label: 'Estável' },
   { min: 0.6, label: 'Ótimo' },
   { min: 0.75, label: 'Excelente' },
   { min: 0.88, label: 'Elite' },
@@ -518,7 +518,7 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
         </View>
       </View>
       {/* linha divisória */}
-      <View style={{ height: 1, backgroundColor: '#5e5e5e', marginHorizontal: svgX(6) }} />
+      <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: svgX(18) }} />
       {/* hint abaixo da linha divisória interna */}
       <View style={{ flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingTop: 0 }}>
         <Text style={sc.faceHint}>{hint}</Text>
@@ -528,18 +528,18 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
 
   return (
     <View style={[sc.root, { height: H }]}>
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#2a2a2a', borderRadius: 20 }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#1C1C1C', borderRadius: 20 }]} />
 
       {!showStats ? (
         <>
           {/* Mini-card com flip */}
           {/* Fundo fixo atrás do mini-card */}
-          <View style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H, backgroundColor: '#2a2a2a', borderRadius: svgX(41) }} />
+          <View style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H, backgroundColor: '#1C1C1C', borderRadius: svgX(41) }} />
           <View style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H }}>
-            <Reanimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#444', borderRadius: svgX(41) }, frontAnimStyle]}>
+            <Reanimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#333', borderRadius: svgX(41) }, frontAnimStyle]}>
               <FaceContent label="Sequência" num={streak} hint="Ver seu record" icon="🔥" />
             </Reanimated.View>
-            <Reanimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#444', borderRadius: svgX(41) }, backAnimStyle]}>
+            <Reanimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#333', borderRadius: svgX(41) }, backAnimStyle]}>
               <FaceContent label="Record máximo" num={bestStreak} hint="Ver sua sequência" icon="🏆" />
             </Reanimated.View>
           </View>
@@ -581,8 +581,8 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
                     : failed
                       ? <Ionicons name="close-sharp" size={CIR_R * 1.4} color="#e94542" />
                       : day.isToday
-                        ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5d5d5d' }} />
-                        : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5c5c5c" />
+                        ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5e5d5d' }} />
+                        : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5e5d5dff" />
                   }
                 </View>
                 <Text style={[sc.dayLbl, day.isToday && sc.dayLblToday]}>{day.label}</Text>
@@ -710,7 +710,7 @@ const sc = StyleSheet.create({
     backgroundColor: '#6fb637',
   },
   circleGray: {
-    backgroundColor: '#444',
+    backgroundColor: '#333',
   },
   circleFailed: {
     backgroundColor: '#512828',
@@ -1026,10 +1026,10 @@ export const ProgressScreen = () => {
     const SL = [theme.srsLevel0, theme.srsLevel1, theme.srsLevel2, theme.srsLevel3, theme.srsLevel4, theme.srsLevel5];
 
     // SIMULAÇÃO — remover depois
-    let totA = 5, totQ = 2, totE = 8;
+    let totA = 0, totQ = 0, totE = 0;
     const tot = totA + totQ + totE;
-    const confiancaGlobal = 0.80;
-    const ok = true;
+    const confiancaGlobal = 0;
+    const ok = false;
     const lvCounts = [0, 0, 0, 0, 0, 0];
     const maxLv = Math.max(...lvCounts, 1);
 
@@ -1043,7 +1043,8 @@ export const ProgressScreen = () => {
     const CX = arcSize / 2;
     const CY = arcSize / 2;
     const C = 2 * Math.PI * R;
-    const AL = C * 0.75;
+    const AL = C * 0.70;
+    const ROT = 90 + (1 - 0.70) * 180;
     const G = 3;
     const sA = tot > 0 ? AL * totA / tot : 0;
     const sQ = tot > 0 ? AL * totQ / tot : 0;
@@ -1075,50 +1076,54 @@ export const ProgressScreen = () => {
         <View style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'stretch' }}>
 
           {/* Card esquerdo: arco */}
-          <View style={{ width: leftW, backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', paddingTop: 14, paddingBottom: 14 }}>
+          <View style={{ width: leftW, backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', paddingTop: 14, paddingBottom: ok ? 16 : 24 }}>
             <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, marginBottom: 10, alignSelf: 'center' }}>
               Desempenho Geral
             </Text>
             <View style={{ width: leftW - 15, height: 1, backgroundColor: '#2A2A2A', marginBottom: 10 }} />
-            <View style={{ width: arcSize, height: arcSize }}>
-              <Svg width={arcSize} height={arcSize}>
-                <Circle cx={CX} cy={CY} r={R} stroke="#333" strokeWidth={SW} fill="none"
-                  strokeDasharray={`${AL} ${C - AL}`} strokeLinecap="round"
-                  transform={`rotate(135 ${CX} ${CY})`} />
-                {ok && <Circle cx={CX} cy={CY} r={R} stroke={CA} strokeWidth={SW} fill="none"
-                  strokeDasharray={`${confiancaGlobal >= 1 ? AL : AL * confiancaGlobal - G} ${C}`} strokeLinecap="round"
-                  transform={`rotate(135 ${CX} ${CY})`} />}
-              </Svg>
-              {/* Label grande centralizado no arco */}
-              <View style={{ position: 'absolute', top: CY - R / 3 + 8, left: SW - 2, right: SW - 2, alignItems: 'center' }}>
-                {ok ? (
-                  <Text style={{ color: '#F0F0F0', fontSize: 22, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false }}>
-                    {getDesempenhoLabel(confiancaGlobal)}
-                  </Text>
-                ) : (
-                  <Text style={{ color: '#666', fontSize: 15, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center' }}>em análise</Text>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ width: arcSize, height: arcSize * 0.94, marginTop: ok ? 8 : 2 }}>
+                <Svg width={arcSize} height={arcSize}>
+                  <Circle cx={CX} cy={CY} r={R} stroke="#333" strokeWidth={SW} fill="none"
+                    strokeDasharray={`${AL} ${C - AL}`} strokeLinecap="round"
+                    transform={`rotate(${ROT} ${CX} ${CY})`} />
+                  {ok && <Circle cx={CX} cy={CY} r={R} stroke={CA} strokeWidth={SW} fill="none"
+                    strokeDasharray={`${confiancaGlobal >= 1 ? AL : AL * confiancaGlobal - G} ${C}`} strokeLinecap="round"
+                    transform={`rotate(${ROT} ${CX} ${CY})`} />}
+                </Svg>
+                {/* % centralizado no arco */}
+                <View style={{ position: 'absolute', top: CY - R / 3 + 0, left: SW - 2, right: SW - 2, alignItems: 'center' }}>
+                  {ok ? (
+                    <Text style={{ color: 'rgba(240,240,240,0.9)', fontFamily: theme.fontFamily.uiBold, includeFontPadding: false }}>
+                      <Text style={{ fontSize: 34 }}>{Math.round(confiancaGlobal * 100)}</Text>
+                      <Text style={{ fontSize: 20 }}>%</Text>
+                    </Text>
+                  ) : (
+                    <Text style={{ color: '#666', fontSize: 17, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center', marginTop: CY * 0.1 }}>em análise</Text>
+                  )}
+                </View>
+                {/* Label entre as pontas do arco */}
+                {ok && (
+                  <View style={{ position: 'absolute', bottom: SW + R * (1 - Math.cos(Math.PI * 0.25)) - 26 + 0, left: 0, right: 0, alignItems: 'center', marginLeft: 0 }}>
+                    <Text style={{ color: '#F0F0F0', fontSize: 16, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>
+                      {getDesempenhoLabel(confiancaGlobal)}
+                    </Text>
+                  </View>
+                )}
+                {!ok && (
+                  <View style={{ position: 'absolute', bottom: SW + R * (1 - Math.cos(Math.PI * 0.25)) - 15 + -5, left: 0, right: 0, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 5 }}>
+                    {[0, 1, 2].map(k => <View key={k} style={{ width: 20, height: 3, backgroundColor: CA, borderRadius: 2 }} />)}
+                  </View>
+                )}
+                {!ok && (
+                  <View style={{ position: 'absolute', bottom: -15, left: 0, right: 0, alignItems: 'center' }}>
+                    <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium }}>
+                      continue estudando
+                    </Text>
+                  </View>
                 )}
               </View>
-              {/* % entre as pontas do arco */}
-              {ok && (
-                <View style={{ position: 'absolute', bottom: SW + R * (1 - Math.cos(Math.PI * 0.25)) - 26, left: 0, right: 0, alignItems: 'center', marginLeft: 4 }}>
-                  <Text style={{ color: '#aaa', fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>
-                    <Text style={{ fontSize: 22 }}>{Math.round(confiancaGlobal * 100)}</Text>
-                    <Text style={{ fontSize: 15 }}>%</Text>
-                  </Text>
-                </View>
-              )}
-              {!ok && (
-                <View style={{ position: 'absolute', bottom: SW + R * (1 - Math.cos(Math.PI * 0.25)) - 15, left: 0, right: 0, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 5 }}>
-                  {[0, 1, 2].map(k => <View key={k} style={{ width: 16, height: 3, backgroundColor: CA, borderRadius: 2 }} />)}
-                </View>
-              )}
             </View>
-            {!ok && (
-              <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium, marginTop: 4 }}>
-                continue estudando
-              </Text>
-            )}
           </View>
 
           {/* Direita: Acertos / Quases / Erros — sem card, fundo transparente */}
