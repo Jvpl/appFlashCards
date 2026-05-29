@@ -18,7 +18,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  getAppData, saveAppData, getPurchasedDecks, getDeckCache,
+  getAppData, saveAppData, getPurchasedDecks, getDeckCache, updateDeckOrder,
 } from '../services/storage';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
@@ -70,6 +70,7 @@ const matchCategory = (deck) => {
 // ── Sort config ───────────────────────────────────────────────────
 
 const SORT_OPTIONS = {
+  'decks-todos':        [{ id: 'az', label: 'A–Z' }, { id: 'za', label: 'Z–A' }, { id: 'materias', label: 'Mais matérias' }, { id: 'progresso', label: 'Maior %' }],
   'decks-meus':         [{ id: 'az', label: 'A–Z' }, { id: 'za', label: 'Z–A' }, { id: 'materias', label: 'Mais matérias' }, { id: 'progresso', label: 'Maior %' }],
   'decks-comprados':    [{ id: 'az', label: 'A–Z' }, { id: 'za', label: 'Z–A' }, { id: 'materias', label: 'Mais matérias' }, { id: 'progresso', label: 'Maior %' }],
   'categorias':         [{ id: 'az', label: 'A–Z' }, { id: 'za', label: 'Z–A' }, { id: 'decks', label: 'Mais decks' }],
@@ -159,8 +160,18 @@ export const AllItemsScreen = ({ route, navigation }) => {
       )).filter(Boolean).map(d => ({ ...d, isPurchased: true }));
 
       switch (sectionKey) {
+        case 'decks-todos': {
+          const allPurchased = (await Promise.all(
+            purchasedIds.map(id => getDeckCache(id))
+          )).filter(Boolean).map(d => ({ ...d, isPurchased: true }));
+          const result = [...allPurchased, ...userDecks.filter(d => !d.isExample)];
+          _cache[sectionKey] = result;
+          setItems(result);
+          break;
+        }
+
         case 'decks-meus': {
-          const result = userDecks.filter(d => d.isUserCreated && !d.isExample);
+          const result = userDecks.filter(d => !d.isExample);
           _cache[sectionKey] = result;
           setItems(result);
           break;
@@ -222,6 +233,7 @@ export const AllItemsScreen = ({ route, navigation }) => {
     if (q) {
       result = result.filter(item => {
         switch (sectionKey) {
+          case 'decks-todos':
           case 'decks-meus':
           case 'decks-comprados':
             return item.name?.toLowerCase().includes(q);
@@ -261,8 +273,10 @@ export const AllItemsScreen = ({ route, navigation }) => {
 
   const handleItemPress = useCallback((item) => {
     switch (sectionKey) {
+      case 'decks-todos':
       case 'decks-meus':
       case 'decks-comprados':
+        updateDeckOrder(item.id);
         navigation.navigate('SubjectList', {
           deckId: item.id,
           deckName: item.name,
@@ -312,6 +326,7 @@ export const AllItemsScreen = ({ route, navigation }) => {
 
   const renderItem = useCallback(({ item }) => {
     switch (sectionKey) {
+      case 'decks-todos':
       case 'decks-meus':
       case 'decks-comprados':
         return (
@@ -364,6 +379,7 @@ export const AllItemsScreen = ({ route, navigation }) => {
 
   const keyExtractor = useCallback((item, index) => {
     switch (sectionKey) {
+      case 'decks-todos':
       case 'decks-meus':
       case 'decks-comprados':
         return item.id || String(index);

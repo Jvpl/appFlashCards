@@ -156,6 +156,31 @@ export const removePurchasedDeck = async (deckId) => {
 
 
 // ============================================
+// Ordem dos Decks — ordenação por último acesso
+// ============================================
+
+const DECK_ORDER_KEY = '@FlashcardsApp:deckOrder';
+
+export const getDeckOrder = async () => {
+  try {
+    const json = await AsyncStorage.getItem(DECK_ORDER_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+export const updateDeckOrder = async (deckId) => {
+  try {
+    const order = await getDeckOrder();
+    const updated = [deckId, ...order.filter(id => id !== deckId)];
+    await AsyncStorage.setItem(DECK_ORDER_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Failed to update deck order:', e);
+  }
+};
+
+// ============================================
 // Recentes — Decks acessados recentemente
 // ============================================
 

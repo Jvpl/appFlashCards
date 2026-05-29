@@ -535,7 +535,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
                           returnKeyType={editDeckId ? 'done' : 'next'}
                           onSubmitEditing={() => { if (!editDeckId && name.trim()) goToStep2(); }}
                           maxLength={30}
-                          autoFocus={!editDeckId}
+                          autoFocus={false}
                         />
                         {name.length > 0 && (
                           <Text style={[s.charCount, name.length >= 25 && s.charCountWarn]}>

@@ -17,8 +17,8 @@ import {
 
 import {
   getAppData, saveAppData, getPurchasedDecks, getDeckCache,
-  removePurchasedDeck, saveRecentDeck, getRecentDeckIds, getContinueStudy,
-  getUsedCategoryIds, saveUsedCategoryIds,
+  removePurchasedDeck, getContinueStudy,
+  getUsedCategoryIds, saveUsedCategoryIds, getDeckOrder, updateDeckOrder,
 } from '../services/storage';
 import { getProducts } from '../services/firebase';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
@@ -33,7 +33,6 @@ import DeckStackCard from '../components/home/DeckStackCard';
 import MateriaCard from '../components/home/MateriaCard';
 import HomeTabBar from '../components/home/HomeTabBar';
 import OverflowCard from '../components/home/OverflowCard';
-import RecentCard from '../components/home/RecentCard';
 
 const { width } = Dimensions.get('window');
 const GRID_PADDING = 16;
@@ -104,6 +103,7 @@ const SUBJECT_SORT_LABELS = Object.fromEntries(SUBJECT_SORT_OPTIONS.map(o => [o.
 
 // getCatLabel importado de config/categories.js
 
+const MAX_VISIBLE = 8;
 
 const matchConcursoCategory = (deck) => {
   if (deck.isUserCreated || deck.isExample) return 'personalizados';
@@ -437,7 +437,6 @@ export const DeckListScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(_cachedDecks.length === 0);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
-  const [recentDeckIds, setRecentDeckIds] = useState([]);
   const [continueStudy, setContinueStudy] = useState(null);
   const [allowDefaultDeckEditing, setAllowDefaultDeckEditing] = useState(false);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
@@ -463,6 +462,8 @@ export const DeckListScreen = ({ navigation }) => {
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [sortMenuPos, setSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
   const [deckFilter, setDeckFilter] = useState('all');          // 'all'|'meus'|'comprados'
+  const [deckOrder, setDeckOrder] = useState([]);              // IDs ordenados por último acesso
+  const [visibleDeckCount, setVisibleDeckCount] = useState(MAX_VISIBLE - 1);
   const sortBtnRef = useRef(null);
   const [subjectSortOrder, setSubjectSortOrder] = useState(null);
   const [subjectSortMenuOpen, setSubjectSortMenuOpen] = useState(false);
@@ -507,7 +508,9 @@ export const DeckListScreen = ({ navigation }) => {
       // Carrega customCats e usedCategoryIds em paralelo
       let customs = [];
       let stored = new Set();
+      let order = [];
       try { customs = await getCustomCategories(); } catch (_) {}
+      try { order = await getDeckOrder(); } catch (_) {}
       try {
         const activeCatIds = new Set(
           _cachedDecks
@@ -532,6 +535,7 @@ export const DeckListScreen = ({ navigation }) => {
         setCustomCats(customs);
         setUsedCategoryIds(new Set(stored));
         setUsedCategoryOrder([...stored]);
+        setDeckOrder(order);
         // Se acabou de criar o primeiro deck, muda de categorias para decks
         const newUserDeckCount = _cachedDecks.filter(d => !d.isExample).length;
         if (prevUserDeckCount === 0 && newUserDeckCount > 0) {
@@ -566,12 +570,10 @@ export const DeckListScreen = ({ navigation }) => {
   }, [loadData]);
 
   const loadSecondaryData = useCallback(async () => {
-    const [ids, continueData, dismissed] = await Promise.all([
-      getRecentDeckIds(),
+    const [continueData, dismissed] = await Promise.all([
       getContinueStudy(),
       AsyncStorage.getItem('dismissedExampleDeck').catch(() => null),
     ]);
-    setRecentDeckIds(ids);
     setContinueStudy(continueData);
     setExampleDismissed(dismissed === 'true');
   }, []);
@@ -657,10 +659,6 @@ export const DeckListScreen = ({ navigation }) => {
     return decks.filter(d => getDeckCatId(d) === activeCategoryId);
   }, [activeCategoryId, decks, getDeckCatId]);
 
-  const recentDecks = useMemo(() =>
-    recentDeckIds.map(id => decks.find(d => d.id === id)).filter(Boolean).slice(0, 3),
-  [recentDeckIds, decks]);
-
   const exampleDeck = useMemo(() => decks.find(d => d.isExample), [decks]);
 
   const continueStudyPct = useMemo(() => {
@@ -735,11 +733,6 @@ export const DeckListScreen = ({ navigation }) => {
     return result;
   }, [decks]);
 
-  // Recentes (max 4)
-  const recentDecksLimited = useMemo(() =>
-    recentDeckIds.map(id => decks.find(d => d.id === id)).filter(Boolean).slice(0, 3),
-  [recentDeckIds, decks]);
-
   // ── Ordenação ────────────────────────────
 
   const sortSubjects = useCallback((list) => {
@@ -766,7 +759,15 @@ export const DeckListScreen = ({ navigation }) => {
   }, []);
 
   const sortDecks = useCallback((list) => {
-    if (!sortOrder) return list;
+    if (!sortOrder) {
+      if (deckOrder.length === 0) return list;
+      const posMap = new Map(deckOrder.map((id, i) => [id, i]));
+      return [...list].sort((a, b) => {
+        const pa = posMap.has(a.id) ? posMap.get(a.id) : Infinity;
+        const pb = posMap.has(b.id) ? posMap.get(b.id) : Infinity;
+        return pa - pb;
+      });
+    }
     const copy = [...list];
     switch (sortOrder) {
       case 'az':       return copy.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt'));
@@ -777,7 +778,7 @@ export const DeckListScreen = ({ navigation }) => {
       case 'recent':   return copy.reverse();
       default:         return list;
     }
-  }, [sortOrder]);
+  }, [sortOrder, deckOrder]);
 
   const sortCategories = useCallback((list) => {
     if (!catSortOrder) return list;
@@ -884,7 +885,8 @@ export const DeckListScreen = ({ navigation }) => {
 
   const handleDeckPress = useCallback(async (deck) => {
     if (multiSelectMode) { toggleSelection(deck.id); return; }
-    await saveRecentDeck(deck.id);
+    await updateDeckOrder(deck.id);
+    setDeckOrder(prev => [deck.id, ...prev.filter(id => id !== deck.id)]);
     navigation.navigate('SubjectList', {
       deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects,
     });
@@ -1041,29 +1043,17 @@ export const DeckListScreen = ({ navigation }) => {
   const isSearching = searchTerm.trim().length > 0;
 
   // ── Helpers de grid com overflow ──────────
-  const MAX_VISIBLE = 8;
 
-  const SECTION_TITLES = {
-    'categorias':         'Categorias',
-    'decks-meus':         'Meus Decks',
-    'decks-comprados':    'Decks Comprados',
-    'materias-comprados': 'Matérias',
-    'materias': 'Matérias',
-  };
-
-  const renderGridWithOverflow = (items, renderCard, sectionKey) => {
-    const showOverflow = items.length > MAX_VISIBLE;
-    const displayItems = showOverflow ? items.slice(0, MAX_VISIBLE - 1) : items;
-    const overflowCount = items.length - (MAX_VISIBLE - 1);
+  const renderGridWithOverflow = (items, renderCard, visibleCount, onShowMore) => {
+    const showOverflow = items.length > visibleCount;
+    const displayItems = showOverflow ? items.slice(0, visibleCount) : items;
+    const overflowCount = items.length - visibleCount;
     const overflowCard = (
       <OverflowCard
         count={overflowCount}
         width={CARD_WIDTH}
         height={CARD_HEIGHT}
-        onPress={() => navigation.navigate('AllItems', {
-          sectionKey,
-          title: SECTION_TITLES[sectionKey] || 'Ver todos',
-        })}
+        onPress={onShowMore}
       />
     );
 
@@ -1292,23 +1282,7 @@ export const DeckListScreen = ({ navigation }) => {
             </TouchableOpacity>
           )}
 
-          {/* 1. RECENTES */}
-          {recentDecksLimited.length > 0 && (
-            <View style={s.recentSection}>
-              <Text style={s.sectionLabel}>RECENTES</Text>
-              <View style={s.recentRow}>
-                {recentDecksLimited.map(deck => (
-                  <RecentCard
-                    key={deck.id}
-                    deck={deck}
-                    onPress={() => handleDeckPress(deck)}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* 2. BOTÃO CRIAR DECK */}
+          {/* 1. BOTÃO CRIAR DECK */}
           <View style={s.createDeckWrapper}>
             <TouchableOpacity
               style={s.createDeckBtn}
@@ -1324,7 +1298,7 @@ export const DeckListScreen = ({ navigation }) => {
 
           {/* 3. TAB BAR */}
           <View style={s.tabBarWrapper}>
-            <HomeTabBar activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); exitSelectMode(); setSortMenuOpen(false); }} />
+            <HomeTabBar activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); exitSelectMode(); setSortMenuOpen(false); setVisibleDeckCount(MAX_VISIBLE - 1); }} />
           </View>
 
           {/* 4. CONTEÚDO DA ABA */}
@@ -1463,7 +1437,7 @@ export const DeckListScreen = ({ navigation }) => {
               let displayDecks;
               if (showFilters && deckFilter === 'meus') displayDecks = sortDecks(meusDecks);
               else if (showFilters && deckFilter === 'comprados') displayDecks = sortDecks(compradosDecks);
-              else displayDecks = sortDecks([...meusDecks, ...compradosDecks]);
+              else displayDecks = sortDecks([...compradosDecks, ...meusDecks]);
 
               const renderDeckCard = (deck) => (
                 <DeckStackCard
@@ -1480,9 +1454,11 @@ export const DeckListScreen = ({ navigation }) => {
                 />
               );
 
-              const sectionKey = showFilters && deckFilter !== 'all'
-                ? `decks-${deckFilter}`
-                : 'decks-meus';
+              const sectionKey = showFilters && deckFilter === 'comprados'
+                ? 'decks-comprados'
+                : showFilters && deckFilter === 'meus'
+                ? 'decks-meus'
+                : 'decks-todos';
 
               return (
                 <>
@@ -1500,7 +1476,7 @@ export const DeckListScreen = ({ navigation }) => {
                             <TouchableOpacity
                               key={chip.key}
                               style={[s.filterChip, deckFilter === chip.key && s.filterChipActive]}
-                              onPress={() => setDeckFilter(chip.key)}
+                              onPress={() => { setDeckFilter(chip.key); setVisibleDeckCount(MAX_VISIBLE - 1); }}
                               hitSlop={HIT_SLOP}
                             >
                               <Text style={[s.filterChipTxt, deckFilter === chip.key && s.filterChipTxtActive]}>
@@ -1540,69 +1516,16 @@ export const DeckListScreen = ({ navigation }) => {
                     </>
                   )}
 
-                  {renderGridWithOverflow(displayDecks, renderDeckCard, sectionKey)}
+                  {renderGridWithOverflow(
+                    displayDecks,
+                    renderDeckCard,
+                    visibleDeckCount,
+                    () => setVisibleDeckCount(prev => prev + (MAX_VISIBLE - 1))
+                  )}
                 </>
               );
             })()}
 
-            {/* ── ABA MATÉRIAS ── */}
-            {activeTab === 'materias' && (
-              allSubjects.length === 0 ? (
-                <View style={s.emptyTab}>
-                  <Ionicons name="book-outline" size={36} color={theme.backgroundTertiary} />
-                  <Text style={s.emptyTabText}>Nenhuma matéria ainda.</Text>
-                  <Text style={s.emptyTabSub}>Crie um deck e adicione matérias para estudar.</Text>
-                </View>
-              ) : (
-                <>
-                  {!multiSelectMode && allSubjects.length >= 2 && (
-                    <View style={s.deckMetaRow}>
-                      <View style={[s.deckMetaLine, { flex: 1 }]} />
-                      <TouchableOpacity
-                        ref={subjectSortBtnRef}
-                        style={[s.deckMetaBtn, subjectSortOrder && s.deckMetaBtnActive, { marginHorizontal: 6 }]}
-                        hitSlop={HIT_SLOP}
-                        onPress={() => {
-                          subjectSortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
-                            const sbH = StatusBar.currentHeight || 0;
-                            setSubjectSortMenuPos({ x, y: y + bh + sbH, w: bw });
-                            setSubjectSortMenuOpen(true);
-                          });
-                        }}
-                      >
-                        <Ionicons
-                          name="swap-vertical-outline"
-                          size={13}
-                          color={subjectSortOrder ? theme.primary : theme.textMuted}
-                        />
-                        <Text style={[s.deckMetaBtnTxt, subjectSortOrder && s.deckMetaBtnTxtActive]}>
-                          {subjectSortOrder ? SUBJECT_SORT_LABELS[subjectSortOrder] : 'Ordenar'}
-                        </Text>
-                      </TouchableOpacity>
-                      <View style={[s.deckMetaLine, { width: GRID_PADDING + 24 }]} />
-                    </View>
-                  )}
-                  {renderGridWithOverflow(
-                    sortSubjects(allSubjects),
-                    (item, index) => (
-                      <MateriaCard
-                        key={`${item.deck.id}-${item.subject.id}`}
-                        subject={item.subject}
-                        deck={item.deck}
-                        width={CARD_WIDTH}
-                        height={CARD_HEIGHT}
-                        onPress={() => handleSubjectPress(item)}
-                        onLongPress={() => handleSubjectLongPress(item)}
-                        onMenuPress={(e) => handleSubjectMenuPress(item, e)}
-                        isSelected={selectedIds.has(`${item.deck.id}:${item.subject.id}`)}
-                        selectMode={multiSelectMode}
-                      />
-                    ),
-                    'materias',
-                  )}
-                </>
-              )
-            )}
 
           </View>
         </ScrollView>
@@ -2208,19 +2131,6 @@ const s = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  // Seção Recentes
-  recentSection: {
-    paddingHorizontal: GRID_PADDING,
-    paddingTop: 12,
-    paddingBottom: 4,
-    gap: 8,
-  },
-  recentRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-
-
   firstAccessContent: {
     paddingHorizontal: GRID_PADDING,
     paddingTop: 20,
@@ -2377,17 +2287,6 @@ const s = StyleSheet.create({
     color: theme.textMuted,
     fontFamily: theme.fontFamily.body,
     fontSize: 12,
-  },
-
-  // Recentes
-  recentSection: {
-    paddingTop: 20,
-    paddingHorizontal: GRID_PADDING,
-    gap: 10,
-  },
-  recentScroll: {
-    paddingTop: 4,
-    gap: 10,
   },
 
   // Criar deck
