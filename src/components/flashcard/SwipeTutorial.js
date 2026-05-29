@@ -154,7 +154,7 @@ export const SwipeTutorial = forwardRef((props, ref) => {
       </TouchableOpacity>
     </Modal>
   );
-};
+});
 
 const s = StyleSheet.create({
   overlay: {
@@ -263,8 +263,6 @@ const s = StyleSheet.create({
     color: 'rgba(255,255,255,0.3)',
     fontSize: 13,
   },
-});
-
 });
 
 export default SwipeTutorial;
