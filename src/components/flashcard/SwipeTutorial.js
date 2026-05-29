@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Animated, Easing, Modal, Dimensions,
@@ -16,16 +16,8 @@ const SWIPE_Y = 70;
 const EASE_OUT = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 const EASE_BACK = Easing.bezier(0.55, 0.06, 0.68, 0.19);
 
-export const SwipeTutorial = forwardRef((props, ref) => {
+export const SwipeTutorial = () => {
   const [visible, setVisible] = useState(false);
-  const manuallyShown = useRef(false);
-
-  useImperativeHandle(ref, () => ({
-    show: () => {
-      manuallyShown.current = true;
-      setVisible(true);
-    },
-  }));
 
   const fingerX  = useRef(new Animated.Value(0)).current;
   const fingerY  = useRef(new Animated.Value(0)).current;
@@ -82,10 +74,7 @@ export const SwipeTutorial = forwardRef((props, ref) => {
 
   const dismiss = async () => {
     animRef.current?.stop();
-    if (!manuallyShown.current) {
-      await AsyncStorage.setItem(TUTORIAL_KEY, '1');
-    }
-    manuallyShown.current = false;
+    await AsyncStorage.setItem(TUTORIAL_KEY, '1');
     Animated.timing(overlayOp, {
       toValue: 0, duration: 280, useNativeDriver: true,
     }).start(() => setVisible(false));
@@ -268,8 +257,6 @@ const s = StyleSheet.create({
     color: 'rgba(255,255,255,0.3)',
     fontSize: 13,
   },
-});
-
 });
 
 export default SwipeTutorial;
