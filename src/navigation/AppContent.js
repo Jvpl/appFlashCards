@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppTheme } from '../config/theme';
 import { DrawerNavigator } from './DrawerNavigator';
 import { ProgressScreen } from '../screens/ProgressScreen';
+import { SubjectListScreen } from '../screens/SubjectListScreen';
 import { LojaScreen } from '../screens/LojaScreen';
 import { FlashcardScreen } from '../screens/FlashcardScreen';
 import { ManageFlashcardsScreen } from '../screens/ManageFlashcardsScreen';
@@ -18,7 +19,6 @@ import theme from '../styles/theme';
 
 
 const Root = createStackNavigator();
-
 const Tab = createBottomTabNavigator();
 
 const TAB_CONFIG = [
@@ -223,6 +223,11 @@ export function AppContent() {
             headerTitleStyle: { fontWeight: 'bold' },
             cardStyle: { backgroundColor: theme.background },
           }}
+        />
+        <Root.Screen
+          name="SubjectListFromProgress"
+          component={SubjectListScreen}
+          options={{ headerShown: false, cardStyle: { backgroundColor: theme.background } }}
         />
       </Root.Navigator>
     </NavigationContainer>

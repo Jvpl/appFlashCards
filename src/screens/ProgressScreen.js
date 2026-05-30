@@ -760,7 +760,7 @@ const sc = StyleSheet.create({
 
 // ── Tela principal ───────────────────────────────────────────────
 export const ProgressScreen = () => {
-  useNavigation();
+  const navigation = useNavigation();
   const scrollViewRef = useRef(null);
   const { width: screenWidth } = useWindowDimensions();
 
@@ -778,6 +778,7 @@ export const ProgressScreen = () => {
   const [viewMode, setViewMode] = useState('hoje');
   const [expandedDecks, setExpandedDecks] = useState({});
   const [deckView, setDeckView] = useState({});
+  const [expandedSubjects, setExpandedSubjects] = useState({});
 
   // Totais globais
   const [totalDecks, setTotalDecks] = useState(0);
@@ -958,12 +959,36 @@ export const ProgressScreen = () => {
   const renderNiveis = () => {
     const realDecks = progressData.filter(deck => !deck.isExample);
     const SL = [theme.srsLevel0, theme.srsLevel1, theme.srsLevel2, theme.srsLevel3, theme.srsLevel4, theme.srsLevel5];
-    const LEVEL_NAMES_SHORT = ['marco zero', 'aprendiz', 'em progresso', 'consolidando', 'confiante', 'dominado'];
-    const tableW = screenWidth - 52; // card padding 16x2 + tabela margin 10x2
-    const NAME_W = Math.floor(tableW * 0.25);
-    const COL_W = Math.floor((tableW - NAME_W) / 6);
-    const GAUGE_R = Math.floor(COL_W * 0.38);
+    const LEVEL_NAMES_SHORT = ['Marco Zero', 'Aprendiz', 'Em Progresso', 'Consolidando', 'Confiante', 'Dominado'];
+    const COL_BG = ['#222222', '#1A1A1A', '#222222', '#1A1A1A', '#222222', '#1A1A1A'];
+
+    // Gauge circle para tabela de matéria
+    const tableW = screenWidth - 64;
+    const COL_W = Math.floor(tableW / 6);
+    const GAUGE_R = Math.floor(COL_W * 0.36);
     const GAUGE_SW = 3;
+
+    const GaugeCircle = ({ level, radius, sw }) => {
+      const R = radius ?? GAUGE_R;
+      const SW = sw ?? GAUGE_SW;
+      const C = 2 * Math.PI * R;
+      const ratio = level / 5;
+      const fill = ratio > 0 ? C * ratio : 0;
+      const size = R * 2 + SW * 2;
+      const cx = R + SW;
+      const cy = R + SW;
+      return (
+        <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+          <Svg width={size} height={size}>
+            <Circle cx={cx} cy={cy} r={R} stroke="#333" strokeWidth={SW} fill="none" />
+            {fill > 0 && <Circle cx={cx} cy={cy} r={R} stroke={SL[level]} strokeWidth={SW} fill="none"
+              strokeDasharray={`${fill} ${C}`} strokeLinecap="round"
+              transform={`rotate(-90 ${cx} ${cy})`} />}
+          </Svg>
+          <Text style={{ position: 'absolute', color: theme.textPrimary, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false, textAlignVertical: 'center', lineHeight: R * 0.85, fontSize: R * 0.7 }}>{level}</Text>
+        </View>
+      );
+    };
 
     if (realDecks.length === 0) return (
       <View style={s.emptyWrap}>
@@ -975,157 +1000,156 @@ export const ProgressScreen = () => {
     return (
       <>
         {realDecks.map(deck => {
-          const expanded = !!expandedDecks[deck.id];
+          const deckExpanded = !!expandedDecks[deck.id];
           const showLegend = (deckView[deck.id] ?? 'legend') === 'legend';
           const allCards = deck.subjects.flatMap(s => s.flashcards || []);
           const deckTotal = allCards.length;
           const dominated = allCards.filter(c => (c.level || 0) >= 5).length;
           const pct = deckTotal > 0 ? Math.round(dominated / deckTotal * 100) : 0;
-          const subjectRows = deck.subjects.map(sub => {
-            const counts = [0, 0, 0, 0, 0, 0];
-            (sub.flashcards || []).forEach(c => { counts[Math.min(c.level || 0, 5)]++; });
-            const total = counts.reduce((a, b) => a + b, 0);
-            const dominated5 = counts[5];
-            const subPct = total > 0 ? Math.round(dominated5 / total * 100) : 0;
-            return { name: sub.name, counts, total, subPct };
-          });
 
-          // gauge circular mini para cabeçalho
-          const GaugeCircle = ({ level }) => {
-            const R = GAUGE_R;
-            const SW = GAUGE_SW;
-            const C = 2 * Math.PI * R;
-            const ratio = level / 5;
-            const fill = ratio > 0 ? C * ratio : 0;
-            const size = R * 2 + SW * 2;
-            const cx = R + SW;
-            const cy = R + SW;
-            const color = SL[level];
-            return (
-              <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-                <Svg width={size} height={size}>
-                  <Circle cx={cx} cy={cy} r={R} stroke="#333" strokeWidth={SW} fill="none" />
-                  {fill > 0 && <Circle cx={cx} cy={cy} r={R} stroke={color} strokeWidth={SW} fill="none"
-                    strokeDasharray={`${fill} ${C}`} strokeLinecap="round"
-                    transform={`rotate(-90 ${cx} ${cy})`} />}
-                </Svg>
-                <Text style={{ position: 'absolute', color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false, textAlignVertical: 'center', lineHeight: 13 }}>{level}</Text>
-              </View>
-            );
-          };
+          // SIMULAÇÃO — remover depois
+          const simCounts = [
+            [12, 34, 18, 7, 5, 22],
+            [45, 23, 67, 31, 15, 6],
+            [8, 19, 41, 55, 28, 14],
+          ];
+          const subjectRows = deck.subjects.map((sub, si) => {
+            const counts = simCounts[si % 3];
+            const total = counts.reduce((a, b) => a + b, 0);
+            const subPct = sub.name === 'Ola' ? 100 : (total > 0 ? Math.round(counts[5] / total * 100) : 0);
+            return { id: sub.id || si, name: sub.name, counts, total, subPct };
+          });
 
           return (
             <View key={deck.id} style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
-              {/* Cabeçalho tocável */}
+
+              {/* ── Header: nome + chevron ── */}
               <Pressable
                 onPress={() => setExpandedDecks(prev => ({ ...prev, [deck.id]: !prev[deck.id] }))}
-                style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18 }}
               >
                 <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1}>{deck.name}</Text>
-                <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
+                <Ionicons name={deckExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
               </Pressable>
 
-              {expanded && (
+              {deckExpanded && (
                 <>
                   <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />
-
-                  {/* Bloco toggle: legendas OU progresso do deck */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, gap: 10 }}>
-                    <View style={{ flex: 1 }}>
-                      {showLegend ? (
-                        /* Legendas — 2 colunas ordenadas */
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
-                          <View style={{ gap: 8 }}>
-                            {[0, 1, 2].map(i => (
-                              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <View style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: SL[i] }} />
-                                <Text style={{ color: theme.textPrimary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{LEVEL_NAMES_SHORT[i]}</Text>
-                              </View>
-                            ))}
-                          </View>
-                          <View style={{ gap: 8 }}>
-                            {[3, 4, 5].map(i => (
-                              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <View style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: SL[i] }} />
-                                <Text style={{ color: theme.textPrimary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{LEVEL_NAMES_SHORT[i]}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        </View>
-                      ) : (
-                        /* Progresso do deck — mini-card interno */
-                        <View style={{ backgroundColor: '#2A2A2A', borderRadius: 10, padding: 12 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                            <View style={{ flex: 1, height: 7, backgroundColor: '#444', borderRadius: 4, overflow: 'hidden', marginTop: 2 }}>
-                              <View style={{ width: `${pct}%`, height: 7, backgroundColor: SL[5], borderRadius: 4 }} />
-                            </View>
-                            <Text style={{ color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false }}>{pct}%</Text>
-                          </View>
-                          <View style={{ height: 1, backgroundColor: '#3A3A3A', marginBottom: 12 }} />
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                            <Text style={{ color: theme.textPrimary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>
-                              {String(deck.subjects.length).padStart(2, '0')} {deck.subjects.length === 1 ? 'matéria' : 'matérias'}
-                            </Text>
-                            <View style={{ width: 1, height: 16, backgroundColor: SL[5], marginHorizontal: 12 }} />
-                            <Text style={{ color: theme.textPrimary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>
-                              {String(deckTotal).padStart(2, '0')} flashcards
-                            </Text>
-                          </View>
-                        </View>
-                      )}
+                  {/* ── Seção 1: métricas do deck (só se tiver matérias) ── */}
+                  {subjectRows.length > 0 && (
+                    <View style={{ flexDirection: 'row', paddingBottom: 16, paddingTop: 16 }}>
+                      <View style={{ flex: 1, alignItems: 'center', gap: 3 }}>
+                        <Text style={{ color: theme.primary, fontSize: 22, fontFamily: theme.fontFamily.uiBold }}>{deck.subjects.length}</Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>{deck.subjects.length === 1 ? 'Matéria' : 'Matérias'}</Text>
+                      </View>
+                      <View style={{ width: 1, backgroundColor: '#2A2A2A' }} />
+                      <View style={{ flex: 1, alignItems: 'center', gap: 3 }}>
+                        <Text style={{ color: theme.primary, fontSize: 22, fontFamily: theme.fontFamily.uiBold }}>{deckTotal}</Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>Flashcards</Text>
+                      </View>
+                      <View style={{ width: 1, backgroundColor: '#2A2A2A' }} />
+                      <View style={{ flex: 1, alignItems: 'center', gap: 3 }}>
+                        <Text style={{ fontFamily: theme.fontFamily.uiBold, fontSize: 22 }}>
+                          <Text style={{ color: theme.primary }}>{pct}</Text>
+                          <Text style={{ color: theme.textMuted, fontSize: 13 }}>%</Text>
+                        </Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>Concluído</Text>
+                      </View>
                     </View>
-                    <Pressable
-                      onPress={() => setDeckView(prev => ({ ...prev, [deck.id]: showLegend ? 'table' : 'legend' }))}
-                      style={{ backgroundColor: '#2A2A2A', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 12 }}
-                    >
-                      <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiBold }}>
-                        {showLegend ? 'Progresso' : 'Legendas'}
-                      </Text>
-                    </Pressable>
-                  </View>
+                  )}
 
-                  {/* Tabela sempre visível — mini-card com fundo diferente */}
-                  {(() => {
-                    const COL_BG = ['#222222', '#1A1A1A', '#222222', '#1A1A1A', '#222222', '#1A1A1A'];
+                  {/* ── Seção 2: matérias ── */}
+                  <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />
+
+                  {subjectRows.length === 0 && (
+                    <Pressable
+                      onPress={() => navigation.navigate('SubjectListFromProgress', { deckId: deck.id, deckName: deck.name, preloadedSubjects: [] })}
+                      style={{ backgroundColor: '#181818', paddingHorizontal: 20, paddingVertical: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }}
+                    >
+                      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#252525', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="layers-outline" size={22} color={theme.textMuted} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiBold, marginBottom: 3 }}>Nenhuma matéria ainda</Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>Toque para criar a primeira matéria deste deck</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+                    </Pressable>
+                  )}
+                  {subjectRows.map((row, ri) => {
+                    const subKey = `${deck.id}_${row.id}`;
+                    const subExpanded = !!expandedSubjects[subKey];
+
                     return (
-                      <View style={{ borderRadius: 10, marginHorizontal: 10, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#333' }}>
-                        {/* Cabeçalho */}
-                        <View style={{ flexDirection: 'row' }}>
-                          <View style={{ width: NAME_W, paddingHorizontal: 8, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' }}>
-                            <Text style={{ color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold }}>Matérias</Text>
-                          </View>
-                          {[0, 1, 2, 3, 4, 5].map(i => (
-                            <View key={i} style={{ width: COL_W, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, backgroundColor: COL_BG[i], borderLeftWidth: 1, borderLeftColor: '#2A2A2A' }}>
-                              <GaugeCircle level={i} />
-                            </View>
-                          ))}
-                        </View>
-                        {/* Linhas de matérias */}
-                        {subjectRows.map((row, ri) => (
-                          <View key={ri} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#333' }}>
-                            <View style={{ width: NAME_W, paddingHorizontal: 8, paddingVertical: 12, justifyContent: 'center', alignItems: 'center' }}>
-                              <Text style={{ color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.uiBold }} numberOfLines={2}>{row.name}</Text>
-                              {row.total > 0 && (
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 }}>
-                                  <View style={{ width: 40, height: 5, backgroundColor: '#333', borderRadius: 3, overflow: 'hidden', marginTop: 2 }}>
-                                    <View style={{ width: `${row.subPct}%`, height: 5, backgroundColor: SL[5], borderRadius: 3 }} />
-                                  </View>
-                                  <Text style={{ color: theme.textSecondary, fontSize: 10, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>{row.subPct}%</Text>
-                                </View>
-                              )}
-                            </View>
-                            {row.counts.map((count, ci) => (
-                              <View key={ci} style={{ width: COL_W, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, backgroundColor: COL_BG[ci], borderLeftWidth: 1, borderLeftColor: '#2A2A2A' }}>
-                                <Text style={{ color: count > 0 ? theme.primary : 'rgba(255,255,255,0.35)', fontSize: 13, fontFamily: theme.fontFamily.uiMedium }}>
-                                  {count}
-                                </Text>
+                      <View key={subKey} style={{ backgroundColor: '#1a1a1aff' }}>
+                        {ri > 0 && <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />}
+
+                        {/* Linha da matéria */}
+                        <Pressable
+                          onPress={() => setExpandedSubjects(prev => {
+                            const isOpen = !!prev[subKey];
+                            const next = {};
+                            if (!isOpen) next[subKey] = true;
+                            return next;
+                          })}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 }}
+                        >
+                          {/* Conteúdo: nome + chips */}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, marginBottom: 8 }} numberOfLines={1}>{row.name}</Text>
+                            {/* chips de % e flashcards */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#252525', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                                <Text style={{ color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>{row.subPct}%</Text>
+                                <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{row.subPct === 100 ? 'concluído' : row.subPct === 0 ? 'não iniciado' : 'estudado'}</Text>
                               </View>
-                            ))}
+                              <View style={{ width: 1, height: 14, backgroundColor: '#333' }} />
+                              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#252525', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                                <Text style={{ color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>{row.total}</Text>
+                                <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{row.total === 1 ? 'flashcard' : 'flashcards'}</Text>
+                              </View>
+                            </View>
                           </View>
-                        ))}
+                          <Ionicons name={subExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} style={{ marginLeft: 8 }} />
+                        </Pressable>
+
+                        {/* Níveis expandidos */}
+                        {subExpanded && (
+                          <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+                            {/* Legendas: 3 por linha */}
+                            <View style={{ gap: 6, marginBottom: 16 }}>
+                              {[[0, 1, 2], [3, 4, 5]].map((group, gi) => (
+                                <View key={gi} style={{ flexDirection: 'row' }}>
+                                  {group.map(i => (
+                                    <View key={i} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                      <View style={{ width: 11, height: 11, borderRadius: 6, backgroundColor: SL[i], marginTop: 3 }} />
+                                      <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>{LEVEL_NAMES_SHORT[i]}</Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              ))}
+                            </View>
+                            {/* 6 blocos de nível lado a lado */}
+                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                              {[0, 1, 2, 3, 4, 5].map(lvl => (
+                                <View key={lvl} style={{ flex: 1, alignItems: 'center', gap: 8, backgroundColor: '#242424', borderRadius: 10, paddingVertical: 12, borderWidth: 1, borderColor: '#2E2E2E' }}>
+                                  <GaugeCircle level={lvl} />
+                                  {row.counts[lvl] > 0 ? (
+                                    <>
+                                      <Text style={{ color: theme.primary, fontSize: 13, fontFamily: theme.fontFamily.uiBold }}>{row.counts[lvl]}</Text>
+                                      <Text style={{ color: theme.textSecondary, fontSize: 10, fontFamily: theme.fontFamily.uiMedium, marginTop: -6 }}>{row.counts[lvl] === 1 ? 'card' : 'cards'}</Text>
+                                    </>
+                                  ) : (
+                                    <Text style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13, fontFamily: theme.fontFamily.uiMedium }}>0</Text>
+                                  )}
+                                </View>
+                              ))}
+                            </View>
+                          </View>
+                        )}
                       </View>
                     );
-                  })()}
+                  })}
                 </>
               )}
             </View>
