@@ -1007,16 +1007,11 @@ export const ProgressScreen = () => {
           const dominated = allCards.filter(c => (c.level || 0) >= 5).length;
           const pct = deckTotal > 0 ? Math.round(dominated / deckTotal * 100) : 0;
 
-          // SIMULAÇÃO — remover depois
-          const simCounts = [
-            [12, 34, 18, 7, 5, 22],
-            [45, 23, 67, 31, 15, 6],
-            [8, 19, 41, 55, 28, 14],
-          ];
           const subjectRows = deck.subjects.map((sub, si) => {
-            const counts = simCounts[si % 3];
+            const counts = [0, 0, 0, 0, 0, 0];
+            (sub.flashcards || []).forEach(c => { counts[Math.min(c.level || 0, 5)]++; });
             const total = counts.reduce((a, b) => a + b, 0);
-            const subPct = sub.name === 'Ola' ? 100 : (total > 0 ? Math.round(counts[5] / total * 100) : 0);
+            const subPct = total > 0 ? Math.round(counts[5] / total * 100) : 0;
             return { id: sub.id || si, name: sub.name, counts, total, subPct };
           });
 
@@ -1025,7 +1020,11 @@ export const ProgressScreen = () => {
 
               {/* ── Header: nome + chevron ── */}
               <Pressable
-                onPress={() => setExpandedDecks(prev => ({ ...prev, [deck.id]: !prev[deck.id] }))}
+                onPress={() => {
+                  const isOpen = !!expandedDecks[deck.id];
+                  setExpandedDecks(prev => ({ ...prev, [deck.id]: !isOpen }));
+                  if (isOpen) setExpandedSubjects({});
+                }}
                 style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18 }}
               >
                 <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1}>{deck.name}</Text>
@@ -1059,7 +1058,7 @@ export const ProgressScreen = () => {
                   )}
 
                   {/* ── Seção 2: matérias ── */}
-                  <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />
+                  <View style={{ height: 1, backgroundColor: '#272727ff' }} />
 
                   {subjectRows.length === 0 && (
                     <Pressable
@@ -1193,7 +1192,6 @@ export const ProgressScreen = () => {
     const CE = '#e94542';
     const SL = [theme.srsLevel0, theme.srsLevel1, theme.srsLevel2, theme.srsLevel3, theme.srsLevel4, theme.srsLevel5];
 
-    // SIMULAÇÃO — remover depois
     let totA = 0, totQ = 0, totE = 0;
     const tot = totA + totQ + totE;
     const confiancaGlobal = 0;
