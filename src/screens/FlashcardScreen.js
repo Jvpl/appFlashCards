@@ -101,6 +101,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const setSessionDone = (val) => { if (!val) setSessionResult(null); };
   const setSessionNextReview = () => {}; // substituído por setSessionResult
   const [totalSubjectCards, setTotalSubjectCards] = useState(initialState.totalSubjectCards);
+  const [doneCardCount, setDoneCardCount] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const originalSessionTotal = useRef(initialState.cards.length || 0);
 
 
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
@@ -160,6 +163,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       resetKey.value = resetKey.value + 1;
       setJsCurrentIndex(0);
       setJsIsFlipped(false);
+      setCorrectCount(0);
     } else {
       currentIndex.value = 0;
       isFlipped.value = 0;
@@ -169,6 +173,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       setJsCurrentIndex(0);
       setJsIsFlipped(false);
       sessionStudiedIds.current = new Set();
+      setCorrectCount(0);
     }
 
     const data = allData;
@@ -194,6 +199,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
         setTotalSubjectCards(allSubjectCards.length);
         setCards(cardsToReview);
         setTotalCardsInSession(cardsToReview.length);
+        originalSessionTotal.current = cardsToReview.length;
         if (cardsToReview.length === 0 && allSubjectCards.length > 0 && !isReturning) {
           let earliest = null;
           allSubjectCards.forEach(c => {
@@ -309,9 +315,22 @@ export const FlashcardScreen = ({ route, navigation }) => {
     else reviewUpdates.current.push(updatedCard);
     sessionStudiedIds.current.add(updatedCard.id);
     setSwipeReviewText('');
-    console.log('[HR] card:', cardToReview?.id, 'isLast:', isLast, 'totalSV:', totalCardsInSessionSV.value, 'cardsRef.len:', cardsRef.current.length);
+
+    // Errei ou Quase: re-enfileira o card no final da sessão para outra tentativa
+    if (rating === 'left' || rating === 'up') {
+      setCards(prev => {
+        const newCards = [...prev, cardToReview];
+        setTotalCardsInSession(newCards.length);
+        totalCardsInSessionSV.value = newCards.length;
+        return newCards;
+      });
+      return;
+    }
+
+    // Memorizado: avança o contador de cards concluídos
+    setCorrectCount(prev => prev + 1);
     if (isLast) handleReviewCompleteRef.current();
-  }, [getNextReviewText]);
+  }, [totalCardsInSessionSV]);
 
   useEffect(() => {
     const card = cards[jsCurrentIndex];
@@ -457,6 +476,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const handleReviewComplete = useCallback(async () => {
     if (!reviewMode || !subjectId) {
+      setDoneCardCount(sessionStudiedIds.current.size);
       await saveSessionProgress();
       const allData = await getAppData();
       const deck = allData.find(d => d.id === deckId);
@@ -464,15 +484,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
       const allSubjectCards = subject?.flashcards || [];
       let earliest = null;
       const now = Date.now();
-      console.log('[HRC] allSubjectCards count:', allSubjectCards.length);
       allSubjectCards.forEach(c => {
         const t = c.nextReview ? new Date(c.nextReview).getTime() : 0;
-        console.log('[HRC] card', c.id, 'nextReview:', c.nextReview, 't:', t, 'now:', now, 'available:', t <= now);
         if (!c.nextReview) { earliest = now; return; }
         if (t <= now) { earliest = now; return; }
         if (earliest === null || t < earliest) earliest = t;
       });
-      console.log('[HRC] earliest:', earliest, 'now:', now, 'diff:', earliest ? earliest - now : null);
       sessionDoneRef.current = true;
       setSessionResult({ done: true, nextReview: earliest });
       return;
@@ -585,8 +602,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
           </View>
           <Text style={fcs.doneTitle}>Sessão concluída!</Text>
           <Text style={fcs.doneSubtitle}>
-            {totalCardsInSession > 0
-              ? `Você estudou ${totalCardsInSession} card${totalCardsInSession !== 1 ? 's' : ''} de `
+            {doneCardCount > 0
+              ? `Você estudou ${doneCardCount} card${doneCardCount !== 1 ? 's' : ''} de `
               : 'Nenhum card disponível agora em '
             }
             <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>{subjectName}</Text>
@@ -728,8 +745,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
         >
           {cards.map((card, index) => (
             <FlashcardItem
-              key={card.id} card={card} index={index}
+              key={`${card.id}-${index}`} card={card} index={index}
               currentIndex={currentIndex} totalCards={cards.length}
+              completedCards={correctCount} sessionTotal={originalSessionTotal.current}
               translateX={translateX} translateY={translateY}
               isFlipped={isFlipped}
               jsCurrentIndex={jsCurrentIndex}

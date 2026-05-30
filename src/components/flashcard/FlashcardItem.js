@@ -39,7 +39,7 @@ const SwipeIcon = ({ paths, color, size = 80 }) => (
 
 const screenWidth = Dimensions.get('window').width;
 
-export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV }) => {
+export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards, completedCards, sessionTotal, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV }) => {
   const editingRef = useRef(false);
   const rotate = useSharedValue(0);
   const position = useDerivedValue(() => index - currentIndex.value);
@@ -300,7 +300,7 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
           <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent} pointerEvents="none">
             {renderContent(card.question)}
           </ScrollView>
-          {showLevel && <CardFooter level={card.level || 0} currentIndex={jsCurrentIndex} totalCards={totalCards} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
+          {showLevel && <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
         </Animated.View>
 
         {/* Face do verso — pointerEvents='none' quando não virado */}
@@ -344,7 +344,7 @@ export const FlashcardItem = React.memo(({ card, index, currentIndex, totalCards
               <Text style={[fi.swipeLabel, { color: SWIPE_COLORS[3] }]}>QUASE</Text>
             </Animated.View>
           </Animated.View>
-          {showLevel && <CardFooter level={card.level || 0} currentIndex={jsCurrentIndex} totalCards={totalCards} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
+          {showLevel && <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
         </Animated.View>
       </View>
 

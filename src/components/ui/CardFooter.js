@@ -33,7 +33,7 @@ const RING_R = 74.48; // centro exato do anel: (66.98 + 81.98) / 2
 const CIRC = 2 * Math.PI * RING_R;
 const FOOTER_H = 95;
 
-export const CardFooter = ({ level, currentIndex, totalCards, onEdit, onEditPressIn }) => {
+export const CardFooter = ({ level, completedCards, sessionTotal, onEdit, onEditPressIn }) => {
   const { width: screenW } = useWindowDimensions();
   const cardW = screenW * 0.9;
 
@@ -155,7 +155,7 @@ export const CardFooter = ({ level, currentIndex, totalCards, onEdit, onEditPres
         </TouchableOpacity>
         <View style={{ width: 1, height: 22, backgroundColor: 'rgba(255,255,255,0.15)', marginHorizontal: 8 }} />
         <Text style={{ color: '#F8F8F8', fontSize: 15, fontWeight: '600' }}>
-          {(currentIndex ?? 0) + 1} / {totalCards ?? 1}
+          {completedCards ?? 0} / {sessionTotal ?? 1}
         </Text>
       </View>
 
