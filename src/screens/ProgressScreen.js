@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Pressable, StyleSheet, useWindowDimensions,
 } from 'react-native';
-import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Easing } from 'react-native-reanimated';
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Easing, runOnJS } from 'react-native-reanimated';
 import Svg, { Circle, Path as SvgPath, Polygon as SvgPolygon, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { SvgXml } from 'react-native-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
@@ -79,15 +79,15 @@ const LEVEL_NAMES = ['Marco Zero', 'Aprendiz', 'Em Progresso', 'Consolidando', '
 const WEEK_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
 // Retorna o ISO date (YYYY-MM-DD) de cada dia da semana atual (Seg=0 ... Dom=6)
-const getWeekDates = () => {
+const getWeekDates = (weekOffset = 0) => {
   const today = new Date();
-  const dayOfWeek = today.getDay(); // 0=Dom, 1=Seg, ...
-  // Distância da Seg: se hoje é Dom(0) → 6 dias atrás, se Seg(1) → 0, etc.
+  const dayOfWeek = today.getDay();
   const distFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   return WEEK_DAYS.map((label, i) => {
     const d = new Date(today);
-    d.setDate(today.getDate() - distFromMon + i);
-    return { label, date: d.toISOString().split('T')[0], isFuture: i > distFromMon, isToday: i === distFromMon };
+    d.setDate(today.getDate() - distFromMon + i - weekOffset * 7);
+    const dateStr = d.toISOString().split('T')[0];
+    return { label, date: dateStr, isFuture: weekOffset === 0 && i > distFromMon, isToday: weekOffset === 0 && i === distFromMon };
   });
 };
 
@@ -449,9 +449,10 @@ const DonutChart = ({ performanceData, progressData, weekDaysStudied, hoje, leve
 const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDecks, totalSubjects, totalFlashcards, statsData, progressData, performanceData, weekDaysStudied }) => {
   const { width: screenWidth } = useWindowDimensions();
   const W = Math.max(300, screenWidth - 32);
-  const H = Math.round(W * 603.71 / 993.13);
+  const EXTRA = 32;
+  const H = Math.round(W * 603.71 / 993.13) + EXTRA;
   const svgX = (x) => Math.round(W * x / 993.13);
-  const svgY = (y) => Math.round(H * y / 603.71);
+  const svgY = (y) => Math.round((H - EXTRA) * y / 603.71);
 
   // posições diretas do SVG exemplo3
   const TAB_LEFT = svgX(521.52);
@@ -462,15 +463,44 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
   const MC_B = svgY(300.84);
   const MC_W = MC_R - MC_L;
   const MC_H = MC_B - MC_T;
-  const FIRE_R = svgX(155);          // borda direita do fogo + margem
+  const FIRE_R = svgX(155);
   const CIR_R = svgX(52);
-  const CIR_CY = svgY(453.03);
+  const DIV_Y = Math.round((MC_B + (svgY(453.03) - svgX(52))) / 2); // divisória no lugar original
+  const CIR_CY = svgY(453.03) + EXTRA; // círculos empurrados para baixo
+  const CHIP_H = 36;
+  const CHIP_TOP = Math.round((DIV_Y + (CIR_CY - CIR_R) - CHIP_H) / 2) - 10;
   const CIR_CX = [81.16, 220.05, 357.49, 495.16, 634.54, 772.34, 911.09].map(svgX);
 
   const [showStats, setShowStats] = useState(false);
+  const [showingLastWeek, setShowingLastWeek] = useState(false);
+  const lastWeekTimerRef = useRef(null);
+  const circleOpacity = useSharedValue(1);
   const flippedRef = useRef(false);
 
-  const weekDates = getWeekDates();
+  const weekDates = getWeekDates(showingLastWeek ? 1 : 0);
+
+  const handleShowLastWeek = () => {
+    if (lastWeekTimerRef.current) clearTimeout(lastWeekTimerRef.current);
+    if (showingLastWeek) {
+      circleOpacity.value = withTiming(0, { duration: 200 }, () => {
+        runOnJS(setShowingLastWeek)(false);
+        circleOpacity.value = withTiming(1, { duration: 200 });
+      });
+      return;
+    }
+    circleOpacity.value = withTiming(0, { duration: 200 }, () => {
+      runOnJS(setShowingLastWeek)(true);
+      circleOpacity.value = withTiming(1, { duration: 200 });
+    });
+    lastWeekTimerRef.current = setTimeout(() => {
+      circleOpacity.value = withTiming(0, { duration: 200 }, () => {
+        runOnJS(setShowingLastWeek)(false);
+        circleOpacity.value = withTiming(1, { duration: 200 });
+      });
+    }, 5000);
+  };
+
+  const circleAnimStyle = useAnimatedStyle(() => ({ opacity: circleOpacity.value }));
 
   const flipProgress = useSharedValue(0);
 
@@ -562,33 +592,45 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
             </View>
           </View>
 
-          {/* Linha divisória entre mini-card e círculos */}
-          <View style={{ position: 'absolute', top: Math.round((MC_B + (CIR_CY - CIR_R)) / 2), left: svgX(14), right: svgX(14), height: 1, backgroundColor: 'rgba(255,255,255,0.12)' }} />
-
+          {/* Divisória com botão no centro */}
+          <View pointerEvents="box-none" style={{ position: 'absolute', top: CHIP_TOP, left: svgX(14), right: svgX(14), flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity onPress={handleShowLastWeek} activeOpacity={0.7}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: showingLastWeek ? 'rgba(111,182,51,0.15)' : '#2A2A2A', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: showingLastWeek ? theme.primary : '#3A3A3A' }}>
+                <Ionicons name="time-outline" size={12} color={showingLastWeek ? theme.primary : 'rgba(255,255,255,0.5)'} />
+                <Text style={{ color: showingLastWeek ? theme.primary : 'rgba(255,255,255,0.6)', fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>
+                  {showingLastWeek ? 'Semana passada' : 'Ver histórico da semana passada'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.12)' }} />
+          </View>
 
           {/* Círculos */}
-          {weekDates.map((day, i) => {
-            const studied = studiedDatesSet.has(day.date);
-            const isPast = !day.isToday && !day.isFuture;
-            const afterFirstUse = firstUseDate && day.date >= firstUseDate;
-            const green = studied && isPast;
-            const failed = !studied && isPast && afterFirstUse;
-            return (
-              <View key={i} style={{ position: 'absolute', top: CIR_CY - CIR_R, left: CIR_CX[i] - CIR_R, width: CIR_R * 2, alignItems: 'center', gap: 3 }}>
-                <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : failed ? sc.circleFailed : sc.circleGray, day.isToday && sc.circleToday]}>
-                  {green
-                    ? <Ionicons name="checkmark-sharp" size={CIR_R * 1.4} color="#0c0d0d" />
-                    : failed
-                      ? <Ionicons name="close-sharp" size={CIR_R * 1.4} color="#e94542" />
-                      : day.isToday
-                        ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5e5d5d' }} />
-                        : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5e5d5dff" />
-                  }
+          <Reanimated.View pointerEvents="none" style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, circleAnimStyle]}>
+            {weekDates.map((day, i) => {
+              const studied = studiedDatesSet.has(day.date);
+              const isPast = !day.isToday && !day.isFuture;
+              const afterFirstUse = firstUseDate && day.date >= firstUseDate;
+              const green = studied && isPast;
+              const failed = !studied && isPast && afterFirstUse;
+              return (
+                <View key={i} style={{ position: 'absolute', top: CIR_CY - CIR_R, left: CIR_CX[i] - CIR_R, width: CIR_R * 2, alignItems: 'center', gap: 3 }}>
+                  <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : failed ? sc.circleFailed : sc.circleGray, day.isToday && sc.circleToday]}>
+                    {green
+                      ? <Ionicons name="checkmark-sharp" size={CIR_R * 1.4} color="#0c0d0d" />
+                      : failed
+                        ? <Ionicons name="close-sharp" size={CIR_R * 1.4} color="#e94542" />
+                        : day.isToday
+                          ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5e5d5d' }} />
+                          : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5e5d5dff" />
+                    }
+                  </View>
+                  <Text style={[sc.dayLbl, day.isToday && sc.dayLblToday]}>{day.label}</Text>
                 </View>
-                <Text style={[sc.dayLbl, day.isToday && sc.dayLblToday]}>{day.label}</Text>
-              </View>
-            );
-          })}
+              );
+            })}
+          </Reanimated.View>
+
         </>
       ) : (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
@@ -776,6 +818,7 @@ export const ProgressScreen = () => {
   const [totalToday, setTotalToday] = useState(0);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('hoje');
+  const [weekOffset, setWeekOffset] = useState(0);
   const [expandedDecks, setExpandedDecks] = useState({});
   const [deckView, setDeckView] = useState({});
   const [expandedSubjects, setExpandedSubjects] = useState({});
@@ -1133,14 +1176,8 @@ export const ProgressScreen = () => {
                               {[0, 1, 2, 3, 4, 5].map(lvl => (
                                 <View key={lvl} style={{ flex: 1, alignItems: 'center', gap: 8, backgroundColor: '#242424', borderRadius: 10, paddingVertical: 12, borderWidth: 1, borderColor: '#2E2E2E' }}>
                                   <GaugeCircle level={lvl} />
-                                  {row.counts[lvl] > 0 ? (
-                                    <>
-                                      <Text style={{ color: theme.primary, fontSize: 13, fontFamily: theme.fontFamily.uiBold }}>{row.counts[lvl]}</Text>
-                                      <Text style={{ color: theme.textSecondary, fontSize: 10, fontFamily: theme.fontFamily.uiMedium, marginTop: -6 }}>{row.counts[lvl] === 1 ? 'card' : 'cards'}</Text>
-                                    </>
-                                  ) : (
-                                    <Text style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13, fontFamily: theme.fontFamily.uiMedium }}>0</Text>
-                                  )}
+                                  <Text style={{ color: row.counts[lvl] > 0 ? theme.primary : 'rgba(255,255,255,0.2)', fontSize: 13, fontFamily: theme.fontFamily.uiBold }}>{row.counts[lvl]}</Text>
+                                  <Text style={{ color: row.counts[lvl] > 0 ? theme.textSecondary : 'rgba(255,255,255,0.2)', fontSize: 10, fontFamily: theme.fontFamily.uiMedium, marginTop: -6 }}>{row.counts[lvl] === 1 ? 'card' : 'cards'}</Text>
                                 </View>
                               ))}
                             </View>
@@ -1413,6 +1450,8 @@ export const ProgressScreen = () => {
         performanceData={performanceData}
         weekDaysStudied={weekDaysStudied}
         showStats={viewMode === 'stats'}
+        weekOffset={weekOffset}
+        setWeekOffset={setWeekOffset}
       />
 
       {/* Tabs */}
