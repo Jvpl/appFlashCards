@@ -11,7 +11,8 @@ import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { getAppData, saveAppData } from '../services/storage';
 import { GlowFab } from '../components/ui/GlowFab';
 import { CustomAlert } from '../components/ui/CustomAlert';
-import MateriaCard, { MATERIA_CARD_WIDTH, MATERIA_CARD_HEIGHT } from '../components/home/MateriaCard';
+import TopicCard from '../components/home/TopicCard';
+import { MATERIA_CARD_WIDTH, MATERIA_CARD_HEIGHT } from '../components/home/MateriaCard';
 import theme from '../styles/theme';
 
 const { width } = Dimensions.get('window');
@@ -158,6 +159,7 @@ export const TopicListScreen = ({ route, navigation }) => {
       deckId, deckName,
       subjectId: topic.id,
       subjectName: topic.name,
+      parentSubjectName: subjectName,
       preloadedCards: topic.flashcards || [],
     });
   }, [navigation, deckId, deckName]);
@@ -228,18 +230,18 @@ export const TopicListScreen = ({ route, navigation }) => {
     for (let i = 0; i < items.length; i += 2) {
       rows.push(
         <View key={i} style={s.gridRow}>
-          <MateriaCard
+          <TopicCard
             subject={items[i]}
-            deck={{ id: deckId, name: subjectName }}
+            parentName={subjectName}
             width={MATERIA_CARD_WIDTH}
             height={MATERIA_CARD_HEIGHT}
             onPress={() => handleStudy(items[i])}
             onMenuPress={(e) => handleMenuPress(items[i], e)}
           />
           {items[i + 1] ? (
-            <MateriaCard
+            <TopicCard
               subject={items[i + 1]}
-              deck={{ id: deckId, name: subjectName }}
+              parentName={subjectName}
               width={MATERIA_CARD_WIDTH}
               height={MATERIA_CARD_HEIGHT}
               onPress={() => handleStudy(items[i + 1])}

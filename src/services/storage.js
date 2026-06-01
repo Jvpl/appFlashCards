@@ -269,9 +269,20 @@ export const saveStudySession = async (session) => {
     if (!session.count || session.count === 0) return;
     const history = await getStudyHistory();
     const today = new Date().toISOString().split('T')[0];
-    // Só registra uma entrada por dia (para o streak) — não acumula
-    if (history.some(s => s.date === today)) return;
-    history.push({ ...session, date: today, timestamp: Date.now() });
+    // Uma entrada por matéria por dia — acumula se rever a mesma matéria
+    const existingIdx = history.findIndex(s => s.date === today && s.deckId === session.deckId && s.subjectName === session.subjectName);
+    if (existingIdx >= 0) {
+      history[existingIdx] = {
+        ...history[existingIdx],
+        acertos: (session.acertos || 0),
+        quases: (session.quases || 0),
+        erros: (session.erros || 0),
+        count: (session.count || 0),
+        lastSessionAt: Date.now(),
+      };
+    } else {
+      history.push({ ...session, date: today, timestamp: Date.now(), lastSessionAt: Date.now() });
+    }
     const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
     const trimmed = history.filter(s => s.timestamp >= cutoff);
     await AsyncStorage.setItem(STUDY_HISTORY_KEY, JSON.stringify(trimmed));

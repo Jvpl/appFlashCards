@@ -820,6 +820,7 @@ export const ProgressScreen = () => {
   const [viewMode, setViewMode] = useState('hoje');
   const [weekOffset, setWeekOffset] = useState(0);
   const [expandedDecks, setExpandedDecks] = useState({});
+  const [expandedHojeDecks, setExpandedHojeDecks] = useState({});
   const [deckView, setDeckView] = useState({});
   const [expandedSubjects, setExpandedSubjects] = useState({});
 
@@ -932,10 +933,11 @@ export const ProgressScreen = () => {
       setWeekDaysStudied(wc);
 
       // Performance data para o pie chart — limpa entradas órfãs (matérias que não existem mais)
-      const PERF_VERSION = 'v2';
+      const PERF_VERSION = 'v4';
       const perfVersion = await AsyncStorage.getItem('@FlashcardsApp:perfVersion');
       if (perfVersion !== PERF_VERSION) {
         await AsyncStorage.removeItem('@FlashcardsApp:performanceData');
+        await AsyncStorage.removeItem('@FlashcardsApp:studyHistory');
         await AsyncStorage.setItem('@FlashcardsApp:perfVersion', PERF_VERSION);
       }
       const perfData = await getPerformanceData();
@@ -982,7 +984,7 @@ export const ProgressScreen = () => {
         <View style={s.emptyWrap}>
           <Ionicons name="checkmark-circle-outline" size={48} color={theme.primary} />
           <Text style={s.emptyTitle}>Tudo em dia!</Text>
-          <Text style={s.emptyDesc}>Nenhum card pendente para revisar agora.</Text>
+          <Text style={s.emptyDesc}>Nenhum card pendente para estudar agora.</Text>
         </View>
       );
 
@@ -990,7 +992,7 @@ export const ProgressScreen = () => {
         <View style={s.emptyWrap}>
           <Ionicons name="flame-outline" size={48} color={theme.primary} />
           <Text style={s.emptyTitle}>
-            Você tem {pendingCount} {pendingCount === 1 ? 'card' : 'cards'} para revisar hoje
+            {pendingCount} {pendingCount === 1 ? 'card pendente' : 'cards pendentes'} para estudar hoje
           </Text>
           <Text style={s.emptyDesc}>Comece uma sessão e mantenha sua sequência!</Text>
         </View>
@@ -1000,30 +1002,66 @@ export const ProgressScreen = () => {
     const byDeck = {};
     todaySessions.forEach(sess => {
       if (!byDeck[sess.deckId]) byDeck[sess.deckId] = { deckName: sess.deckName, subjects: {} };
-      const key = sess.subjectId || sess.subjectName;
-      if (!byDeck[sess.deckId].subjects[key]) byDeck[sess.deckId].subjects[key] = { subjectName: sess.subjectName, count: 0 };
+      const key = sess.subjectName;
+      if (!byDeck[sess.deckId].subjects[key]) byDeck[sess.deckId].subjects[key] = { subjectName: sess.subjectName, count: 0, lastSessionAt: null };
       byDeck[sess.deckId].subjects[key].count += sess.count;
+      if (sess.lastSessionAt) byDeck[sess.deckId].subjects[key].lastSessionAt = sess.lastSessionAt;
     });
+
+    const toggleHojeDeck = (id) => setExpandedHojeDecks(prev => ({ ...prev, [id]: !prev[id] }));
 
     return (
       <>
         {Object.entries(byDeck).map(([deckId, deck]) => {
           const subjects = Object.values(deck.subjects);
           const totalDeck = subjects.reduce((acc, s) => acc + s.count, 0);
+          const isOpen = !!expandedHojeDecks[deckId];
           return (
-            <View key={deckId} style={s.deckCardHoje}>
-              <View style={s.deckCardHojeHeader}>
-                <Text style={s.deckCardHojeName}>{deck.deckName}</Text>
-                <View style={s.greenChip}>
-                  <Text style={s.greenChipText}>{totalDeck} cards</Text>
-                </View>
-              </View>
-              {subjects.map((sub, i, arr) => (
-                <View key={i} style={[s.row, i < arr.length - 1 && s.rowDivider]}>
-                  <Text style={s.rowText}>{sub.subjectName}</Text>
-                  <Text style={s.hojeSubCount}>{sub.count}</Text>
-                </View>
-              ))}
+            <View key={deckId} style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
+
+              {/* Header */}
+              <TouchableOpacity
+                onPress={() => toggleHojeDeck(deckId)}
+                activeOpacity={0.7}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18 }}
+              >
+                <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1}>{deck.deckName}</Text>
+                <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
+              </TouchableOpacity>
+
+              {isOpen && (
+                <>
+                  <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />
+                  {subjects.map((sub, i) => (
+                    <View key={i} style={{ backgroundColor: '#1a1a1a' }}>
+                      {i > 0 && <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, marginBottom: 8 }} numberOfLines={1}>{sub.subjectName}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#252525', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                              <Text style={{ color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>{sub.count}</Text>
+                              <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{sub.count === 1 ? 'card estudado' : 'cards estudados'}</Text>
+                            </View>
+                            {sub.lastSessionAt && (
+                              <>
+                                <View style={{ width: 1, height: 14, backgroundColor: '#333' }} />
+                                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#252525', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                                  <Ionicons name="time-outline" size={12} color={theme.primary} />
+                                  <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>Última sessão · </Text>
+                                  <Text style={{ color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>
+                                    {new Date(sub.lastSessionAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  </Text>
+                                </View>
+                              </>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
             </View>
           );
         })}
@@ -1078,16 +1116,15 @@ export const ProgressScreen = () => {
         {realDecks.map(deck => {
           const deckExpanded = !!expandedDecks[deck.id];
           const showLegend = (deckView[deck.id] ?? 'legend') === 'legend';
-          const allCards = deck.subjects.flatMap(s => s.flashcards || []);
+          const allCards = deck.subjects.flatMap(s => s.topics?.length > 0 ? s.topics.flatMap(t => t.flashcards || []) : (s.flashcards || []));
           const deckTotal = allCards.length;
-          const dominated = allCards.filter(c => (c.level || 0) >= 5).length;
-          const pct = deckTotal > 0 ? Math.round(dominated / deckTotal * 100) : 0;
+          const currentLevels = allCards.reduce((sum, c) => sum + (c.level || 0), 0);
+          const pct = deckTotal > 0 ? Math.round((currentLevels / (deckTotal * 5)) * 100) : 0;
 
           const subjectRows = deck.subjects.map((sub, si) => {
-            const counts = [0, 0, 0, 0, 0, 0];
-            (sub.flashcards || []).forEach(c => { counts[Math.min(c.level || 0, 5)]++; });
+            const counts = sub.levelCounts || [0, 0, 0, 0, 0, 0];
             const total = counts.reduce((a, b) => a + b, 0);
-            const subPct = total > 0 ? Math.round(counts[5] / total * 100) : 0;
+            const subPct = sub.progress || 0;
             return { id: sub.id || si, name: sub.name, counts, total, subPct };
           });
 
@@ -1596,10 +1633,15 @@ const s = StyleSheet.create({
   },
   row: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 13,
+    paddingLeft: 20, paddingRight: 16, paddingVertical: 15,
   },
   rowDivider: { borderTopWidth: 1, borderTopColor: theme.backgroundTertiary },
-  rowText: { color: theme.textSecondary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium, flex: 1 },
+  rowText: { color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium, flex: 1 },
+  rowDot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: theme.primary,
+    marginRight: 10, opacity: 0.5,
+  },
 
   // ── Hoje ─────────────────────────────────────────────────────────
   hojeHeader: { marginBottom: 12 },
@@ -1607,22 +1649,30 @@ const s = StyleSheet.create({
   hojeHeaderCount: { color: theme.primary, fontSize: 14, fontFamily: theme.fontFamily.uiBold },
   hojeHeaderSub: { color: theme.textMuted, fontSize: 12, fontFamily: theme.fontFamily.ui, marginTop: 2 },
   deckCardHoje: {
-    backgroundColor: theme.backgroundSecondary,
-    borderRadius: 14, borderWidth: 1, borderColor: theme.backgroundTertiary,
-    marginBottom: 10, overflow: 'hidden',
+    backgroundColor: '#1C1C1C',
+    borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A',
+    marginBottom: 12, overflow: 'hidden',
   },
   deckCardHojeHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary,
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  deckCardHojeName: { color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.headingSemiBold, flex: 1, marginRight: 8 },
-  hojeSubCount: { color: theme.textMuted, fontSize: 13, fontFamily: theme.fontFamily.uiBold },
+  deckCardHojeLeft: { flex: 1, marginRight: 12 },
+  deckCardHojeName: { color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.headingSemiBold },
+  deckCardHojeMeta: { color: theme.textMuted, fontSize: 12, fontFamily: theme.fontFamily.ui, marginTop: 2 },
+  deckCardHojeBody: {
+    backgroundColor: '#1a1a1a',
+    borderTopWidth: 1, borderTopColor: '#2A2A2A',
+    paddingHorizontal: 16, paddingBottom: 4,
+  },
+  hojeSubRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+  hojeSubCount: { color: theme.primary, fontSize: 16, fontFamily: theme.fontFamily.heading, includeFontPadding: false },
   greenChip: {
-    backgroundColor: theme.primaryTransparent, borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: theme.primaryTransparent,
+    borderRadius: 24, paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: theme.primaryTransparent15,
   },
-  greenChipText: { color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold },
+  greenChipText: { color: theme.primary, fontSize: 13, fontFamily: theme.fontFamily.uiBold },
 
   // ── Níveis — decks ────────────────────────────────────────────────
   deckHeader: {

@@ -31,7 +31,7 @@ function formatNextReview(ms) {
 
 
 export const FlashcardScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, deckName, subjectName, preloadedCards, reviewAll, reviewMode } = route.params;
+  const { deckId, subjectId, deckName, subjectName, parentSubjectName, preloadedCards, reviewAll, reviewMode } = route.params;
   const insets = useSafeAreaInsets();
   const initialState = React.useMemo(() => {
     if (!preloadedCards || reviewAll || reviewMode) {
@@ -340,7 +340,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
           deckId,
           deckName: deckName || deckId,
           subjectId: reviewAll ? 'all' : subjectId,
-          subjectName: reviewAll ? 'Revisão Geral' : (subjectName || subjectId),
+          subjectName: reviewAll ? 'Revisão Geral' : (parentSubjectName || subjectName || subjectId),
           count: studied,
           acertos: sessionRatings.current.right,
           quases: sessionRatings.current.up,
