@@ -1280,17 +1280,37 @@ export const ProgressScreen = () => {
       </View>
     );
 
-    return completed.map(deck => (
-      <View key={deck.id} style={s.card}>
-        <Text style={s.cardLabel}>{deck.name}</Text>
-        {deck.subjects.map((sub, i, arr) => (
-          <View key={sub.id} style={[s.row, i < arr.length - 1 && s.rowDivider]}>
-            <Text style={s.rowText}>{sub.name}</Text>
-            <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
-          </View>
-        ))}
-      </View>
-    ));
+    const toggleConclDeck = (id) => setExpandedHojeDecks(prev => ({ ...prev, [id]: !prev[id] }));
+
+    return completed.map(deck => {
+      const isOpen = !!expandedHojeDecks[deck.id];
+      return (
+        <View key={deck.id} style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
+          <TouchableOpacity
+            onPress={() => toggleConclDeck(deck.id)}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18 }}
+          >
+            <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1}>{deck.name}</Text>
+            <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
+          </TouchableOpacity>
+          {isOpen && (
+            <>
+              <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />
+              {deck.subjects.map((sub, i) => (
+                <View key={sub.id} style={{ backgroundColor: '#1a1a1a' }}>
+                  {i > 0 && <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 }}>
+                    <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold }}>{sub.name}</Text>
+                    <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+        </View>
+      );
+    });
   };
 
   const renderStats = () => {
