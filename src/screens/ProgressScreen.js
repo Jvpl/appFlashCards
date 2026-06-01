@@ -154,8 +154,8 @@ const calcDesempenho = (performanceData, progressData, weekDaysStudied = 0) => {
     const propUpgraded = Math.min(1, (atual.levelUps || 0) / Math.max(totalAtual, 1));
     const consistencia = (Math.log1p(propEstudada * 4) / Math.log1p(4)) * (1 + propUpgraded * 0.2);
 
-    // Pilar 3 — quantidade: matéria maior = mais peso
-    const pesoQtd = Math.log1p(qtd) / Math.log1p(qtd + 20);
+    // Pilar 3 — quantidade: matéria maior = mais peso. Referência: ~100 cards = peso pleno
+    const pesoQtd = Math.pow(Math.log1p(qtd) / Math.log1p(100), 2);
 
     // Pilar 2 — credibilidade (contínua, sem thresholds)
     const perfeicao = pAcerto >= 1 && pQuase === 0 && pErro === 0;
@@ -184,7 +184,7 @@ const calcDesempenho = (performanceData, progressData, weekDaysStudied = 0) => {
   const pErro = wErro / totalWeight;
 
   const nSubjects = Object.keys(performanceData).filter(k => k !== 'all').length;
-  const confiancaGlobal = Math.min(1, totalWeight / (nSubjects * 0.6));
+  const confiancaGlobal = Math.min(1, totalWeight / nSubjects);
 
   return { pAcerto, pQuase, pErro, confiancaGlobal };
 };
@@ -446,7 +446,7 @@ const DonutChart = ({ performanceData, progressData, weekDaysStudied, hoje, leve
   );
 };
 
-const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDecks, totalSubjects, totalFlashcards, statsData, progressData, performanceData, weekDaysStudied }) => {
+const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDecks, totalSubjects, totalTopics, totalFlashcards, statsData, progressData, performanceData, weekDaysStudied }) => {
   const { width: screenWidth } = useWindowDimensions();
   const W = Math.max(300, screenWidth - 32);
   const EXTRA = 32;
@@ -584,7 +584,7 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
           <View style={{ position: 'absolute', top: MC_T, left: TAB_LEFT + 16, right: 12, height: MC_H, justifyContent: 'center', gap: 18 }}>
             <View style={{ flexDirection: 'row' }}>
               <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalDecks}</Text><Text style={sc.statLbl}>Decks</Text></View>
-              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalSubjects}</Text><Text style={sc.statLbl}>Assuntos</Text></View>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalTopics}</Text><Text style={sc.statLbl}>Assuntos</Text></View>
             </View>
             <View style={{ flexDirection: 'row' }}>
               <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalSubjects}</Text><Text style={sc.statLbl}>Matérias</Text></View>
@@ -826,6 +826,7 @@ export const ProgressScreen = () => {
   // Totais globais
   const [totalDecks, setTotalDecks] = useState(0);
   const [totalSubjects, setTotalSubjects] = useState(0);
+  const [totalTopics, setTotalTopics] = useState(0);
   const [totalFlashcards, setTotalFlashcards] = useState(0);
   const [statsData, setStatsData] = useState({ acertos: 0, quase: 0, erros: 0, total: 0, hoje: 0 });
 
@@ -838,23 +839,34 @@ export const ProgressScreen = () => {
       setLoading(true);
       const [data, history] = await Promise.all([getAppData(), getStudyHistory()]);
 
-      const structured = data.map(deck => ({
-        ...deck,
-        subjects: deck.subjects.map(subject => {
+      const getAllCards = (subject) =>
+        subject.topics?.length > 0
+          ? subject.topics.flatMap(t => t.flashcards || [])
+          : (subject.flashcards || []);
+
+      const structured = data.map(deck => {
+        const subjectsWithLevels = deck.subjects.map(subject => {
+          const cards = getAllCards(subject);
           const levelCounts = [0, 0, 0, 0, 0, 0];
-          subject.flashcards.forEach(c => { levelCounts[c.level || 0]++; });
-          const totalLevels = subject.flashcards.length * 5;
-          const currentLevels = subject.flashcards.reduce((sum, c) => sum + (c.level || 0), 0);
-          return { ...subject, levelCounts, progress: totalLevels > 0 ? Math.round((currentLevels / totalLevels) * 100) : 0 };
-        }),
-      }));
+          cards.forEach(c => { levelCounts[c.level || 0]++; });
+          const totalLevels = cards.length * 5;
+          const currentLevels = cards.reduce((sum, c) => sum + (c.level || 0), 0);
+          return {
+            ...subject,
+            levelCounts,
+            progress: totalLevels > 0 ? Math.round((currentLevels / totalLevels) * 100) : 0,
+          };
+        });
+        return { ...deck, subjects: subjectsWithLevels };
+      });
       setProgressData(structured);
 
       // Totais globais (exclui deck exemplo)
       const realDecks = data.filter(d => !d.isExample);
       setTotalDecks(realDecks.length);
       setTotalSubjects(realDecks.reduce((sum, d) => sum + d.subjects.length, 0));
-      const allCards = realDecks.flatMap(d => d.subjects.flatMap(s => s.flashcards));
+      setTotalTopics(realDecks.reduce((sum, d) => sum + d.subjects.reduce((s2, sub) => s2 + (sub.topics?.length || 0), 0), 0));
+      const allCards = realDecks.flatMap(d => d.subjects.flatMap(s => s.topics?.length > 0 ? s.topics.flatMap(t => t.flashcards || []) : (s.flashcards || [])));
       setTotalFlashcards(allCards.length);
       // Desempenho geral por nível
       let acertos = 0, quase = 0, erros = 0;
@@ -868,7 +880,10 @@ export const ProgressScreen = () => {
       const todayEntries = history.filter(s => s.date === today);
       setTodaySessions(todayEntries);
       setTotalToday(todayEntries.reduce((sum, s) => sum + s.count, 0));
-      setStatsData({ acertos, quase, erros, total: allCards.length, hoje: todayEntries.reduce((sum, s) => sum + s.count, 0) });
+      const hojeAcertos = todayEntries.reduce((sum, s) => sum + (s.acertos || 0), 0);
+      const hojeQuases = todayEntries.reduce((sum, s) => sum + (s.quases || 0), 0);
+      const hojeErros = todayEntries.reduce((sum, s) => sum + (s.erros || 0), 0);
+      setStatsData({ acertos, quase, erros, total: allCards.length, hoje: todayEntries.reduce((sum, s) => sum + s.count, 0), hojeAcertos, hojeQuases, hojeErros });
 
       const daysWithStudy = new Set(history.map(s => s.date));
       setStudiedDatesSet(daysWithStudy);
@@ -916,9 +931,24 @@ export const ProgressScreen = () => {
       setWeekStreak(wc);
       setWeekDaysStudied(wc);
 
-      // Performance data para o pie chart
+      // Performance data para o pie chart — limpa entradas órfãs (matérias que não existem mais)
+      const PERF_VERSION = 'v2';
+      const perfVersion = await AsyncStorage.getItem('@FlashcardsApp:perfVersion');
+      if (perfVersion !== PERF_VERSION) {
+        await AsyncStorage.removeItem('@FlashcardsApp:performanceData');
+        await AsyncStorage.setItem('@FlashcardsApp:perfVersion', PERF_VERSION);
+      }
       const perfData = await getPerformanceData();
-      setPerformanceData(perfData);
+      const validIds = new Set(['all']);
+      realDecks.forEach(d => d.subjects.forEach(sub => {
+        validIds.add(sub.id);
+        (sub.topics || []).forEach(t => validIds.add(t.id));
+      }));
+      const cleanedPerf = Object.fromEntries(Object.entries(perfData).filter(([k]) => validIds.has(k)));
+      if (Object.keys(cleanedPerf).length !== Object.keys(perfData).length) {
+        await AsyncStorage.setItem('@FlashcardsApp:performanceData', JSON.stringify(cleanedPerf));
+      }
+      setPerformanceData(cleanedPerf);
 
       setLoading(false);
     };
@@ -934,11 +964,19 @@ export const ProgressScreen = () => {
     if (totalToday === 0) {
       const now = new Date();
       let pendingCount = 0;
-      for (const deck of progressData)
-        for (const subject of deck.subjects)
-          pendingCount += subject.flashcards.filter(c =>
-            (c.level || 0) < 5 && (!c.nextReview || new Date(c.nextReview) <= now)
-          ).length;
+      const isPending = (c) => {
+        if ((c.level || 0) >= 5) return false;
+        if (!c.nextReview) return true;
+        return new Date(c.nextReview) <= now;
+      };
+      for (const deck of progressData) {
+        for (const subject of deck.subjects) {
+          const cards = subject.topics?.length > 0
+            ? subject.topics.flatMap(t => t.flashcards || [])
+            : (subject.flashcards || []);
+          pendingCount += cards.filter(isPending).length;
+        }
+      }
 
       if (pendingCount === 0) return (
         <View style={s.emptyWrap}>
@@ -969,31 +1007,26 @@ export const ProgressScreen = () => {
 
     return (
       <>
-        <View style={s.statRow}>
-          {[
-            { value: totalToday, label: 'cards revisados' },
-            { value: Object.keys(byDeck).length, label: Object.keys(byDeck).length === 1 ? 'deck' : 'decks' },
-            { value: todaySessions.length, label: todaySessions.length === 1 ? 'sessão' : 'sessões' },
-          ].map((stat, i) => (
-            <View key={i} style={s.statChip}>
-              <Text style={s.statValue}>{stat.value}</Text>
-              <Text style={s.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
-        </View>
-        {Object.entries(byDeck).map(([deckId, deck]) => (
-          <View key={deckId} style={s.card}>
-            <Text style={s.cardLabel}>{deck.deckName}</Text>
-            {Object.values(deck.subjects).map((sub, i, arr) => (
-              <View key={i} style={[s.row, i < arr.length - 1 && s.rowDivider]}>
-                <Text style={s.rowText}>{sub.subjectName}</Text>
+        {Object.entries(byDeck).map(([deckId, deck]) => {
+          const subjects = Object.values(deck.subjects);
+          const totalDeck = subjects.reduce((acc, s) => acc + s.count, 0);
+          return (
+            <View key={deckId} style={s.deckCardHoje}>
+              <View style={s.deckCardHojeHeader}>
+                <Text style={s.deckCardHojeName}>{deck.deckName}</Text>
                 <View style={s.greenChip}>
-                  <Text style={s.greenChipText}>{sub.count} cards</Text>
+                  <Text style={s.greenChipText}>{totalDeck} cards</Text>
                 </View>
               </View>
-            ))}
-          </View>
-        ))}
+              {subjects.map((sub, i, arr) => (
+                <View key={i} style={[s.row, i < arr.length - 1 && s.rowDivider]}>
+                  <Text style={s.rowText}>{sub.subjectName}</Text>
+                  <Text style={s.hojeSubCount}>{sub.count}</Text>
+                </View>
+              ))}
+            </View>
+          );
+        })}
       </>
     );
   };
@@ -1229,10 +1262,21 @@ export const ProgressScreen = () => {
     const CE = '#e94542';
     const SL = [theme.srsLevel0, theme.srsLevel1, theme.srsLevel2, theme.srsLevel3, theme.srsLevel4, theme.srsLevel5];
 
+    // Contadores persistentes: última sessão de cada matéria, somadas
     let totA = 0, totQ = 0, totE = 0;
+    for (const [sid, entry] of Object.entries(performanceData)) {
+      if (sid === 'all') continue;
+      const a = entry.atual || entry;
+      totA += a.acertos || 0;
+      totQ += a.quases || 0;
+      totE += a.erros || 0;
+    }
     const tot = totA + totQ + totE;
-    const confiancaGlobal = 0;
-    const ok = false;
+
+    // Confiança global pelos 3 pilares (regras do .md)
+    const { confiancaGlobal: confRaw } = calcDesempenho(performanceData, progressData, weekDaysStudied);
+    const ok = confRaw >= 0.15;
+    const confiancaGlobal = confRaw;
     const lvCounts = [0, 0, 0, 0, 0, 0];
     const maxLv = Math.max(...lvCounts, 1);
 
@@ -1269,7 +1313,7 @@ export const ProgressScreen = () => {
           <View style={{ width: 1, height: 44, backgroundColor: '#444', marginRight: 9 }} />
           <View style={{ minWidth: 48, alignItems: 'center' }}>
             <Text style={{ color: CA, fontSize: 40, fontFamily: theme.fontFamily.heading, includeFontPadding: false, lineHeight: 50 }}>
-              {0}
+              {statsData.hoje || 0}
             </Text>
           </View>
         </View>
@@ -1444,6 +1488,7 @@ export const ProgressScreen = () => {
         firstUseDate={firstUseDate}
         totalDecks={totalDecks}
         totalSubjects={totalSubjects}
+        totalTopics={totalTopics}
         totalFlashcards={totalFlashcards}
         statsData={statsData}
         progressData={progressData}
@@ -1557,14 +1602,22 @@ const s = StyleSheet.create({
   rowText: { color: theme.textSecondary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium, flex: 1 },
 
   // ── Hoje ─────────────────────────────────────────────────────────
-  statRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
-  statChip: {
-    flex: 1, backgroundColor: theme.backgroundSecondary,
+  hojeHeader: { marginBottom: 12 },
+  hojeHeaderTitle: { color: theme.textSecondary, fontSize: 14, fontFamily: theme.fontFamily.ui },
+  hojeHeaderCount: { color: theme.primary, fontSize: 14, fontFamily: theme.fontFamily.uiBold },
+  hojeHeaderSub: { color: theme.textMuted, fontSize: 12, fontFamily: theme.fontFamily.ui, marginTop: 2 },
+  deckCardHoje: {
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: 14, borderWidth: 1, borderColor: theme.backgroundTertiary,
-    paddingVertical: 16, alignItems: 'center',
+    marginBottom: 10, overflow: 'hidden',
   },
-  statValue: { color: theme.primary, fontSize: 22, fontFamily: theme.fontFamily.heading },
-  statLabel: { color: theme.textMuted, fontSize: 10, fontFamily: theme.fontFamily.ui, marginTop: 3 },
+  deckCardHojeHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary,
+  },
+  deckCardHojeName: { color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.headingSemiBold, flex: 1, marginRight: 8 },
+  hojeSubCount: { color: theme.textMuted, fontSize: 13, fontFamily: theme.fontFamily.uiBold },
   greenChip: {
     backgroundColor: theme.primaryTransparent, borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 3,

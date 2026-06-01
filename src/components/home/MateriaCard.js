@@ -15,6 +15,8 @@ const MateriaCard = ({
   width: propWidth, height: propHeight,
   onMenuPress,
 }) => {
+  const topicCount   = subject.topics?.length || 0;
+  const isTopicGroup = topicCount > 0;
   const totalCards   = subject.flashcards?.length || 0;
   const studiedCards = (subject.flashcards || []).filter(c => (c.level || 0) > 0).length;
   const isReview     = !!subject.reviewMode;
@@ -40,7 +42,7 @@ const MateriaCard = ({
     <TouchableOpacity
       onPressIn={handlePressIn}
       onPress={handlePress}
-      onLongPress={onLongPress}
+      onLongPress={() => onLongPress?.({ nativeEvent: { pageX: touchStart.current?.x || 0, pageY: touchStart.current?.y || 0 } })}
       activeOpacity={0.80}
       style={[styles.card, { width: cardWidth, height: cardHeight }, isSelected && styles.cardSelected, isReview && styles.cardReview]}
     >
@@ -56,7 +58,18 @@ const MateriaCard = ({
         <Text style={styles.label} numberOfLines={1}>{(deck?.name || 'Matéria').toUpperCase()}</Text>
         <Text style={styles.name} numberOfLines={3}>{subject.name || 'Matéria'}</Text>
         <View style={{ flex: 1 }} />
-        {studiedCards > 0 ? (
+        {isTopicGroup ? (
+          <>
+            <View style={styles.cardCountRow}>
+              <Ionicons name="layers-outline" size={16} color={theme.primary} style={{ marginRight: 4, marginBottom: 1 }} />
+              <Text style={styles.cardCountNumber}>{topicCount}</Text>
+              <Text style={styles.cardCountWord}>{topicCount === 1 ? ' assunto' : ' assuntos'}</Text>
+            </View>
+            <Text style={styles.cardCountLabel}>
+              {totalCards > 0 ? `${totalCards} cards no total` : 'Toque para estudar'}
+            </Text>
+          </>
+        ) : studiedCards > 0 ? (
           <>
             <View style={styles.cardCountRow}>
               <Text style={styles.cardCountNumber}>{studiedCards}</Text>
@@ -151,7 +164,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     paddingLeft: 10,
-    paddingRight: 10,
+    paddingRight: 34,
   },
   label: {
     fontFamily: theme.fontFamily.uiMedium,

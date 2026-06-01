@@ -45,12 +45,6 @@ export function CustomDrawerContent({ state, navigation, srsModalOpen }) {
         </TouchableOpacity>
       </View>
 
-      {/* ── BADGE DE STATUS ── */}
-      <View style={dStyles.statusBadge}>
-        <View style={dStyles.statusDot} />
-        <Text style={dStyles.statusText}>Beta · Versão gratuita</Text>
-      </View>
-
       <View style={dStyles.separator} />
 
       {/* ── MENU ITEMS ── */}
@@ -110,14 +104,6 @@ export function CustomDrawerContent({ state, navigation, srsModalOpen }) {
         )}
       </ScrollView>
 
-      {/* ── RODAPÉ ── */}
-      <View style={[dStyles.footer, { paddingBottom: insets.bottom || 16 }]}>
-        <View style={dStyles.separator} />
-        <View style={dStyles.footerContent}>
-          <Ionicons name="flash-outline" size={13} color={theme.textMuted} />
-          <Text style={dStyles.footerText}>AntiGravity · beta</Text>
-        </View>
-      </View>
     </View>
   );
 }

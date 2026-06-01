@@ -79,7 +79,7 @@ Perfeição em larga escala nunca é totalmente aceita — aprendizado humano re
 
 | Confiança global | Visual | Texto central |
 |---|---|---|
-| < 0.15 | Cinza / opaco | "coletando dados" |
+| < 0.15 | Cinza / opaco | "em análise" |
 | 0.15 – 0.20 | Começa a colorir | "Iniciando" |
 | 0.20 – 0.40 | Cores suaves | "Progredindo" |
 | 0.40 – 0.60 | Cores médias | "Evoluindo" |

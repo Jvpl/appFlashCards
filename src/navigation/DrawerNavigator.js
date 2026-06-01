@@ -21,8 +21,10 @@ export function DrawerNavigator() {
                 <CustomDrawerContent {...props} srsModalOpen={() => setSrsVisible(true)} />
               )}
               screenOptions={{
-                  headerStyle: { backgroundColor: theme.backgroundSecondary },
+                  headerStyle: { backgroundColor: theme.background, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', elevation: 0, shadowOpacity: 0 },
                   headerTintColor: theme.textPrimary,
+                  headerTitleAlign: 'left',
+                  headerTitleStyle: { fontFamily: theme.fontFamily.heading, fontSize: 22, color: theme.textPrimary },
                   drawerStyle: {
                       backgroundColor: theme.background,
                       width: width * 0.72,

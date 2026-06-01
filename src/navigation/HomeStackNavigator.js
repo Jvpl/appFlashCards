@@ -4,6 +4,7 @@ import theme from '../styles/theme';
 
 import { DeckListScreen } from '../screens/DeckListScreen';
 import { SubjectListScreen } from '../screens/SubjectListScreen';
+import { TopicListScreen } from '../screens/TopicListScreen';
 import { AddDeckScreen } from '../screens/AddDeckScreen';
 import { AddSubjectScreen } from '../screens/AddSubjectScreen';
 import { EditSubjectScreen } from '../screens/EditSubjectScreen';
@@ -32,6 +33,7 @@ export function HomeStackNavigator() {
     <HomeStack.Navigator screenOptions={navScreenOptions}>
       <HomeStack.Screen name="DeckList" component={DeckListScreen} options={{ headerShown: false, keyboardHandlingEnabled: false }} />
       <HomeStack.Screen name="SubjectList" component={SubjectListScreen} options={{ headerShown: false, cardStyleInterpolator: ({ current }) => ({ cardStyle: { opacity: current.progress } }) }} />
+      <HomeStack.Screen name="TopicList" component={TopicListScreen} options={{ headerShown: false, cardStyleInterpolator: ({ current }) => ({ cardStyle: { opacity: current.progress } }) }} />
       <HomeStack.Screen name="AddDeck" component={AddDeckScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="AddSubject" component={AddSubjectScreen} options={{ title: 'Nova Matéria' }} />
       <HomeStack.Screen name="EditSubject" component={EditSubjectScreen} options={{ title: 'Editar Matéria' }} />

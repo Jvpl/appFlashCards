@@ -7,7 +7,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, u
 import { useGenericKeyboardHandler, KeyboardController, AndroidSoftInputModes, KeyboardProvider, KeyboardAvoidingView as KCKeyboardAvoidingView } from 'react-native-keyboard-controller';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { getAppData, saveAppData } from '../services/storage';
+import { getAppData, saveAppData, findStudyUnit, updateStudyUnit } from '../services/storage';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { HybridEditor } from '../components/editor/HybridEditor';
 import { MathToolbar } from '../components/editor/MathToolbar';
@@ -272,7 +272,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           const allData = await getAppData();
           const deck = allData.find(d => d.id === deckId);
           if (deck) {
-            const subject = deck.subjects.find(s => s.id === subjectId);
+            const subject = findStudyUnit(deck, subjectId);
             if (subject) {
               const card = subject.flashcards.find(c => c.id === cardId);
               if (card) {
@@ -308,7 +308,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         const allData = await getAppData();
         const deck = allData.find(d => d.id === deckId);
         if (deck) {
-          const subject = deck.subjects.find(s => s.id === subjectId);
+          const subject = findStudyUnit(deck, subjectId);
           if (subject) {
             if (!subjectName) setResolvedSubjectName(subject.name || '');
             const flashcards = subject.flashcards || [];
@@ -598,41 +598,24 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
   const persistSave = async (questionHtml, answerHtml) => {
     const allData = await getAppData();
-    const newData = allData.map(deck => {
-      if (deck.id === deckId) {
-        return {
-          ...deck,
-          subjects: deck.subjects.map(subject => {
-            if (subject.id === subjectId) {
-              if (isEditMode && cardId) {
-                return {
-                  ...subject,
-                  flashcards: subject.flashcards.map(card =>
-                    card.id === cardId
-                      ? { ...card, question: questionHtml, answer: answerHtml }
-                      : card
-                  ),
-                };
-              } else {
-                return {
-                  ...subject,
-                  flashcards: [
-                    ...subject.flashcards,
-                    {
-                      id: Date.now().toString(),
-                      question: questionHtml,
-                      answer: answerHtml,
-                      level: 0, points: 0, lastReview: null, nextReview: null,
-                    },
-                  ],
-                };
-              }
-            }
-            return subject;
-          })
-        };
+    const newData = updateStudyUnit(allData, deckId, subjectId, (cards) => {
+      if (isEditMode && cardId) {
+        return cards.map(card =>
+          card.id === cardId
+            ? { ...card, question: questionHtml, answer: answerHtml }
+            : card
+        );
       }
-      return deck;
+      return [
+        ...cards,
+        {
+          id: Date.now().toString(),
+          question: questionHtml,
+          answer: answerHtml,
+          level: 0, points: 0, lastReview: null, nextReview: null,
+          consecutiveCorrect: 0, reviewStreak: 0,
+        },
+      ];
     });
     await saveAppData(newData);
     return newData;
@@ -661,7 +644,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
     // Atualiza contador
     const updatedDeck = newData?.find(d => d.id === deckId);
-    const updatedSubject = updatedDeck?.subjects?.find(s => s.id === subjectId);
+    const updatedSubject = updatedDeck ? findStudyUnit(updatedDeck, subjectId) : null;
     if (updatedSubject) setSubjectCardCount(updatedSubject.flashcards?.length || 0);
 
     // Lottie: esconde texto e toca animação imediatamente (antes de qualquer re-render)
