@@ -107,19 +107,6 @@ function MainTabs() {
         listeners={({ navigation, route }) => ({
           tabPress: (e) => {
             if (isKeyboardVisible) { e.preventDefault(); return; }
-            if (!navigation.isFocused()) return;
-
-            const drawerState = route.state;
-            const drawerIndex = drawerState?.index ?? 0;
-
-            if (drawerIndex === 0) {
-              const homeDrawerRoute = drawerState?.routes?.[0];
-              const stackState = homeDrawerRoute?.state;
-              if (!stackState || stackState.index === 0) {
-                e.preventDefault();
-                return;
-              }
-            }
 
             e.preventDefault();
             navigation.dispatch(state => {
