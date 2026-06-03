@@ -106,6 +106,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const swipeProgress = useSharedValue(0);
   const swipeDirection = useSharedValue(0);
   const isAnimatingOut = useSharedValue(false);
+  const cardOpacitySV = useSharedValue(1);
   const insertAnim = useSharedValue(0);
   // SharedValues para preview texts — evita captura de previewTextsRef no worklet
   const previewWrongSV = useSharedValue('');
@@ -260,6 +261,14 @@ export const FlashcardScreen = ({ route, navigation }) => {
     runOnJS(setJsCurrentIndex)(idx);
     jsCurrentIndexRef.current = idx;
   });
+
+  // Após React renderizar o novo card: torna visível no próximo frame de pintura
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      cardOpacitySV.value = 1;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [currentCard]);
   useAnimatedReaction(() => isFlipped.value, (res) => { runOnJS(setJsIsFlipped)(res) });
 
   // currentCard é atualizado em handleReviewByIndex, não via jsCurrentIndex
@@ -539,6 +548,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
             'worklet';
             if (finished) {
               const cardIndex = Math.floor(currentIndex.value);
+              cardOpacitySV.value = 0;
               translateX.value = 0;
               translateY.value = 0;
               currentIndex.value = currentIndex.value + 1;
@@ -887,6 +897,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
           {currentCard && (
             <FlashcardItem
               key="flashcard"
+              contentKey={currentCard.id}
               card={currentCard}
               index={jsCurrentIndex}
               currentIndex={currentIndex}
@@ -901,6 +912,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
               swipeProgress={swipeProgress}
               swipeDirection={swipeDirection}
               footerPressedSV={footerPressedSV}
+              cardOpacitySV={cardOpacitySV}
               onEdit={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCard?.id })}
             />
           )}

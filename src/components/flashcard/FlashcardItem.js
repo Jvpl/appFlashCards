@@ -39,7 +39,7 @@ const SwipeIcon = ({ paths, color, size = 80 }) => (
 
 const screenWidth = Dimensions.get('window').width;
 
-export const FlashcardItem = ({ card, index, currentIndex, totalCards, displayIndex, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV }) => {
+export const FlashcardItem = ({ card, index, currentIndex, totalCards, displayIndex, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV, cardOpacitySV, contentKey }) => {
   const editingRef = useRef(false);
   const rotate = useSharedValue(0);
   const position = useDerivedValue(() => index - currentIndex.value);
@@ -77,7 +77,7 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, displayIn
       );
       return {
         zIndex,
-        opacity: 1,
+        opacity: cardOpacitySV ? cardOpacitySV.value : 1,
         transform: [
           { translateX: translateX.value },
           { translateY: translateY.value },
@@ -298,7 +298,7 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, displayIn
           style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle]}
           pointerEvents={isCurrentCard && jsIsFlipped ? 'none' : 'auto'}
         >
-          <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent} pointerEvents="none">
+          <ScrollView key={contentKey} style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent} pointerEvents="none">
             {renderContent(card.question)}
           </ScrollView>
           {showLevel && <CardFooter level={card.level || 0} currentIndex={displayIndex ?? 0} totalCards={totalCards} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
@@ -327,7 +327,7 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, displayIn
             );
           })}
           <Animated.View style={[{ flex: 1, width: '100%' }, backContentOpacity]} pointerEvents="none">
-            <ScrollView style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent} pointerEvents="none">
+            <ScrollView key={contentKey} style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent} pointerEvents="none">
               {renderContent(card.answer)}
             </ScrollView>
           </Animated.View>
