@@ -80,7 +80,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   // Inicializa a fila global com os cards iniciais
   useMemo(() => { _queue = [...initialState.cards]; }, []);
   const [queueSize, setQueueSize] = useState(initialState.cards.length);
-  const [processedCount, setProcessedCount] = useState(0);
+  const [swipeCount, setSwipeCount] = useState(0);
   const [currentCard, setCurrentCard] = useState(initialState.cards[0] ?? null);
   const [nextCard, setNextCard] = useState(initialState.cards[1] ?? null);
   const cacheKey = reviewAll ? `${deckId}-all` : `${deckId}-${subjectId}`;
@@ -92,6 +92,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const reviewUpdates = useRef([]);
   const sessionStudiedIds = useRef(new Set());
+  const sessionInitialIds = useRef(new Set());
   const hasLoadedOnce = useRef(false);
   const sessionDoneRef = useRef(false);
   const sessionStartRef = useRef(Date.now());
@@ -176,7 +177,6 @@ export const FlashcardScreen = ({ route, navigation }) => {
     const isReturning = hasLoadedOnce.current;
     hasLoadedOnce.current = true;
 
-    // Reseta shared values ANTES de setCards para que position.value seja correto no primeiro render
     if (!isReturning) {
       currentIndex.value = 0;
       isFlipped.value = 0;
@@ -185,17 +185,6 @@ export const FlashcardScreen = ({ route, navigation }) => {
       resetKey.value = resetKey.value + 1;
       setJsCurrentIndex(0);
       setJsIsFlipped(false);
-    } else {
-      currentIndex.value = 0;
-      isFlipped.value = 0;
-      translateX.value = 0;
-      translateY.value = 0;
-      resetKey.value = resetKey.value + 1;
-      setJsCurrentIndex(0);
-      setJsIsFlipped(false);
-      sessionStudiedIds.current = new Set();
-      sessionRatings.current = { right: 0, up: 0, left: 0, levelUps: 0 };
-      dailyGoalSavedRef.current = false;
     }
 
     const data = allData;
@@ -208,33 +197,62 @@ export const FlashcardScreen = ({ route, navigation }) => {
         }
         return (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }));
       }).sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
-      setCards(allCards); _queue = [...allCards];
-      setCurrentCard(allCards[0] ?? null); setNextCard(allCards[1] ?? null);
-      setTotalCardsInSession(allCards.length);
+      if (isReturning) {
+        // Adiciona ao fim da fila apenas cards que não estão nela e não foram estudados
+        const queueIds = new Set(_queue.map(c => c.id));
+        const newCards = allCards.filter(c => !queueIds.has(c.id) && !sessionStudiedIds.current.has(c.id));
+        if (newCards.length > 0) {
+          _queue = [..._queue, ...newCards];
+          setQueueSize(_queue.length);
+          setNextCard(_queue[1] ?? null);
+          setTotalCardsInSession(prev => prev + newCards.length);
+        }
+      } else {
+        setCards(allCards); _queue = [...allCards];
+        setCurrentCard(allCards[0] ?? null); setNextCard(allCards[1] ?? null);
+        setTotalCardsInSession(allCards.length);
+      }
     } else {
       const subject = deck ? findStudyUnit(deck, subjectId) : null;
       if (subject) {
         const now = new Date();
         const allSubjectCards = subject.flashcards || [];
-        const cardsToReview = allSubjectCards
-          .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now) && !studiedThisSession.has(c.id))
-          .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
         setTotalSubjectCards(allSubjectCards.length);
-        setCards(cardsToReview); _queue = [...cardsToReview];
-        setCurrentCard(cardsToReview[0] ?? null); setNextCard(cardsToReview[1] ?? null);
-        setTotalCardsInSession(cardsToReview.length);
-        if (cardsToReview.length === 0 && allSubjectCards.length > 0 && !isReturning) {
-          let earliest = null;
-          allSubjectCards.forEach(c => {
-            if (c.nextReview) {
-              const t = new Date(c.nextReview).getTime();
-              if (earliest === null || t < earliest) earliest = t;
-            }
-          });
-          sessionDoneRef.current = true;
-          setSessionResult({ done: true, nextReview: earliest });
-          setLoading(false);
-          return;
+        if (isReturning) {
+          // Adiciona ao fim da fila apenas cards novos (não na fila, não estudados)
+          const queueIds = new Set(_queue.map(c => c.id));
+          const newCards = allSubjectCards.filter(c =>
+            (c.level || 0) < 5 &&
+            (c.nextReview == null || new Date(c.nextReview) <= now) &&
+            !queueIds.has(c.id) &&
+            !sessionStudiedIds.current.has(c.id)
+          );
+          if (newCards.length > 0) {
+            _queue = [..._queue, ...newCards];
+            setQueueSize(_queue.length);
+            setNextCard(_queue[1] ?? null);
+            setTotalCardsInSession(prev => prev + newCards.length);
+          }
+        } else {
+          const cardsToReview = allSubjectCards
+            .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now) && !studiedThisSession.has(c.id))
+            .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+          setCards(cardsToReview); _queue = [...cardsToReview];
+          setCurrentCard(cardsToReview[0] ?? null); setNextCard(cardsToReview[1] ?? null);
+          setTotalCardsInSession(cardsToReview.length);
+          if (cardsToReview.length === 0 && allSubjectCards.length > 0) {
+            let earliest = null;
+            allSubjectCards.forEach(c => {
+              if (c.nextReview) {
+                const t = new Date(c.nextReview).getTime();
+                if (earliest === null || t < earliest) earliest = t;
+              }
+            });
+            sessionDoneRef.current = true;
+            setSessionResult({ done: true, nextReview: earliest });
+            setLoading(false);
+            return;
+          }
         }
       }
     }
@@ -436,9 +454,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
     // handleReview: se errou/quase, empurra pro fim
     const isLast = rating === 'right' && _queue.length === 0;
     handleReview(card, rating, isLast);
-    // Tamanho nunca cresce: push no handleReview + slice aqui = tamanho estável
-    setProcessedCount(prev => (prev + 1) % cardsRef.current.length);
     setQueueSize(_queue.length);
+    setSwipeCount(prev => prev + 1);
     resetKey.value = resetKey.value + 1;
     setCurrentCard(_queue[0] ?? null);
     setNextCard(_queue[1] ?? null);
@@ -840,10 +857,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
             cardWrapperRef.current?.measure((_x, _y, _w, _h, _px, py) => { cardTopY.value = py; });
           }}
         >
-          {/* Pilha decorativa — máx 10 visíveis, fade progressivo por profundidade */}
+          {/* Pilha decorativa — máx 5 visíveis, fade progressivo por profundidade */}
           {(() => {
             const remaining = _queue.length - 1; // cards atrás do atual
-            const MAX_STACK = 10;
+            const MAX_STACK = 5;
             const stackCount = Math.min(remaining, MAX_STACK);
             // pos 1 = logo atrás do atual, pos N = mais atrás
             // scale e translateY decrescentes conforme vai pra trás
@@ -851,11 +868,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
             for (let pos = stackCount; pos >= 1; pos--) {
               const scale = 1 - pos * 0.018;
               const translateY = -pos * 10;
-              // Fade progressivo: começa quando pilha tem 3+ cards.
-              // Com 2 cards (stackCount=1): pos=1, ratio=0 → opacity=1 sempre.
-              // Com mais cards: cards mais ao fundo ficam progressivamente mais transparentes.
-              const ratio = stackCount > 2 ? (pos - 1) / (stackCount - 1) : 0;
-              const opacity = 1 - ratio * 0.7; // máx 70% de fade no card mais ao fundo
+              // Fade progressivo: card imediatamente atrás fica em 0.7, o mais ao fundo em 0.15
+              const ratio = stackCount > 1 ? (pos - 1) / (stackCount - 1) : 0;
+              const opacity = 0.7 - ratio * 0.55; // de 0.7 (frente) até 0.15 (fundo)
               if (pos === stackCount) {
                 // card mais atrás: anima ao reenfileirar
                 views.push(
@@ -919,8 +934,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
               card={currentCard}
               index={jsCurrentIndex}
               currentIndex={currentIndex}
-              totalCards={cards.length}
-              displayIndex={processedCount}
+              totalCards={queueSize}
+              displayIndex={queueSize > 0 ? swipeCount % queueSize : 0}
               translateX={translateX} translateY={translateY}
               isFlipped={isFlipped}
               jsCurrentIndex={jsCurrentIndex}
