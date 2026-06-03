@@ -840,23 +840,22 @@ export const FlashcardScreen = ({ route, navigation }) => {
             cardWrapperRef.current?.measure((_x, _y, _w, _h, _px, py) => { cardTopY.value = py; });
           }}
         >
-          {/* Pilha decorativa — máx 5 visíveis, fade nos mais distantes */}
+          {/* Pilha decorativa — máx 10 visíveis, fade progressivo por profundidade */}
           {(() => {
             const remaining = _queue.length - 1; // cards atrás do atual
             const MAX_STACK = 10;
             const stackCount = Math.min(remaining, MAX_STACK);
-            const hasMore = remaining > MAX_STACK;
             // pos 1 = logo atrás do atual, pos N = mais atrás
             // scale e translateY decrescentes conforme vai pra trás
             const views = [];
             for (let pos = stackCount; pos >= 1; pos--) {
-              const t = pos / MAX_STACK; // 0..1, mais longe = maior t
               const scale = 1 - pos * 0.018;
               const translateY = -pos * 10;
-              // fade nos últimos 3 cards da pilha para dar sensação de profundidade
-              const opacity = pos >= MAX_STACK - 2
-                ? Math.max(0.15, 1 - (pos - (MAX_STACK - 3)) * 0.25)
-                : 1;
+              // Fade progressivo: começa quando pilha tem 3+ cards.
+              // Com 2 cards (stackCount=1): pos=1, ratio=0 → opacity=1 sempre.
+              // Com mais cards: cards mais ao fundo ficam progressivamente mais transparentes.
+              const ratio = stackCount > 2 ? (pos - 1) / (stackCount - 1) : 0;
+              const opacity = 1 - ratio * 0.7; // máx 70% de fade no card mais ao fundo
               if (pos === stackCount) {
                 // card mais atrás: anima ao reenfileirar
                 views.push(
@@ -886,11 +885,30 @@ export const FlashcardScreen = ({ route, navigation }) => {
           })()}
           {/* Skeleton do próximo card */}
           {nextCard && (
-            <View style={{ position: 'absolute', width: screenWidth * 0.9, height: 460, backgroundColor: '#242427ff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex: 11, padding: 28, justifyContent: 'center', gap: 14 }}>
-              <SkeletonItem style={{ width: '60%', height: 14, borderRadius: 7 }} />
-              <SkeletonItem style={{ width: '90%', height: 14, borderRadius: 7 }} />
-              <SkeletonItem style={{ width: '75%', height: 14, borderRadius: 7 }} />
-              <SkeletonItem style={{ width: '50%', height: 14, borderRadius: 7 }} />
+            <View style={{ position: 'absolute', width: screenWidth * 0.9, height: 460, backgroundColor: '#242427ff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex: 11, justifyContent: 'space-between' }}>
+              {/* Conteúdo central */}
+              <View style={{ flex: 1, padding: 28, justifyContent: 'center', gap: 14 }}>
+                <SkeletonItem style={{ width: '60%', height: 14, borderRadius: 7 }} />
+                <SkeletonItem style={{ width: '90%', height: 14, borderRadius: 7 }} />
+                <SkeletonItem style={{ width: '75%', height: 14, borderRadius: 7 }} />
+                <SkeletonItem style={{ width: '50%', height: 14, borderRadius: 7 }} />
+              </View>
+              {/* Rodapé skeleton */}
+              <View style={{ height: 95, borderTopWidth: 0, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20 }}>
+                {/* Círculo de nível */}
+                <SkeletonItem style={{ width: 56, height: 56, borderRadius: 28 }} />
+                {/* Textos NÍVEL + nome */}
+                <View style={{ marginLeft: 14, gap: 7 }}>
+                  <SkeletonItem style={{ width: 36, height: 10, borderRadius: 5 }} />
+                  <SkeletonItem style={{ width: 80, height: 12, borderRadius: 6 }} />
+                </View>
+                {/* Lápis + contador à direita */}
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                  <SkeletonItem style={{ width: 34, height: 34, borderRadius: 6 }} />
+                  <View style={{ width: 1, height: 22, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+                  <SkeletonItem style={{ width: 36, height: 14, borderRadius: 6 }} />
+                </View>
+              </View>
             </View>
           )}
           {/* Único FlashcardItem — sempre o card atual */}
