@@ -17,6 +17,27 @@ import theme from '../styles/theme';
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
+const InsertAnimCard = React.memo(({ insertAnim, width, baseScale = 0.93, baseTranslateY = -40, opacity = 1 }) => {
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { scale: interpolate(insertAnim.value, [0, 1], [baseScale - 0.05, baseScale]) },
+      { translateY: interpolate(insertAnim.value, [0, 1], [baseTranslateY + 20, baseTranslateY]) },
+    ],
+    opacity: interpolate(insertAnim.value, [0, 0.3, 1], [0, opacity, opacity]),
+  }));
+  return (
+    <Animated.View style={[{
+      position: 'absolute', width, height: 460,
+      backgroundColor: '#242427ff', borderRadius: 20,
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex: 1,
+    }, style]} />
+  );
+});
+
+// Ref global — fora do componente, não é serializado pelo Reanimated
+let _handleReviewByIndex = null;
+let _queue = []; // fila de cards fora do componente — não serializado pelo Reanimated
+
 function formatNextReview(ms) {
   const diff = ms - Date.now();
   if (diff <= 0) return 'na próxima sessão';
@@ -55,6 +76,13 @@ export const FlashcardScreen = ({ route, navigation }) => {
   }, []);
 
   const [cards, setCards] = useState(initialState.cards);
+  // Fila única: começa com os cards iniciais, nunca cresce — errado/quase move pro fim
+  // Inicializa a fila global com os cards iniciais
+  useMemo(() => { _queue = [...initialState.cards]; }, []);
+  const [queueSize, setQueueSize] = useState(initialState.cards.length);
+  const [processedCount, setProcessedCount] = useState(0);
+  const [currentCard, setCurrentCard] = useState(initialState.cards[0] ?? null);
+  const [nextCard, setNextCard] = useState(initialState.cards[1] ?? null);
   const cacheKey = reviewAll ? `${deckId}-all` : `${deckId}-${subjectId}`;
   const [loading, setLoading] = useState(initialState.cards.length === 0 && !initialState.sessionDone && initialState.totalSubjectCards !== 0 && !global.screenCache?.flashcards?.has(cacheKey));
 
@@ -76,8 +104,13 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const translateY = useSharedValue(0);
   const resetKey = useSharedValue(0);
   const swipeProgress = useSharedValue(0);
-  // 0=none 1=left(errei) 2=right(memorizado) 3=up(quase)
   const swipeDirection = useSharedValue(0);
+  const isAnimatingOut = useSharedValue(false);
+  const insertAnim = useSharedValue(0);
+  // SharedValues para preview texts — evita captura de previewTextsRef no worklet
+  const previewWrongSV = useSharedValue('');
+  const previewEasySV = useSharedValue('');
+  const previewHardSV = useSharedValue('');
 
   const [jsCurrentIndex, setJsCurrentIndex] = useState(0);
   const jsCurrentIndexRef = useRef(0);
@@ -174,7 +207,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
         }
         return (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }));
       }).sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
-      setCards(allCards);
+      setCards(allCards); _queue = [...allCards];
+      setCurrentCard(allCards[0] ?? null); setNextCard(allCards[1] ?? null);
       setTotalCardsInSession(allCards.length);
     } else {
       const subject = deck ? findStudyUnit(deck, subjectId) : null;
@@ -185,7 +219,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
           .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now) && !studiedThisSession.has(c.id))
           .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
         setTotalSubjectCards(allSubjectCards.length);
-        setCards(cardsToReview);
+        setCards(cardsToReview); _queue = [...cardsToReview];
+        setCurrentCard(cardsToReview[0] ?? null); setNextCard(cardsToReview[1] ?? null);
         setTotalCardsInSession(cardsToReview.length);
         if (cardsToReview.length === 0 && allSubjectCards.length > 0 && !isReturning) {
           let earliest = null;
@@ -226,6 +261,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
     jsCurrentIndexRef.current = idx;
   });
   useAnimatedReaction(() => isFlipped.value, (res) => { runOnJS(setJsIsFlipped)(res) });
+
+  // currentCard é atualizado em handleReviewByIndex, não via jsCurrentIndex
+  // para evitar o flash do card antigo entre frames
 
   // Warm-up: dispara withTiming invisível para compilar worklet antes do primeiro flip
   const _warmup = useSharedValue(0);
@@ -327,7 +365,13 @@ export const FlashcardScreen = ({ route, navigation }) => {
     else if (rating === 'left') sessionRatings.current.left++;
     if (updatedCard.level > cardToReview.level) sessionRatings.current.levelUps++;
     setSwipeReviewText('');
-    console.log('[HR] card:', cardToReview?.id, 'isLast:', isLast, 'totalSV:', totalCardsInSessionSV.value, 'cardsRef.len:', cardsRef.current.length);
+
+    if (rating === 'left' || rating === 'up') {
+      // Move pro fim da fila — tamanho não muda (o slot atual já foi consumido pelo handleReviewByIndex)
+      _queue.push(updatedCard);
+      insertAnim.value = 0;
+      insertAnim.value = withTiming(1, { duration: 350 });
+    }
 
     // Verifica meta diária: min(10, total de cards da sessão)
     if (!dailyGoalSavedRef.current) {
@@ -353,14 +397,22 @@ export const FlashcardScreen = ({ route, navigation }) => {
   }, [getNextReviewText, deckId, subjectId, deckName, subjectName, reviewAll]);
 
   useEffect(() => {
-    const card = cards[jsCurrentIndex];
-    if (!card) { previewTextsRef.current = { wrong: '', hard: '', easy: '' }; return; }
-    previewTextsRef.current = {
-      wrong: getNextReviewText(calculateCardUpdate(card, 'wrong')?.nextReview),
-      hard: getNextReviewText(calculateCardUpdate(card, 'hard')?.nextReview),
-      easy: getNextReviewText(calculateCardUpdate(card, 'easy')?.nextReview),
-    };
-  }, [jsCurrentIndex, cards, getNextReviewText]);
+    const card = currentCard;
+    if (!card) {
+      previewTextsRef.current = { wrong: '', hard: '', easy: '' };
+      previewWrongSV.value = '';
+      previewEasySV.value = '';
+      previewHardSV.value = '';
+      return;
+    }
+    const wrong = getNextReviewText(calculateCardUpdate(card, 'wrong')?.nextReview);
+    const hard = getNextReviewText(calculateCardUpdate(card, 'hard')?.nextReview);
+    const easy = getNextReviewText(calculateCardUpdate(card, 'easy')?.nextReview);
+    previewTextsRef.current = { wrong, hard, easy };
+    previewWrongSV.value = wrong;
+    previewEasySV.value = easy;
+    previewHardSV.value = hard;
+  }, [currentCard, getNextReviewText]);
 
   const panGestureRef = useRef();
   const tapGestureRef = useRef();
@@ -368,9 +420,22 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const cardsRef = useRef(cards);
   useEffect(() => { cardsRef.current = cards; }, [cards]);
   // handleReviewByIndex: chamado do worklet via runOnJS — busca o card pelo índice no JS thread
-  const handleReviewByIndex = useCallback((cardIndex, rating, isLast) => {
-    handleReview(cardsRef.current[cardIndex], rating, isLast);
+  const handleReviewByIndex = useCallback((_cardIndex, rating) => {
+    const card = _queue[0];
+    // Remove o primeiro da fila
+    _queue = _queue.slice(1);
+    // handleReview: se errou/quase, empurra pro fim
+    const isLast = rating === 'right' && _queue.length === 0;
+    handleReview(card, rating, isLast);
+    // Tamanho nunca cresce: push no handleReview + slice aqui = tamanho estável
+    setProcessedCount(prev => (prev + 1) % cardsRef.current.length);
+    setQueueSize(_queue.length);
+    resetKey.value = resetKey.value + 1;
+    setCurrentCard(_queue[0] ?? null);
+    setNextCard(_queue[1] ?? null);
   }, [handleReview]);
+  useEffect(() => { _handleReviewByIndex = handleReviewByIndex; }, [handleReviewByIndex]);
+  const handleReviewByIndexStable = useCallback((...args) => _handleReviewByIndex?.(...args), []);
 
   const tapGesture = useMemo(() =>
     Gesture.Tap()
@@ -379,10 +444,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
       .maxDistance(20)
       .onEnd((_e, success) => {
         'worklet';
-        if (!success || panActivated.value || footerPressedSV.value) return;
+        if (!success || panActivated.value || footerPressedSV.value || isAnimatingOut.value) return;
         runOnJS(onFlip)();
       }),
-  [onFlip, panActivated, footerPressedSV]);
+  [onFlip, panActivated, footerPressedSV, isAnimatingOut]);
 
   const gesture = useMemo(() => {
     const pan = Gesture.Pan().withRef(panGestureRef)
@@ -399,19 +464,19 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
         let opacity = 0;
         if (event.translationX < -30 && xAbs > yAbs) { // Left — Errei
-          runOnJS(setSwipeReviewText)(previewTextsRef.current.wrong);
+          runOnJS(setSwipeReviewText)(previewWrongSV.value);
           opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
           leftGlowOpacity.value = opacity; rightGlowOpacity.value = 0; topGlowOpacity.value = 0;
           swipeDirection.value = 1;
           swipeProgress.value = opacity;
         } else if (event.translationX > 30 && xAbs > yAbs) { // Right — Memorizado
-          runOnJS(setSwipeReviewText)(previewTextsRef.current.easy);
+          runOnJS(setSwipeReviewText)(previewEasySV.value);
           opacity = interpolate(xAbs, [30, screenWidth / 2], [0, 1], 'clamp');
           rightGlowOpacity.value = opacity; leftGlowOpacity.value = 0; topGlowOpacity.value = 0;
           swipeDirection.value = 2;
           swipeProgress.value = opacity;
         } else if (event.translationY < -30 && yAbs > xAbs) { // Up — Quase
-          runOnJS(setSwipeReviewText)(previewTextsRef.current.hard);
+          runOnJS(setSwipeReviewText)(previewHardSV.value);
           opacity = interpolate(yAbs, [30, screenHeight / 3], [0, 1], 'clamp');
           topGlowOpacity.value = opacity; leftGlowOpacity.value = 0; rightGlowOpacity.value = 0;
           swipeDirection.value = 3;
@@ -468,18 +533,18 @@ export const FlashcardScreen = ({ route, navigation }) => {
         }
 
         if (rating) {
+          isAnimatingOut.value = true;
           translateX.value = withTiming(destinationX, { duration: 220 });
           translateY.value = withTiming(destinationY, { duration: 220 }, (finished) => {
             'worklet';
             if (finished) {
               const cardIndex = Math.floor(currentIndex.value);
-              const isLast = cardIndex >= totalCardsInSessionSV.value - 1;
-              runOnJS(handleReviewByIndex)(cardIndex, rating, isLast);
-              currentIndex.value = currentIndex.value + 1;
-              isFlipped.value = false;
-
               translateX.value = 0;
               translateY.value = 0;
+              currentIndex.value = currentIndex.value + 1;
+              isFlipped.value = false;
+              isAnimatingOut.value = false;
+              runOnJS(handleReviewByIndexStable)(cardIndex, rating);
             }
           });
         } else {
@@ -492,7 +557,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
         }
       });
     return Gesture.Simultaneous(tapGesture, pan);
-  }, [tapGesture, panActivated, handleReviewByIndex, isFlipped, translateX, translateY, currentIndex, swipeProgress, swipeDirection, totalCardsInSessionSV]);
+  }, [tapGesture, panActivated, handleReviewByIndexStable, isFlipped, translateX, translateY, currentIndex, swipeProgress, swipeDirection, totalCardsInSessionSV, previewWrongSV, previewEasySV, previewHardSV]);
 
   const handleReviewComplete = useCallback(async () => {
     if (!reviewMode || !subjectId) {
@@ -560,7 +625,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   useEffect(() => { totalCardsInSessionSV.value = totalCardsInSession; }, [totalCardsInSession]);
 
   const [isOptionsModalVisible, setOptionsModalVisible] = useState(false);
-  const currentCardForModal = cards[jsCurrentIndex];
+  const currentCardForModal = currentCard;
 
   const performDelete = () => {
     if (!currentCardForModal) return;
@@ -765,10 +830,68 @@ export const FlashcardScreen = ({ route, navigation }) => {
             cardWrapperRef.current?.measure((_x, _y, _w, _h, _px, py) => { cardTopY.value = py; });
           }}
         >
-          {cards.map((card, index) => (
+          {/* Pilha decorativa — máx 5 visíveis, fade nos mais distantes */}
+          {(() => {
+            const remaining = _queue.length - 1; // cards atrás do atual
+            const MAX_STACK = 10;
+            const stackCount = Math.min(remaining, MAX_STACK);
+            const hasMore = remaining > MAX_STACK;
+            // pos 1 = logo atrás do atual, pos N = mais atrás
+            // scale e translateY decrescentes conforme vai pra trás
+            const views = [];
+            for (let pos = stackCount; pos >= 1; pos--) {
+              const t = pos / MAX_STACK; // 0..1, mais longe = maior t
+              const scale = 1 - pos * 0.018;
+              const translateY = -pos * 10;
+              // fade nos últimos 3 cards da pilha para dar sensação de profundidade
+              const opacity = pos >= MAX_STACK - 2
+                ? Math.max(0.15, 1 - (pos - (MAX_STACK - 3)) * 0.25)
+                : 1;
+              if (pos === stackCount) {
+                // card mais atrás: anima ao reenfileirar
+                views.push(
+                  <InsertAnimCard
+                    key="insert"
+                    insertAnim={insertAnim}
+                    width={screenWidth * 0.9}
+                    baseScale={scale}
+                    baseTranslateY={translateY}
+                    opacity={opacity}
+                  />
+                );
+              } else {
+                views.push(
+                  <View key={pos} style={{
+                    position: 'absolute', width: screenWidth * 0.9, height: 460,
+                    backgroundColor: '#242427ff', borderRadius: 20,
+                    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+                    transform: [{ scale }, { translateY }],
+                    zIndex: MAX_STACK - pos,
+                    opacity,
+                  }} />
+                );
+              }
+            }
+            return views;
+          })()}
+          {/* Skeleton do próximo card */}
+          {nextCard && (
+            <View style={{ position: 'absolute', width: screenWidth * 0.9, height: 460, backgroundColor: '#242427ff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex: 11, padding: 28, justifyContent: 'center', gap: 14 }}>
+              <SkeletonItem style={{ width: '60%', height: 14, borderRadius: 7 }} />
+              <SkeletonItem style={{ width: '90%', height: 14, borderRadius: 7 }} />
+              <SkeletonItem style={{ width: '75%', height: 14, borderRadius: 7 }} />
+              <SkeletonItem style={{ width: '50%', height: 14, borderRadius: 7 }} />
+            </View>
+          )}
+          {/* Único FlashcardItem — sempre o card atual */}
+          {currentCard && (
             <FlashcardItem
-              key={card.id} card={card} index={index}
-              currentIndex={currentIndex} totalCards={cards.length}
+              key="flashcard"
+              card={currentCard}
+              index={jsCurrentIndex}
+              currentIndex={currentIndex}
+              totalCards={cards.length}
+              displayIndex={processedCount}
               translateX={translateX} translateY={translateY}
               isFlipped={isFlipped}
               jsCurrentIndex={jsCurrentIndex}
@@ -778,9 +901,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
               swipeProgress={swipeProgress}
               swipeDirection={swipeDirection}
               footerPressedSV={footerPressedSV}
-              onEdit={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: card.id })}
+              onEdit={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCard?.id })}
             />
-          )
           )}
         </Animated.View>
       </GestureDetector>
