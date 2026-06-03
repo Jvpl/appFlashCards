@@ -1,0 +1,140 @@
+POLÍTICA DE PRIVACIDADE — FLASHCARDS CONCURSO
+=============================================
+Pacote: com.jvpl.flashcardsconcurso
+Última atualização: 29 de maio de 2026
+
+Esta Política de Privacidade descreve como o aplicativo Flashcards Concurso
+("Aplicativo", "nós") coleta, usa e protege as informações dos usuários
+("você") ao utilizar nossos serviços.
+
+Ao instalar ou usar o Aplicativo, você concorda com os termos desta Política.
+
+
+1. INFORMAÇÕES QUE COLETAMOS
+-----------------------------
+
+1.1 Dados armazenados localmente no dispositivo
+   - Progresso de estudo (nível SRS, acertos, revisões de cada flashcard)
+   - Configurações e preferências do Aplicativo
+   - Decks de flashcards baixados para uso offline
+
+   Esses dados ficam armazenados exclusivamente no seu dispositivo por meio
+   do AsyncStorage e não são transmitidos a terceiros, exceto quando
+   necessário para sincronização de compras (veja item 1.3).
+
+1.2 Dados de uso do conteúdo (Firebase)
+   - O Aplicativo acessa nossa base de dados Firebase (Google LLC) para
+     baixar decks de flashcards e atualizações de conteúdo.
+   - Não coletamos informações pessoais identificáveis nesse processo.
+
+1.3 Dados de compras (RevenueCat / Google Play Billing)
+   - Quando você realiza uma compra dentro do Aplicativo, a transação é
+     processada pelo Google Play Billing.
+   - Utilizamos o serviço RevenueCat para gerenciar e verificar compras.
+   - Não temos acesso a dados de cartão de crédito ou informações de
+     pagamento — essas informações são tratadas exclusivamente pelo Google.
+   - O RevenueCat pode associar um identificador anônimo de usuário à sua
+     compra para fins de restauração e verificação.
+
+
+2. COMO USAMOS AS INFORMAÇÕES
+------------------------------
+
+As informações coletadas são usadas exclusivamente para:
+
+   a) Oferecer a funcionalidade principal do Aplicativo (estudo com
+      repetição espaçada);
+   b) Entregar o conteúdo (decks) adquirido pelo usuário;
+   c) Verificar e restaurar compras realizadas;
+   d) Melhorar o desempenho e a estabilidade do Aplicativo.
+
+Não utilizamos seus dados para fins publicitários, nem os vendemos ou
+compartilhamos com terceiros para fins comerciais.
+
+
+3. TERCEIROS E SERVIÇOS EXTERNOS
+----------------------------------
+
+O Aplicativo utiliza os seguintes serviços de terceiros, cada um com sua
+própria política de privacidade:
+
+   - Google Play Services
+     https://policies.google.com/privacy
+
+   - Google Firebase (Firestore)
+     https://firebase.google.com/support/privacy
+
+   - RevenueCat
+     https://www.revenuecat.com/privacy
+
+Recomendamos a leitura das políticas de privacidade desses serviços.
+
+
+4. PERMISSÕES UTILIZADAS
+--------------------------
+
+O Aplicativo solicita apenas as seguintes permissões:
+
+   - INTERNET: necessária para baixar conteúdo (decks) e verificar compras.
+   - BILLING: necessária para processar compras dentro do Aplicativo.
+
+Nenhuma permissão sensível (câmera, microfone, localização, contatos,
+armazenamento externo) é solicitada ou utilizada.
+
+
+5. SEGURANÇA DOS DADOS
+------------------------
+
+Adotamos medidas técnicas adequadas para proteger as informações
+armazenadas no dispositivo e na transmissão para nossos serviços.
+No entanto, nenhum método de transmissão pela internet ou armazenamento
+eletrônico é 100% seguro. Caso identifique alguma vulnerabilidade,
+entre em contato conosco.
+
+
+6. CRIANÇAS
+------------
+
+O Aplicativo não é direcionado a crianças menores de 13 anos. Não
+coletamos intencionalmente informações pessoais de crianças. Caso
+identifique que uma criança nos forneceu dados, entre em contato para
+que possamos removê-los.
+
+
+7. ALTERAÇÕES NESTA POLÍTICA
+------------------------------
+
+Podemos atualizar esta Política de Privacidade periodicamente. Notificaremos
+sobre mudanças significativas por meio de uma atualização no Aplicativo.
+A data de "Última atualização" no topo deste documento indica quando a
+versão atual entrou em vigor. Recomendamos revisar esta Política
+periodicamente.
+
+
+8. SEUS DIREITOS (LGPD — Lei 13.709/2018)
+-------------------------------------------
+
+De acordo com a Lei Geral de Proteção de Dados (LGPD), você tem direito a:
+
+   - Confirmar a existência de tratamento de dados pessoais;
+   - Acessar os dados que possuímos sobre você;
+   - Solicitar a correção de dados incompletos ou incorretos;
+   - Solicitar a exclusão de dados desnecessários;
+   - Revogar o consentimento a qualquer momento.
+
+Para exercer seus direitos, entre em contato pelo e-mail abaixo.
+
+
+9. CONTATO
+-----------
+
+Se tiver dúvidas sobre esta Política de Privacidade ou sobre o tratamento
+de seus dados, entre em contato:
+
+   E-mail: contatovoxelshop@gmail.com
+
+   Responderemos em até 15 dias úteis.
+
+
+=============================================
+Flashcards Concurso — Todos os direitos reservados.

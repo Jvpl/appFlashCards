@@ -276,6 +276,20 @@ export const TopicListScreen = ({ route, navigation }) => {
         <View style={s.headerDivider} />
       </View>
 
+      {/* Breadcrumb */}
+      <View style={s.breadcrumb}>
+        <Ionicons name="book-outline" size={12} color={theme.textMuted} />
+        <Text style={s.breadcrumbTxt} numberOfLines={1}>{deckName}</Text>
+        <Ionicons name="chevron-forward" size={10} color={theme.textMuted} />
+        <Ionicons name="layers-outline" size={12} color={theme.textMuted} />
+        <Text style={s.breadcrumbTxt} numberOfLines={1}>{subjectName}</Text>
+        <Ionicons name="chevron-forward" size={10} color={theme.textMuted} />
+        <View style={s.levelPill}>
+          <Ionicons name="bookmark-outline" size={10} color={theme.primary} />
+          <Text style={s.levelPillTxt}>ASSUNTOS</Text>
+        </View>
+      </View>
+
       {/* Grid */}
       <ScrollView
         style={{ flex: 1 }}
@@ -288,11 +302,14 @@ export const TopicListScreen = ({ route, navigation }) => {
             <View style={s.emptyIconRing}>
               <Ionicons name="layers-outline" size={28} color={theme.primary} />
             </View>
-            <Text style={s.emptyTitle}>Sem assuntos</Text>
-            <Text style={s.emptyHint}>Crie assuntos para organizar os flashcards desta matéria.</Text>
+            <Text style={s.emptyTitle}>Sem assuntos ainda</Text>
+            <Text style={s.emptyHint}>
+              Divida esta matéria em assuntos para estudar de forma mais organizada.{'\n'}
+              Ex: Morfologia, Sintaxe, Interpretação de Texto.
+            </Text>
             <TouchableOpacity style={s.emptyBtn} onPress={() => setIsCreating(true)} activeOpacity={0.8}>
               <Ionicons name="add-circle" size={18} color="#0F0F0F" />
-              <Text style={s.emptyBtnTxt}>Criar assunto</Text>
+              <Text style={s.emptyBtnTxt}>Criar primeiro assunto</Text>
             </TouchableOpacity>
           </View>
         ) : renderGrid(topics)}
@@ -417,6 +434,28 @@ const s = StyleSheet.create({
   headerTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
   headerSub: { color: theme.textMuted, fontSize: 12, marginTop: 1 },
   headerDivider: { height: 1, backgroundColor: theme.backgroundSecondary },
+
+  breadcrumb: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 16, paddingVertical: 8,
+    backgroundColor: theme.backgroundSecondary,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  breadcrumbTxt: {
+    color: theme.textMuted, fontSize: 11,
+    fontFamily: theme.fontFamily.uiMedium,
+    flexShrink: 1, maxWidth: 90,
+  },
+  levelPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(93,214,44,0.12)',
+    borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
+  },
+  levelPillTxt: {
+    color: theme.primary, fontSize: 10,
+    fontFamily: theme.fontFamily.uiSemiBold, letterSpacing: 0.6,
+  },
+
   gridContent: { paddingHorizontal: GRID_PADDING, paddingTop: 12 },
   gridRow: { flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP },
 

@@ -32,7 +32,7 @@ const OverflowCard = ({ count, onPress, width, height }) => (
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerTxt}>Ver todos</Text>
+        <Text style={styles.footerTxt}>Ver mais</Text>
         <Ionicons name="arrow-forward" size={12} color={theme.primary} />
       </View>
     </View>

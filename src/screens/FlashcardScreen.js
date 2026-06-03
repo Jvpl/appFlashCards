@@ -9,6 +9,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, run
 import { getAppData, saveAppData, saveStudySession, savePerformanceData, updateStudyUnit, findStudyUnit } from '../services/storage';
 import { calculateCardUpdate } from '../services/srs';
 import { FlashcardItem } from '../components/flashcard/FlashcardItem';
+import { SwipeTutorial } from '../components/flashcard/SwipeTutorial';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
 import styles from '../styles/globalStyles';
@@ -137,9 +138,13 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const setSessionDone = (val) => { if (!val) setSessionResult(null); };
   const setSessionNextReview = () => {}; // substituído por setSessionResult
   const [totalSubjectCards, setTotalSubjectCards] = useState(initialState.totalSubjectCards);
+  const [doneCardCount, setDoneCardCount] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const originalSessionTotal = useRef(initialState.cards.length || 0);
 
 
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
+  const tutorialRef = useRef(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -147,14 +152,23 @@ export const FlashcardScreen = ({ route, navigation }) => {
       headerTitleAlign: 'center',
       headerTitle: undefined,
       headerRight: () => (
-        <TouchableOpacity
-          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8, opacity: sessionDone ? 0.3 : 1 }}
-          onPress={() => { if (!sessionDone) setHeaderMenuVisible(v => !v); }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          disabled={sessionDone}
-        >
-          <Ionicons name="ellipsis-vertical" size={22} color={theme.textPrimary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+            onPress={() => tutorialRef.current?.show()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="help-circle-outline" size={22} color={theme.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8, opacity: sessionDone ? 0.3 : 1 }}
+            onPress={() => { if (!sessionDone) setHeaderMenuVisible(v => !v); }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            disabled={sessionDone}
+          >
+            <Ionicons name="ellipsis-vertical" size={22} color={theme.textPrimary} />
+          </TouchableOpacity>
+        </View>
       ),
     });
   }, [navigation, subjectName, deckId, subjectId, sessionDone]);
@@ -240,6 +254,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
           setCards(cardsToReview); _queue = [...cardsToReview];
           setCurrentCard(cardsToReview[0] ?? null); setNextCard(cardsToReview[1] ?? null);
           setTotalCardsInSession(cardsToReview.length);
+          originalSessionTotal.current = cardsToReview.length;
           if (cardsToReview.length === 0 && allSubjectCards.length > 0) {
             let earliest = null;
             allSubjectCards.forEach(c => {
@@ -398,6 +413,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
       _queue.push(updatedCard);
       insertAnim.value = 0;
       insertAnim.value = withTiming(1, { duration: 350 });
+    } else {
+      // Memorizado: avança o contador de cards concluídos
+      setCorrectCount(prev => prev + 1);
     }
 
     // Verifica meta diária: min(10, total de cards da sessão)
@@ -588,6 +606,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const handleReviewComplete = useCallback(async () => {
     if (!reviewMode || !subjectId) {
+      setDoneCardCount(sessionStudiedIds.current.size);
       await saveSessionProgress();
       const allData = await getAppData();
       const deck = allData.find(d => d.id === deckId);
@@ -595,15 +614,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
       const allSubjectCards = subject?.flashcards || [];
       let earliest = null;
       const now = Date.now();
-      console.log('[HRC] allSubjectCards count:', allSubjectCards.length);
       allSubjectCards.forEach(c => {
         const t = c.nextReview ? new Date(c.nextReview).getTime() : 0;
-        console.log('[HRC] card', c.id, 'nextReview:', c.nextReview, 't:', t, 'now:', now, 'available:', t <= now);
         if (!c.nextReview) { earliest = now; return; }
         if (t <= now) { earliest = now; return; }
         if (earliest === null || t < earliest) earliest = t;
       });
-      console.log('[HRC] earliest:', earliest, 'now:', now, 'diff:', earliest ? earliest - now : null);
       sessionDoneRef.current = true;
       setSessionResult({ done: true, nextReview: earliest });
       return;
@@ -716,8 +732,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
           </View>
           <Text style={fcs.doneTitle}>Sessão concluída!</Text>
           <Text style={fcs.doneSubtitle}>
-            {totalCardsInSession > 0
-              ? `Você estudou ${totalCardsInSession} card${totalCardsInSession !== 1 ? 's' : ''} de `
+            {doneCardCount > 0
+              ? `Você estudou ${doneCardCount} card${doneCardCount !== 1 ? 's' : ''} de `
               : 'Nenhum card disponível agora em '
             }
             <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>{subjectName}</Text>
@@ -935,7 +951,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
               index={jsCurrentIndex}
               currentIndex={currentIndex}
               totalCards={queueSize}
-              displayIndex={queueSize > 0 ? swipeCount % queueSize : 0}
+              completedCards={correctCount}
+              sessionTotal={originalSessionTotal.current}
               translateX={translateX} translateY={translateY}
               isFlipped={isFlipped}
               jsCurrentIndex={jsCurrentIndex}
@@ -962,6 +979,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
         {!reviewAll && <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, opacity: swipeReviewText ? 1 : 0 }}>{swipeReviewText || ' '}</Text>}
       </View>
 
+
+      <SwipeTutorial ref={tutorialRef} />
 
       <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
 

@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getProducts, getDeck } from '../services/firebase';
-import { getPurchasedDecks, savePurchasedDeck } from '../services/storage';
+import { getPurchasedDecks, savePurchasedDeck, updateDeckOrder } from '../services/storage';
 import { purchaseProduct, restorePurchases } from '../services/revenuecat';
 import globalStyles from '../styles/globalStyles';
 import theme from '../styles/theme';
@@ -70,6 +70,7 @@ export const LojaScreen = ({ navigation }) => {
             name: product.name,
             isPurchased: true,
           });
+          await updateDeckOrder(product.deckId);
           setPurchasedIds(prev => [...prev, product.deckId]);
           Alert.alert(
             'Compra Realizada!',
@@ -99,6 +100,7 @@ export const LojaScreen = ({ navigation }) => {
           name: product.name,
           isPurchased: true,
         });
+        await updateDeckOrder(product.deckId);
         setPurchasedIds(prev => [...prev, product.deckId]);
         Alert.alert(
           'Download Concluido',

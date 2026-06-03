@@ -49,7 +49,7 @@ import { ScrollView as RNGHScrollView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { getAppData, saveAppData, removePurchasedDeck, getUsedCategoryIds } from '../services/storage';
+import { getAppData, saveAppData, removePurchasedDeck, getUsedCategoryIds, getPurchasedDecks, getDeckCache } from '../services/storage';
 import { NativeKeyboardAvoidingContainer } from '../native/NativeKeyboardAvoidingContainer';
 import {
   CONCURSO_CATEGORIES,
@@ -352,17 +352,21 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
 
 
   const loadData = useCallback(async () => {
-    const [allData, customCats, usedIds] = await Promise.all([
+    const [allData, customCats, usedIds, purchasedIds] = await Promise.all([
       getAppData(),
       getCustomCategories(),
       getUsedCategoryIds(),
+      getPurchasedDecks(),
     ]);
-    const categoryDecks = allData.filter(d => !d.isExample && getDeckCatId(d) === categoryId);
+    const purchasedDecks = (await Promise.all(
+      purchasedIds.map(id => getDeckCache(id))
+    )).filter(Boolean).map(d => ({ ...d, isPurchased: true }));
+    const combined = [...allData, ...purchasedDecks];
+    const categoryDecks = combined.filter(d => !d.isExample && getDeckCatId(d) === categoryId);
     setDecks(categoryDecks);
     setAllCategories([...CONCURSO_CATEGORIES, ...customCats]);
-    // Combina IDs do storage com IDs derivados dos decks existentes
     const derivedIds = new Set(usedIds);
-    allData.filter(d => !d.isExample).forEach(d => {
+    combined.filter(d => !d.isExample).forEach(d => {
       if (d.category) derivedIds.add(d.category);
     });
     customCats.forEach(c => derivedIds.add(c.id));

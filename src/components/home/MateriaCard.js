@@ -18,7 +18,7 @@ const MateriaCard = ({
   const topicCount   = subject.topics?.length || 0;
   const isTopicGroup = topicCount > 0;
   const totalCards   = subject.flashcards?.length || 0;
-  const studiedCards = (subject.flashcards || []).filter(c => (c.level || 0) > 0).length;
+  const studiedCards = (subject.flashcards || []).filter(c => c.lastReview != null).length;
   const isReview     = !!subject.reviewMode;
   const cardWidth  = propWidth  || MATERIA_CARD_WIDTH;
   const cardHeight = propHeight || MATERIA_CARD_HEIGHT;

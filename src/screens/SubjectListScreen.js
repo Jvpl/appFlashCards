@@ -146,7 +146,6 @@ export const SubjectListScreen = ({ route, navigation }) => {
   const [subjects, setSubjects] = useState(preloadedSubjects || []);
   const [loading, setLoading] = useState(preloadedSubjects ? false : true);
   const [allowDefaultDeckEditing, setAllowDefaultDeckEditing] = useState(false);
-
   const [searchTerm, setSearchTerm] = useState('');
   const [isSelectionMode, setSelectionMode] = useState(false);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
@@ -183,7 +182,9 @@ export const SubjectListScreen = ({ route, navigation }) => {
     const minDelay = shouldDelay ? new Promise(r => setTimeout(r, 300)) : Promise.resolve();
     const [allData] = await Promise.all([getAppData(), minDelay]);
     const deck = allData.find(d => d.id === deckId);
-    if (deck) setSubjects(deck.subjects);
+    if (deck) {
+      setSubjects(deck.subjects);
+    }
     const canEdit = await canEditDefaultDecks();
     setAllowDefaultDeckEditing(canEdit);
     setLoading(false);
@@ -212,10 +213,11 @@ export const SubjectListScreen = ({ route, navigation }) => {
   // ── Navigation ────────────────────────────────────────────────────
 
   const handleStudy = useCallback((subject) => {
-    if (subject.topics?.length > 0) {
+    const hasTopics = subject.topics?.length > 0;
+    if (hasTopics) {
       navigation.navigate('TopicList', {
         deckId, deckName, subjectId: subject.id, subjectName: subject.name,
-        preloadedTopics: subject.topics,
+        preloadedTopics: subject.topics || [],
       });
     } else {
       navigation.navigate('Flashcard', {
@@ -506,6 +508,17 @@ export const SubjectListScreen = ({ route, navigation }) => {
         <View style={s.headerDivider} />
       </View>
 
+      {/* Breadcrumb */}
+      <View style={s.breadcrumb}>
+        <Ionicons name="book-outline" size={12} color={theme.textMuted} />
+        <Text style={s.breadcrumbTxt} numberOfLines={1}>{deckName}</Text>
+        <Ionicons name="chevron-forward" size={10} color={theme.textMuted} />
+        <View style={s.levelPill}>
+          <Ionicons name="layers-outline" size={10} color={theme.primary} />
+          <Text style={s.levelPillTxt}>MATÉRIAS</Text>
+        </View>
+      </View>
+
       {loading && <Skeleton />}
 
       {!loading && (
@@ -789,6 +802,27 @@ const s = StyleSheet.create({
   headerTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
   headerSub: { color: theme.textMuted, fontSize: 12, marginTop: 1 },
   headerDivider: { height: 1, backgroundColor: theme.backgroundSecondary },
+
+  breadcrumb: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 16, paddingVertical: 8,
+    backgroundColor: theme.backgroundSecondary,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  breadcrumbTxt: {
+    color: theme.textMuted, fontSize: 11,
+    fontFamily: theme.fontFamily.uiMedium,
+    flexShrink: 1, maxWidth: 120,
+  },
+  levelPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(93,214,44,0.12)',
+    borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
+  },
+  levelPillTxt: {
+    color: theme.primary, fontSize: 10,
+    fontFamily: theme.fontFamily.uiSemiBold, letterSpacing: 0.6,
+  },
 
   searchInput: { flex: 1, color: theme.textPrimary, fontSize: 14, paddingVertical: 0 },
 

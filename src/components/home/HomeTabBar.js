@@ -10,9 +10,8 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import theme from '../../styles/theme';
 
 const TABS = [
-  { id: 'categorias', label: 'Categorias', small: true },
   { id: 'decks',      label: 'Decks',      small: false },
-  { id: 'materias',   label: 'Matérias',   small: true },
+  { id: 'categorias', label: 'Categorias', small: true },
 ];
 
 const HomeTabBar = ({ activeTab, onTabChange }) => (

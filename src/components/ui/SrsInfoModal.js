@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 
 const LEVELS = [
-  { level: 0, name: 'Marco Zero',   color: '#EF4444', interval: 'Aparece sempre'          },
+  { level: 0, name: 'Marco Zero',   color: '#EF4444', interval: 'Volta em 1 minuto'        },
   { level: 1, name: 'Aprendiz',     color: '#F97316', interval: 'Volta em 10 minutos'     },
   { level: 2, name: 'Em Progresso', color: '#EAB308', interval: 'Volta em 1 hora'         },
   { level: 3, name: 'Consolidando', color: '#3B82F6', interval: 'Volta em 6 horas'        },
@@ -66,7 +66,7 @@ export const SrsInfoModal = ({ visible, onClose }) => {
                   <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                     <Text style={{ fontSize: 16, marginRight: 8 }}>👆</Text>
                     <Text style={{ color: theme.textMuted, fontSize: 13, flex: 1 }}>
-                      <Text style={{ color: theme.warning, fontWeight: 'bold' }}>Quase lembrou</Text> → conta como acerto (máx. nível 4)
+                      <Text style={{ color: theme.warning, fontWeight: 'bold' }}>Quase lembrou</Text> → não avança nível, reinicia a contagem de acertos
                     </Text>
                   </View>
                   <View style={{ flexDirection: 'row' }}>
