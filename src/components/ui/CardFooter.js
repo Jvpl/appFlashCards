@@ -1,35 +1,31 @@
 import React from 'react';
 import { View, Text, useWindowDimensions } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import Svg, { Circle, Path, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { Canvas, Circle as SkiaCircle, BlurMask } from '@shopify/react-native-skia';
+import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
+import { Canvas, Path as SkiaPath, BlurMask, Skia } from '@shopify/react-native-skia';
 import { Feather } from '@expo/vector-icons';
+import theme from '../../styles/theme';
 
 const LEVEL_NAMES = [
   'Marco Zero', 'Aprendiz', 'Em Progresso',
   'Consolidando', 'Confiante', 'Dominado',
 ];
 
-// [cor escura, cor clara] — gradiente do ring
-const RING_GRADIENTS = [
-  ['#2A2F3A', '#3D4451'],
-  ['#0D2B1E', '#2D6A4F'],
-  ['#1B4332', '#40916C'],
-  ['#2D6A4F', '#52B788'],
-  ['#40916C', '#74C69D'],
-  ['#2D9E00', '#5DD62C'],
+const RING_COLORS = [
+  theme.srsLevel0, theme.srsLevel1, theme.srsLevel2,
+  theme.srsLevel3, theme.srsLevel4, theme.srsLevel5,
 ];
 
 const RING_FILL = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
 
 const VB_W = 975.35;
 const VB_H = 220;
-const VB_Y = -10; // espaço para o stroke do ring não ser clipado no topo
+const VB_Y = -10;
 const CX = 157.58;
 const CY = 81.98;
 const R = 66.98;
-const RING_STROKE = 15; // espessura exata do anel cinza: 81.98 - 66.98
-const RING_R = 74.48; // centro exato do anel: (66.98 + 81.98) / 2
+const RING_STROKE = 15;
+const RING_R = 74.48;
 const CIRC = 2 * Math.PI * RING_R;
 const FOOTER_H = 95;
 
@@ -39,26 +35,36 @@ export const CardFooter = ({ level, completedCards, sessionTotal, onEdit, onEdit
 
   const lvl = Math.min(Math.max(level || 0, 0), 5);
   const name = LEVEL_NAMES[lvl];
-  const [gradStart, gradEnd] = RING_GRADIENTS[lvl];
+  const color = RING_COLORS[lvl];
   const fill = RING_FILL[lvl];
-  const dashOffset = CIRC * (1 - fill);
   const isMax = lvl === 5;
-  const gradientId = `ringGrad${lvl}`;
 
   const scale = Math.min(cardW / VB_W, FOOTER_H / VB_H);
-  // Posição e tamanho do ring em pixels reais (para o Canvas Skia)
-  // VB_Y desloca o viewBox, então compensa subtraindo VB_Y * scale
   const ringCX = CX * scale;
   const ringCY = (CY - VB_Y) * scale;
   const ringR = RING_R * scale;
-  const glowBlur = ringR * 0.35;
+  const glowBlur = isMax ? ringR * 0.35 : ringR * 0.2;
+  const glowOpacity = isMax ? 0.5 : 0.3;
   const glowPad = glowBlur * 3;
+
+  // Arco Skia para o glow
+  const skiaPath = React.useMemo(() => {
+    if (fill <= 0) return null;
+    const cx = ringR + glowPad;
+    const cy = ringR + glowPad;
+    const path = Skia.Path.Make();
+    path.arcToOval(
+      { x: cx - ringR, y: cy - ringR, width: ringR * 2, height: ringR * 2 },
+      -90, fill * 360, true
+    );
+    return path;
+  }, [lvl, ringR, glowPad]);
 
   return (
     <View style={{ width: '100%', height: FOOTER_H }}>
 
-      {/* Glow Skia no ring — nível 5 */}
-      {isMax && (
+      {/* Glow Skia no arco */}
+      {fill > 0 && skiaPath && (
         <Canvas
           style={{
             position: 'absolute',
@@ -69,15 +75,15 @@ export const CardFooter = ({ level, completedCards, sessionTotal, onEdit, onEdit
           }}
           pointerEvents="none"
         >
-          <SkiaCircle
-            cx={ringR + glowPad}
-            cy={ringR + glowPad}
-            r={ringR}
-            color="#5DD62C"
-            opacity={0.5}
+          <SkiaPath
+            path={skiaPath}
+            color={color}
+            style="stroke"
+            strokeWidth={RING_STROKE * scale}
+            opacity={glowOpacity}
           >
             <BlurMask blur={glowBlur} style="outer" respectCTM={false} />
-          </SkiaCircle>
+          </SkiaPath>
         </Canvas>
       )}
 
@@ -94,17 +100,9 @@ export const CardFooter = ({ level, completedCards, sessionTotal, onEdit, onEdit
           fill="rgba(255,255,255,0.15)"
         />
         {fill > 0 && (
-          <Defs>
-            <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor={gradStart} stopOpacity="1" />
-              <Stop offset="1" stopColor={gradEnd} stopOpacity="1" />
-            </LinearGradient>
-          </Defs>
-        )}
-        {fill > 0 && (
           <Circle
             cx={CX} cy={CY} r={RING_R}
-            stroke={`url(#${gradientId})`} strokeWidth={RING_STROKE} fill="none"
+            stroke={color} strokeWidth={RING_STROKE} fill="none"
             strokeDasharray={`${CIRC * fill} ${CIRC * (1 - fill)}`}
             strokeDashoffset={0}
             strokeLinecap="round" rotation="-90" origin={`${CX}, ${CY}`}

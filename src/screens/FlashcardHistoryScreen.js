@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { View, Text, FlatList, StyleSheet, BackHandler, TextInput, TouchableOpacity, ActivityIndicator, Modal, TouchableWithoutFeedback, Dimensions } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Text as SvgText } from 'react-native-svg';
+import { Canvas, Path as SkiaPath, BlurMask, Skia } from '@shopify/react-native-skia';
 import { getAppData, saveAppData } from '../services/storage';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { CustomAlert } from '../components/ui/CustomAlert';
@@ -71,48 +72,59 @@ const smartPreview = (html, charsPerLine = 38, maxLines = 3) => {
   return result.trim();
 };
 
-// Exatamente do CardFooter
-const RING_GRADIENTS = [
-  ['#2A2F3A', '#3D4451'],
-  ['#0D2B1E', '#2D6A4F'],
-  ['#1B4332', '#40916C'],
-  ['#2D6A4F', '#52B788'],
-  ['#40916C', '#74C69D'],
-  ['#2D9E00', '#5DD62C'],
+const RING_COLORS = [
+  theme.srsLevel0, theme.srsLevel1, theme.srsLevel2,
+  theme.srsLevel3, theme.srsLevel4, theme.srsLevel5,
 ];
 const RING_FILL = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
 const RING_R = 20;
+const STROKE_W = 4;
 const CIRC = 2 * Math.PI * RING_R;
+const RING_SIZE = 52;
+const GLOW_PAD = 8;
 
 const LevelRing = ({ level }) => {
   const lvl = Math.min(Math.max(level || 0, 0), 5);
-  const [gradStart, gradEnd] = RING_GRADIENTS[lvl];
+  const color = RING_COLORS[lvl];
   const fill = RING_FILL[lvl];
-  const size = 52;
-  const cx = size / 2;
-  const strokeW = 4;
-  const gradId = `g${lvl}`;
+  const cx = RING_SIZE / 2;
+  const isMax = lvl === 5;
+  const glowOpacity = isMax ? 0.5 : 0.3;
+  const glowBlur = isMax ? RING_R * 0.35 : RING_R * 0.2;
+  const canvasSize = RING_SIZE + GLOW_PAD * 2;
+
+  const skiaPath = React.useMemo(() => {
+    if (fill <= 0) return null;
+    const path = Skia.Path.Make();
+    path.arcToOval(
+      { x: GLOW_PAD + cx - RING_R, y: GLOW_PAD + cx - RING_R, width: RING_R * 2, height: RING_R * 2 },
+      -90, fill * 360, true
+    );
+    return path;
+  }, [lvl]);
+
   return (
-    <Svg width={size} height={size}>
-      <Circle cx={cx} cy={cx} r={RING_R} stroke="rgba(255,255,255,0.1)" strokeWidth={strokeW} fill="none" />
-      {fill > 0 && (
-        <Defs>
-          <LinearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={gradStart} stopOpacity="1" />
-            <Stop offset="1" stopColor={gradEnd} stopOpacity="1" />
-          </LinearGradient>
-        </Defs>
+    <View style={{ width: RING_SIZE, height: RING_SIZE }}>
+      {fill > 0 && skiaPath && (
+        <Canvas style={{ position: 'absolute', top: -GLOW_PAD, left: -GLOW_PAD, width: canvasSize, height: canvasSize }} pointerEvents="none">
+          <SkiaPath path={skiaPath} color={color} style="stroke" strokeWidth={STROKE_W} opacity={glowOpacity}>
+            <BlurMask blur={glowBlur} style="outer" respectCTM={false} />
+          </SkiaPath>
+        </Canvas>
       )}
-      {fill > 0 && (
-        <Circle
-          cx={cx} cy={cx} r={RING_R}
-          stroke={`url(#${gradId})`} strokeWidth={strokeW} fill="none"
-          strokeDasharray={`${CIRC * fill} ${CIRC * (1 - fill)}`}
-          strokeLinecap="round" rotation="-90" origin={`${cx},${cx}`}
-        />
-      )}
-      <SvgText x={cx} y={cx + 7} textAnchor="middle" fill="#F8F8F8" fontSize={18} fontWeight="700">{lvl}</SvgText>
-    </Svg>
+      <Svg width={RING_SIZE} height={RING_SIZE}>
+        <Circle cx={cx} cy={cx} r={RING_R} stroke="rgba(255,255,255,0.1)" strokeWidth={STROKE_W} fill="none" />
+        {fill > 0 && (
+          <Circle
+            cx={cx} cy={cx} r={RING_R}
+            stroke={color} strokeWidth={STROKE_W} fill="none"
+            strokeDasharray={`${CIRC * fill} ${CIRC * (1 - fill)}`}
+            strokeLinecap="round" rotation="-90" origin={`${cx},${cx}`}
+          />
+        )}
+        <SvgText x={cx} y={cx + 7} textAnchor="middle" fill="#F8F8F8" fontSize={18} fontWeight="700">{lvl}</SvgText>
+      </Svg>
+    </View>
   );
 };
 const LEVEL_NAMES  = ['Marco Zero', 'Aprendiz', 'Em Progresso', 'Consolidando', 'Confiante', 'Dominado'];
@@ -135,13 +147,12 @@ const formatNextReview = (nextReview) => {
   const t = typeof nextReview === 'number' ? nextReview : new Date(nextReview).getTime();
   if (isNaN(t) || t <= Date.now()) return 'Disponível';
   const diff = t - Date.now();
-  const mins = Math.floor(diff / 60000);
+  const mins = Math.ceil(diff / 60000);
   const hrs  = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
   if (days >= 1) return `em ${days}d`;
   if (hrs  >= 1) return `em ${hrs}h`;
-  if (mins >= 1) return `em ${mins}min`;
-  return 'Disponível';
+  return `em ${mins}min`;
 };
 
 export const FlashcardHistoryScreen = ({ route, navigation }) => {
@@ -194,11 +205,18 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
     // total filtrado por matéria
     const filtered = fSubjectId ? flatList.filter(c => c.subjectId === fSubjectId) : fDeckId ? flatList.filter(c => c.deckId === fDeckId) : flatList;
     setTotalCards(filtered.length);
-    setCards(flatList);
+    setCards(filtered);
     setLoading(false);
   }, [route.params]);
 
   useEffect(() => { if (isFocused) loadData(); }, [isFocused, loadData]);
+
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!isFocused) return;
+    const interval = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, [isFocused]);
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -297,7 +315,7 @@ export const FlashcardHistoryScreen = ({ route, navigation }) => {
     const levelName     = LEVEL_NAMES[level];
     const questionText  = smartPreview(item.question);
     const answerText    = smartPreview(item.answer);
-    const nextReviewTxt = formatNextReview(item.nextReview);
+    const nextReviewTxt = formatNextReview(item.nextReview, tick);
     const available     = !item.nextReview || new Date(item.nextReview).getTime() <= Date.now();
 
     return (

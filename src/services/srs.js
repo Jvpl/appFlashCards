@@ -58,8 +58,6 @@ export const calculateCardUpdate = (card, swipeDirection) => {
       break;
   }
 
-  // Intervalo definido pelo nível — nível 0 com 1 acerto usa o intervalo do nível 1
-  // para não voltar imediatamente após o primeiro acerto
   let reviewTimeMinutes;
   if (level === 5) {
     const idx = Math.min(reviewStreak - 1, LEVEL_5_INTERVALS.length - 1);
@@ -69,7 +67,6 @@ export const calculateCardUpdate = (card, swipeDirection) => {
   }
 
   const nextReviewDate = new Date(now.getTime() + reviewTimeMinutes * 60 * 1000);
-
   return {
     ...card,
     level,

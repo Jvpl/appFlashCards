@@ -18,7 +18,7 @@ import theme from '../styles/theme';
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
-const InsertAnimCard = React.memo(({ insertAnim, width, baseScale = 0.93, baseTranslateY = -40, opacity = 1 }) => {
+const InsertAnimCard = React.memo(({ insertAnim, width, baseScale = 0.93, baseTranslateY = -40, opacity = 1, zIndex = 1 }) => {
   const style = useAnimatedStyle(() => ({
     transform: [
       { scale: interpolate(insertAnim.value, [0, 1], [baseScale - 0.05, baseScale]) },
@@ -30,7 +30,7 @@ const InsertAnimCard = React.memo(({ insertAnim, width, baseScale = 0.93, baseTr
     <Animated.View style={[{
       position: 'absolute', width, height: 460,
       backgroundColor: '#242427ff', borderRadius: 20,
-      borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex: 1,
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex,
     }, style]} />
   );
 });
@@ -42,11 +42,11 @@ let _queue = []; // fila de cards fora do componente — não serializado pelo R
 function formatNextReview(ms) {
   const diff = ms - Date.now();
   if (diff <= 0) return 'na próxima sessão';
-  const mins = Math.round(diff / 60000);
+  const mins = Math.ceil(diff / 60000);
   if (mins < 60) return `${mins} min`;
-  const hrs = Math.round(diff / 3600000);
+  const hrs = Math.ceil(diff / 3600000);
   if (hrs < 24) return `${hrs}h`;
-  const days = Math.round(diff / 86400000);
+  const days = Math.ceil(diff / 86400000);
   return `${days} dia${days > 1 ? 's' : ''}`;
 }
 
@@ -82,6 +82,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
   useMemo(() => { _queue = [...initialState.cards]; }, []);
   const [queueSize, setQueueSize] = useState(initialState.cards.length);
   const [swipeCount, setSwipeCount] = useState(0);
+  const [goalReached, setGoalReached] = useState(false);
+  const [goalModalVisible, setGoalModalVisible] = useState(false);
   const [currentCard, setCurrentCard] = useState(initialState.cards[0] ?? null);
   const [nextCard, setNextCard] = useState(initialState.cards[1] ?? null);
   const cacheKey = reviewAll ? `${deckId}-all` : `${deckId}-${subjectId}`;
@@ -92,8 +94,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const isFocused = useIsFocused();
 
   const reviewUpdates = useRef([]);
+  const saveInProgress = useRef(false);
+  const pendingSave = useRef(false);
   const sessionStudiedIds = useRef(new Set());
   const sessionInitialIds = useRef(new Set());
+  const sessionLastRating = useRef({}); // último rating por card id
   const hasLoadedOnce = useRef(false);
   const sessionDoneRef = useRef(false);
   const sessionStartRef = useRef(Date.now());
@@ -109,7 +114,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const swipeDirection = useSharedValue(0);
   const isAnimatingOut = useSharedValue(false);
   const cardOpacitySV = useSharedValue(1);
-  const insertAnim = useSharedValue(0);
+  const insertAnim = useSharedValue(1);
   // SharedValues para preview texts — evita captura de previewTextsRef no worklet
   const previewWrongSV = useSharedValue('');
   const previewEasySV = useSharedValue('');
@@ -134,9 +139,15 @@ export const FlashcardScreen = ({ route, navigation }) => {
     initialState.sessionDone ? { done: true, nextReview: initialState.sessionNextReview } : null
   );
   const sessionDone = !!sessionResult?.done;
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!sessionDone) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [sessionDone]);
   const sessionNextReview = sessionResult?.nextReview ?? null;
   const setSessionDone = (val) => { if (!val) setSessionResult(null); };
-  const setSessionNextReview = () => {}; // substituído por setSessionResult
+  const setSessionNextReview = () => { }; // substituído por setSessionResult
   const [totalSubjectCards, setTotalSubjectCards] = useState(initialState.totalSubjectCards);
   const [doneCardCount, setDoneCardCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -233,7 +244,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
         const allSubjectCards = subject.flashcards || [];
         setTotalSubjectCards(allSubjectCards.length);
         if (isReturning) {
-          // Adiciona ao fim da fila apenas cards novos (não na fila, não estudados)
+          const storageIds = new Set(allSubjectCards.map(c => c.id));
+          // Remove da fila cards deletados no storage
+          const queueBefore = _queue.length;
+          _queue = _queue.filter(c => storageIds.has(c.id));
+          const removed = queueBefore - _queue.length;
+          // Adiciona cards novos
           const queueIds = new Set(_queue.map(c => c.id));
           const newCards = allSubjectCards.filter(c =>
             (c.level || 0) < 5 &&
@@ -241,12 +257,25 @@ export const FlashcardScreen = ({ route, navigation }) => {
             !queueIds.has(c.id) &&
             !sessionStudiedIds.current.has(c.id)
           );
-          if (newCards.length > 0) {
-            _queue = [..._queue, ...newCards];
-            setQueueSize(_queue.length);
-            setNextCard(_queue[1] ?? null);
-            setTotalCardsInSession(prev => prev + newCards.length);
+          _queue = [..._queue, ...newCards];
+          // Se fila ficou vazia, vai para empty state ou session done
+          if (_queue.length === 0) {
+            setCards([]);
+            setCurrentCard(null);
+            setNextCard(null);
+            setQueueSize(0);
+            setTotalCardsInSession(0);
+            setLoading(false);
+            cardOpacitySV.value = 1;
+            return;
           }
+          // Atualiza currentCard se foi deletado
+          if (!storageIds.has(currentCard?.id)) {
+            setCurrentCard(_queue[0] ?? null);
+          }
+          setNextCard(_queue[1] ?? null);
+          setQueueSize(_queue.length);
+          setTotalCardsInSession(prev => prev - removed + newCards.length);
         } else {
           const cardsToReview = allSubjectCards
             .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now) && !studiedThisSession.has(c.id))
@@ -271,7 +300,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
         }
       }
     }
-    setLoading(false); // Stop loading
+    setLoading(false);
+    cardOpacitySV.value = 1;
   }, [deckId, subjectId, currentIndex, isFlipped, translateX, translateY, resetKey]);
 
 
@@ -280,14 +310,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const handleReviewCompleteRef = useRef(null);
 
-  useEffect(() => {
-    if (isFocused) {
-      const task = InteractionManager.runAfterInteractions(() => {
-        loadCardsRef.current();
-      });
-      return () => task.cancel();
-    }
-  }, [isFocused]);
+  useFocusEffect(useCallback(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadCardsRef.current();
+    });
+    return () => task.cancel();
+  }, []));
 
   useAnimatedReaction(() => currentIndex.value, (res) => {
     const idx = Math.floor(res);
@@ -302,6 +330,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
     });
     return () => cancelAnimationFrame(raf);
   }, [currentCard]);
+
+  // Garante visibilidade ao voltar do ManageFlashcards sem trocar de card
+  useEffect(() => {
+    if (isFocused) cardOpacitySV.value = 1;
+  }, [isFocused]);
   useAnimatedReaction(() => isFlipped.value, (res) => { runOnJS(setJsIsFlipped)(res) });
 
   // currentCard é atualizado em handleReviewByIndex, não via jsCurrentIndex
@@ -313,8 +346,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
     _warmup.value = withTiming(1, { duration: 1 }, () => { _warmup.value = 0; });
   }, []);
 
-  const saveSessionProgress = useCallback(async () => {
+  const saveSessionProgress = useCallback(async (clearUpdates = true) => {
     if (reviewUpdates.current.length === 0) return;
+    if (!clearUpdates) {
+      if (saveInProgress.current) { pendingSave.current = true; return; }
+      saveInProgress.current = true;
+    }
     let allCurrentData = await getAppData();
     if (reviewAll) {
       // Agrupa updates por unit (_subjectId pode ser subject ou topic)
@@ -337,35 +374,14 @@ export const FlashcardScreen = ({ route, navigation }) => {
       );
       await saveAppData(newData);
     }
-    // Salva dados do pie chart por matéria (substitui sempre, independente do streak)
-    const ratings = sessionRatings.current;
-    const totalSwipes = ratings.right + ratings.up + ratings.left;
-    if (totalSwipes > 0) {
-      if (reviewAll) {
-        // Agrupa ratings por matéria
-        const ratingsBySubject = {};
-        reviewUpdates.current.forEach(card => {
-          // não temos o rating por card aqui, usamos os totais da sessão pro reviewAll
-        });
-        // Para reviewAll usa os totais globais da sessão
-        savePerformanceData('all', {
-          acertos: ratings.right,
-          quases: ratings.up,
-          erros: ratings.left,
-          totalSwipes,
-          levelUps: ratings.levelUps,
-        });
-      } else if (subjectId) {
-        savePerformanceData(subjectId, {
-          acertos: ratings.right,
-          quases: ratings.up,
-          erros: ratings.left,
-          totalSwipes,
-          levelUps: ratings.levelUps,
-        });
+    if (clearUpdates) reviewUpdates.current = [];
+    if (!clearUpdates) {
+      saveInProgress.current = false;
+      if (pendingSave.current) {
+        pendingSave.current = false;
+        saveSessionProgress(false);
       }
     }
-    reviewUpdates.current = [];
   }, [deckId, subjectId, deckName, subjectName, reviewAll]);
 
   useEffect(() => { return () => { saveSessionProgress(); } }, [saveSessionProgress]);
@@ -402,9 +418,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
     if (existingIndex > -1) reviewUpdates.current[existingIndex] = updatedCard;
     else reviewUpdates.current.push(updatedCard);
     sessionStudiedIds.current.add(updatedCard.id);
-    if (rating === 'right') sessionRatings.current.right++;
-    else if (rating === 'up') sessionRatings.current.up++;
-    else if (rating === 'left') sessionRatings.current.left++;
+    // Rastreia último rating por card — recalcula totais baseado na última avaliação de cada card
+    sessionLastRating.current[updatedCard.id] = rating;
+    const allRatings = Object.values(sessionLastRating.current);
+    sessionRatings.current.right = allRatings.filter(r => r === 'right').length;
+    sessionRatings.current.up = allRatings.filter(r => r === 'up').length;
+    sessionRatings.current.left = allRatings.filter(r => r === 'left').length;
     if (updatedCard.level > cardToReview.level) sessionRatings.current.levelUps++;
     setSwipeReviewText('');
 
@@ -418,19 +437,38 @@ export const FlashcardScreen = ({ route, navigation }) => {
       setCorrectCount(prev => prev + 1);
     }
 
-    // Verifica meta diária: min(10, total de cards da sessão)
+    // Salva desempenho a cada swipe para refletir em tempo real na aba Progresso
+    const ratingsNow = sessionRatings.current;
+    const totalSwipesNow = ratingsNow.right + ratingsNow.up + ratingsNow.left;
+    if (totalSwipesNow > 0) {
+      if (reviewAll) {
+        savePerformanceData('all', {
+          acertos: ratingsNow.right, quases: ratingsNow.up, erros: ratingsNow.left,
+          totalSwipes: totalSwipesNow, levelUps: ratingsNow.levelUps,
+        });
+      } else if (subjectId) {
+        savePerformanceData(subjectId, {
+          acertos: ratingsNow.right, quases: ratingsNow.up, erros: ratingsNow.left,
+          totalSwipes: totalSwipesNow, levelUps: ratingsNow.levelUps,
+        });
+      }
+    }
+
+    // Verifica meta diária: acertar min(10, total) cards únicos
     if (!dailyGoalSavedRef.current) {
-      const studied = sessionStudiedIds.current.size;
-      const total = totalCardsInSessionSV.value;
+      const correct = sessionRatings.current.right;
+      const total = originalSessionTotal.current || totalCardsInSessionSV.value;
       const goal = Math.min(10, total);
-      if (studied >= goal && goal > 0) {
+      if (correct >= goal && goal > 0) {
         dailyGoalSavedRef.current = true;
+        setGoalReached(true);
+        global.onDailyGoalReached?.();
         saveStudySession({
           deckId,
           deckName: deckName || deckId,
           subjectId: reviewAll ? 'all' : subjectId,
           subjectName: reviewAll ? 'Revisão Geral' : (parentSubjectName || subjectName || subjectId),
-          count: studied,
+          count: correct,
           acertos: sessionRatings.current.right,
           quases: sessionRatings.current.up,
           erros: sessionRatings.current.left,
@@ -472,8 +510,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
     // handleReview: se errou/quase, empurra pro fim
     const isLast = rating === 'right' && _queue.length === 0;
     handleReview(card, rating, isLast);
+    saveSessionProgress(false);
     setQueueSize(_queue.length);
     setSwipeCount(prev => prev + 1);
+    if (_queue.length <= 1) insertAnim.value = 0;
     resetKey.value = resetKey.value + 1;
     setCurrentCard(_queue[0] ?? null);
     setNextCard(_queue[1] ?? null);
@@ -491,7 +531,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
         if (!success || panActivated.value || footerPressedSV.value || isAnimatingOut.value) return;
         runOnJS(onFlip)();
       }),
-  [onFlip, panActivated, footerPressedSV, isAnimatingOut]);
+    [onFlip, panActivated, footerPressedSV, isAnimatingOut]);
 
   const gesture = useMemo(() => {
     const pan = Gesture.Pan().withRef(panGestureRef)
@@ -607,19 +647,17 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const handleReviewComplete = useCallback(async () => {
     if (!reviewMode || !subjectId) {
       setDoneCardCount(sessionStudiedIds.current.size);
-      await saveSessionProgress();
-      const allData = await getAppData();
-      const deck = allData.find(d => d.id === deckId);
-      const subject = deck ? findStudyUnit(deck, subjectId) : null;
-      const allSubjectCards = subject?.flashcards || [];
+      // Usa reviewUpdates diretamente — já tem os dados mais recentes da sessão
+      const sessionCards = reviewUpdates.current;
       let earliest = null;
       const now = Date.now();
-      allSubjectCards.forEach(c => {
+      sessionCards.forEach(c => {
         const t = c.nextReview ? new Date(c.nextReview).getTime() : 0;
-        if (!c.nextReview) { earliest = now; return; }
-        if (t <= now) { earliest = now; return; }
+        if (!c.nextReview || t <= now) { earliest = now; return; }
+        if (earliest === now) return;
         if (earliest === null || t < earliest) earliest = t;
       });
+      await saveSessionProgress();
       sessionDoneRef.current = true;
       setSessionResult({ done: true, nextReview: earliest });
       return;
@@ -712,12 +750,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
             <View style={fcs.menuOverlay}>
               <TouchableWithoutFeedback>
                 <View style={fcs.menuDropdown}>
-                  <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: [], subjectName }); }}>
+                  <TouchableOpacity style={fcs.menuItem} onPress={async () => { setHeaderMenuVisible(false); await saveSessionProgress(); navigation.navigate('ManageFlashcards', { deckId, subjectId, preloadedCards: [], subjectName }); }}>
                     <Ionicons name="add-circle-outline" size={20} color={theme.textPrimary} />
                     <Text style={fcs.menuItemText}>Criar card</Text>
                   </TouchableOpacity>
                   <View style={fcs.menuDivider} />
-                  <TouchableOpacity style={fcs.menuItem} onPress={() => { setHeaderMenuVisible(false); navigation.navigate('FlashcardHistory', { deckId, subjectId }); }}>
+                  <TouchableOpacity style={fcs.menuItem} onPress={async () => { setHeaderMenuVisible(false); await saveSessionProgress(); navigation.navigate('FlashcardHistory', { deckId, subjectId }); }}>
                     <Ionicons name="layers-outline" size={20} color={theme.textPrimary} />
                     <Text style={fcs.menuItemText}>Gerenciar cards</Text>
                   </TouchableOpacity>
@@ -742,7 +780,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
             <View style={fcs.doneNextRow}>
               <Ionicons name="time-outline" size={16} color={theme.textMuted} />
               <Text style={fcs.doneNextText}>
-                {sessionNextReview <= Date.now()
+                {sessionNextReview <= now
                   ? <Text style={{ color: theme.primary }}>Há cards disponíveis agora</Text>
                   : <>Próximo card disponível em <Text style={{ color: theme.primary }}>{formatNextReview(sessionNextReview)}</Text></>
                 }
@@ -753,7 +791,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
             <TouchableOpacity style={fcs.doneBtn} onPress={() => navigation.goBack()}>
               <Text style={fcs.doneBtnTxt}>Voltar</Text>
             </TouchableOpacity>
-            {(sessionNextReview == null || sessionNextReview <= Date.now()) && (
+            {(sessionNextReview == null || sessionNextReview <= now) && (
               <TouchableOpacity
                 style={fcs.doneBtnPrimary}
                 onPress={async () => {
@@ -865,38 +903,66 @@ export const FlashcardScreen = ({ route, navigation }) => {
         </TouchableWithoutFeedback>
       </Modal>}
 
+      {!reviewAll && (() => {
+        const goal = Math.min(10, originalSessionTotal.current || queueSize);
+        const correct = sessionRatings.current.right;
+        const started = swipeCount > 0;
+        return (
+          <TouchableOpacity onPress={() => setGoalModalVisible(true)} style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+            gap: 8, paddingVertical: 8, paddingHorizontal: 16,
+            marginHorizontal: 20, marginTop: 10, marginBottom: 4,
+            backgroundColor: goalReached ? 'rgba(93,214,44,0.12)' : 'rgba(255,255,255,0.05)',
+            borderRadius: 12, borderWidth: 1,
+            borderColor: goalReached ? 'rgba(93,214,44,0.3)' : 'rgba(255,255,255,0.08)',
+          }}>
+            <Ionicons
+              name={goalReached ? 'checkmark-circle' : 'flag-outline'}
+              size={16}
+              color={goalReached ? theme.primary : theme.textMuted}
+              style={{ marginTop: 0 }}
+            />
+            <Text style={{ color: goalReached ? theme.primary : theme.textSecondary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium, lineHeight: 18 }}>
+              {goalReached
+                ? 'Meta diária concluída! 🎉'
+                : started
+                  ? <Text>Meta diária: {correct}/<Text style={{ color: theme.primary, fontFamily: theme.fontFamily.uiBold }}>{goal}</Text> acertos</Text>
+                  : <Text>Meta diária: <Text style={{ color: theme.primary, fontFamily: theme.fontFamily.uiBold }}>{goal}</Text> acertos</Text>
+              }
+            </Text>
+            <Ionicons name="information-circle-outline" size={14} color={goalReached ? theme.primary : theme.textMuted} style={{ marginTop: 0 }} />
+          </TouchableOpacity>
+        );
+      })()}
+
       <GestureDetector gesture={gesture}>
         <Animated.View
           ref={cardWrapperRef}
-          style={[styles.cardWrapper, { marginBottom: 40 + insets.bottom }]}
+          style={[styles.cardWrapper, { marginBottom: 80 + insets.bottom }]}
           onLayout={() => {
             cardWrapperRef.current?.measure((_x, _y, _w, _h, _px, py) => { cardTopY.value = py; });
           }}
         >
-          {/* Pilha decorativa — máx 5 visíveis, fade progressivo por profundidade */}
+          {/* Pilha decorativa — pos 2+ atrás do skeleton */}
           {(() => {
-            const remaining = _queue.length - 1; // cards atrás do atual
+            const remaining = _queue.length - 1;
             const MAX_STACK = 5;
             const stackCount = Math.min(remaining, MAX_STACK);
-            // pos 1 = logo atrás do atual, pos N = mais atrás
-            // scale e translateY decrescentes conforme vai pra trás
             const views = [];
-            for (let pos = stackCount; pos >= 1; pos--) {
-              const scale = 1 - pos * 0.018;
+            for (let pos = stackCount; pos >= 2; pos--) {
               const translateY = -pos * 10;
-              // Fade progressivo: card imediatamente atrás fica em 0.7, o mais ao fundo em 0.15
-              const ratio = stackCount > 1 ? (pos - 1) / (stackCount - 1) : 0;
-              const opacity = 0.7 - ratio * 0.55; // de 0.7 (frente) até 0.15 (fundo)
+              const ratio = stackCount > 2 ? (pos - 2) / (stackCount - 2) : 0;
+              const opacity = 0.7 - ratio * 0.55;
               if (pos === stackCount) {
-                // card mais atrás: anima ao reenfileirar
                 views.push(
                   <InsertAnimCard
                     key="insert"
                     insertAnim={insertAnim}
                     width={screenWidth * 0.9}
-                    baseScale={scale}
+                    baseScale={1}
                     baseTranslateY={translateY}
                     opacity={opacity}
+                    zIndex={10 - pos}
                   />
                 );
               } else {
@@ -905,8 +971,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
                     position: 'absolute', width: screenWidth * 0.9, height: 460,
                     backgroundColor: '#242427ff', borderRadius: 20,
                     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
-                    transform: [{ scale }, { translateY }],
-                    zIndex: MAX_STACK - pos,
+                    transform: [{ translateY }],
+                    zIndex: 10 - pos,
                     opacity,
                   }} />
                 );
@@ -914,9 +980,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
             }
             return views;
           })()}
-          {/* Skeleton do próximo card */}
+          {/* Skeleton do próximo card — sempre pos 1 */}
           {nextCard && (
-            <View style={{ position: 'absolute', width: screenWidth * 0.9, height: 460, backgroundColor: '#242427ff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex: 11, justifyContent: 'space-between' }}>
+            <View style={{ position: 'absolute', width: screenWidth * 0.9, height: 460, backgroundColor: '#242427ff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex: 11, justifyContent: 'space-between', transform: [{ translateY: -10 }] }}>
               {/* Conteúdo central */}
               <View style={{ flex: 1, padding: 28, justifyContent: 'center', gap: 14 }}>
                 <SkeletonItem style={{ width: '60%', height: 14, borderRadius: 7 }} />
@@ -970,7 +1036,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       </GestureDetector>
 
       <View style={[styles.swipeGuideContainer, { bottom: insets.bottom + 100 }]}>
-<TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
+        <TouchableOpacity onPress={() => currentCardForModal?.isUserCreated && setOptionsModalVisible(true)}>
           <Text style={styles.swipeGuideText}>
             {jsIsFlipped ? "Arraste para classificar" : "Toque no card para revelar"}
             {currentCardForModal?.isUserCreated && <Ionicons name="ellipsis-horizontal" size={16} color={theme.textMuted} />}
@@ -978,6 +1044,46 @@ export const FlashcardScreen = ({ route, navigation }) => {
         </TouchableOpacity>
         {!reviewAll && <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, opacity: swipeReviewText ? 1 : 0 }}>{swipeReviewText || ' '}</Text>}
       </View>
+
+      <Modal visible={goalModalVisible} transparent animationType="fade" onRequestClose={() => setGoalModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setGoalModalVisible(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
+            <TouchableWithoutFeedback>
+              <View style={{ backgroundColor: theme.backgroundSecondary, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <Ionicons name="flag" size={20} color={theme.primary} />
+                  <Text style={{ color: theme.textPrimary, fontSize: 17, fontFamily: theme.fontFamily.uiBold }}>Meta diária</Text>
+                </View>
+                <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22 }}>
+                  Para marcar o dia como estudado e manter sua sequência 🔥, você precisa acertar cards nesta sessão seguindo a regra:
+                </Text>
+                <View style={{ marginTop: 12, gap: 10 }}>
+                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                    <Ionicons name="checkmark-circle" size={18} color={theme.primary} style={{ marginTop: 2 }} />
+                    <Text style={{ flex: 1, color: theme.textSecondary, fontSize: 14, lineHeight: 20 }}>
+                      <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>Menos de 10 cards: </Text>
+                      acerte todos para bater a meta.
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                    <Ionicons name="checkmark-circle" size={18} color={theme.primary} style={{ marginTop: 2 }} />
+                    <Text style={{ flex: 1, color: theme.textSecondary, fontSize: 14, lineHeight: 20 }}>
+                      <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>10 ou mais cards: </Text>
+                      basta acertar 10 — não é preciso estudar todos de uma vez.
+                    </Text>
+                  </View>
+                </View>
+                <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22, marginTop: 12 }}>
+                  Se você errar um card e acertar depois, ele conta como acerto.
+                </Text>
+                <TouchableOpacity onPress={() => setGoalModalVisible(false)} style={{ marginTop: 20, backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+                  <Text style={{ color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold, fontSize: 15 }}>Entendido</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
 
       <SwipeTutorial ref={tutorialRef} />

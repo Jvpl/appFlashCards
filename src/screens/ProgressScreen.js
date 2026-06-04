@@ -103,7 +103,10 @@ const calcDesempenho = (performanceData, progressData, weekDaysStudied = 0) => {
   const subjectMeta = {};
   for (const deck of (progressData || []).filter(d => !d.isExample)) {
     for (const sub of (deck.subjects || [])) {
-      const cards = sub.flashcards || [];
+      const topics = sub.topics || [];
+      const cards = topics.length > 0
+        ? topics.flatMap(t => t.flashcards || [])
+        : (sub.flashcards || []);
       const qtd = cards.length;
       const nivelMedio = qtd > 0
         ? cards.reduce((s, c) => s + (c.level || 0), 0) / qtd
@@ -611,7 +614,7 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
               const studied = studiedDatesSet.has(day.date);
               const isPast = !day.isToday && !day.isFuture;
               const afterFirstUse = firstUseDate && day.date >= firstUseDate;
-              const green = studied && isPast;
+              const green = studied && (isPast || day.isToday);
               const failed = !studied && isPast && afterFirstUse;
               return (
                 <View key={i} style={{ position: 'absolute', top: CIR_CY - CIR_R, left: CIR_CX[i] - CIR_R, width: CIR_R * 2, alignItems: 'center', gap: 3 }}>
@@ -644,9 +647,9 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
             levelCounts={(() => {
               const counts = [0, 0, 0, 0, 0, 0];
               (progressData || []).filter(d => !d.isExample).forEach(d =>
-                (d.subjects || []).forEach(s =>
-                  (s.flashcards || []).forEach(c => { counts[Math.min(c.level || 0, 5)]++; })
-                )
+                (d.subjects || []).forEach(s => {
+                  (s.levelCounts || []).forEach((n, i) => { counts[i] = (counts[i] || 0) + n; });
+                })
               );
               return counts;
             })()}
@@ -835,6 +838,13 @@ export const ProgressScreen = () => {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
+    global.onDailyGoalReached = () => { loadRef.current?.(); };
+    return () => { global.onDailyGoalReached = null; };
+  }, []);
+
+  const loadRef = useRef(null);
+
+  useEffect(() => {
     if (!isFocused) return;
     const load = async () => {
       setLoading(true);
@@ -954,6 +964,7 @@ export const ProgressScreen = () => {
 
       setLoading(false);
     };
+    loadRef.current = load;
     load();
   }, [isFocused]);
 
@@ -1335,6 +1346,11 @@ export const ProgressScreen = () => {
     const ok = confRaw >= 0.15;
     const confiancaGlobal = confRaw;
     const lvCounts = [0, 0, 0, 0, 0, 0];
+    (progressData || []).filter(d => !d.isExample).forEach(d =>
+      (d.subjects || []).forEach(s =>
+        (s.levelCounts || []).forEach((n, i) => { lvCounts[i] = (lvCounts[i] || 0) + n; })
+      )
+    );
     const maxLv = Math.max(...lvCounts, 1);
 
     // lado esquerdo do card: ~48% da largura disponível
