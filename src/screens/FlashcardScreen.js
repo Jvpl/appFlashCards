@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, useAnimatedReaction, interpolate } from 'react-native-reanimated';
-import { getAppData, saveAppData, saveStudySession, savePerformanceData, updateStudyUnit, findStudyUnit } from '../services/storage';
+import { getAppData, saveAppData, saveStudySession, savePerformanceData, updateStudyUnit, findStudyUnit, isDailyGoalReachedToday, saveDailyGoalReached, recordCardsAvailability } from '../services/storage';
 import { calculateCardUpdate } from '../services/srs';
 import { FlashcardItem } from '../components/flashcard/FlashcardItem';
 import { SwipeTutorial } from '../components/flashcard/SwipeTutorial';
@@ -52,6 +52,92 @@ function formatNextReview(ms) {
 
 
 
+const GoalInfoModal = ({ visible, onClose }) => {
+  const [page, setPage] = React.useState(0);
+  React.useEffect(() => { if (visible) setPage(0); }, [visible]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 }}>
+          <TouchableWithoutFeedback>
+            <View style={{ backgroundColor: '#141414', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', width: '100%' }}>
+
+              {page === 0 ? (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <Ionicons name="flame" size={20} color={theme.primary} />
+                    <Text style={{ color: theme.textPrimary, fontSize: 17, fontFamily: theme.fontFamily.uiBold }}>O que é a meta diária?</Text>
+                  </View>
+                  <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22, marginBottom: 12 }}>
+                    A meta diária é um <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>hábito</Text> — ela existe para te ajudar a estudar todos os dias e manter sua sequência 🔥
+                  </Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22, marginBottom: 12 }}>
+                    Ela <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>não afeta seu progresso</Text> — seus acertos e a evolução dos cards são sempre salvos, independente da meta.
+                  </Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22, marginBottom: 12 }}>
+                    O banner aparece em qualquer matéria que você abrir, mas você só precisa completar em <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>uma delas</Text> para validar o dia.
+                  </Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22 }}>
+                    Se você começar a estudar e sair antes de completar a meta, <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>seu progresso nos cards é mantido</Text>, mas a sequência é quebrada — você ainda precisará completar a meta do dia nessa ou em outra matéria.
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                    <TouchableOpacity onPress={onClose} style={{ flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <Text style={{ color: theme.textSecondary, fontFamily: theme.fontFamily.uiMedium, fontSize: 14 }}>Fechar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setPage(1)} style={{ flex: 1, backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+                      <Text style={{ color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold, fontSize: 14 }}>Como funciona →</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <Ionicons name="flag" size={20} color={theme.primary} />
+                    <Text style={{ color: theme.textPrimary, fontSize: 17, fontFamily: theme.fontFamily.uiBold }}>Como bater a meta?</Text>
+                  </View>
+                  {[
+                    { label: '1 card disponível (nível 0-2)', desc: 'acerte ele 3 vezes' },
+                    { label: '1 card disponível (nível 3+)', desc: 'acerte 1 vez — cards avançados demoram a voltar, então 1 acerto já conta' },
+                    { label: '2 cards disponíveis', desc: 'acerte cada um 2 vezes (ou 1 vez se forem nível 3+)' },
+                    { label: '3 ou mais cards', desc: 'acerte todos pelo menos 1 vez — se tiver mais de 10, a meta fica em 10 acertos mínimos' },
+                  ].map((item, i) => (
+                    <View key={i} style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+                      <Ionicons name="checkmark-circle" size={18} color={theme.primary} style={{ marginTop: 2 }} />
+                      <Text style={{ flex: 1, color: theme.textSecondary, fontSize: 14, lineHeight: 20 }}>
+                        <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>{item.label}: </Text>
+                        {item.desc}
+                      </Text>
+                    </View>
+                  ))}
+                  <Text style={{ color: theme.textMuted, fontSize: 13, lineHeight: 20, marginTop: 4 }}>
+                    Se você errar e acertar depois, conta como acerto. O que importa é a última tentativa.
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                    <TouchableOpacity onPress={() => setPage(0)} style={{ flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <Text style={{ color: theme.textSecondary, fontFamily: theme.fontFamily.uiMedium, fontSize: 14 }}>← Voltar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={onClose} style={{ flex: 1, backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
+                      <Text style={{ color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold, fontSize: 14 }}>Entendido</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              {/* Indicador de página */}
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 16 }}>
+                {[0, 1].map(i => (
+                  <View key={i} style={{ width: i === page ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: i === page ? theme.primary : 'rgba(255,255,255,0.2)' }} />
+                ))}
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
+
 export const FlashcardScreen = ({ route, navigation }) => {
   const { deckId, subjectId, deckName, subjectName, parentSubjectName, preloadedCards, reviewAll, reviewMode } = route.params;
   const insets = useSafeAreaInsets();
@@ -83,6 +169,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const [queueSize, setQueueSize] = useState(initialState.cards.length);
   const [swipeCount, setSwipeCount] = useState(0);
   const [goalReached, setGoalReached] = useState(false);
+  const [goalAlreadyDoneToday, setGoalAlreadyDoneToday] = useState(false);
   const [goalModalVisible, setGoalModalVisible] = useState(false);
   const [currentCard, setCurrentCard] = useState(initialState.cards[0] ?? null);
   const [nextCard, setNextCard] = useState(initialState.cards[1] ?? null);
@@ -104,6 +191,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const sessionStartRef = useRef(Date.now());
   const dailyGoalSavedRef = useRef(false);
   const sessionRatings = useRef({ right: 0, up: 0, left: 0, levelUps: 0 });
+  // Conta swipes right totais (incluindo repetições do mesmo card) — usado para meta de 1-2 cards
+  const totalRightSwipesRef = useRef(0);
 
   const currentIndex = useSharedValue(0);
   const isFlipped = useSharedValue(0);
@@ -152,6 +241,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const [doneCardCount, setDoneCardCount] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const originalSessionTotal = useRef(initialState.cards.length || 0);
+  // true se todos os cards disponíveis são nível 3+ — meta vira 1 acerto por card independente da quantidade
+  const allCardsHighLevelRef = useRef(initialState.cards.length > 0 && initialState.cards.every(c => (c.level || 0) >= 3));
 
 
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
@@ -284,6 +375,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
           setCurrentCard(cardsToReview[0] ?? null); setNextCard(cardsToReview[1] ?? null);
           setTotalCardsInSession(cardsToReview.length);
           originalSessionTotal.current = cardsToReview.length;
+          allCardsHighLevelRef.current = cardsToReview.length > 0 && cardsToReview.every(c => (c.level || 0) >= 3);
           if (cardsToReview.length === 0 && allSubjectCards.length > 0) {
             let earliest = null;
             allSubjectCards.forEach(c => {
@@ -302,6 +394,30 @@ export const FlashcardScreen = ({ route, navigation }) => {
     }
     setLoading(false);
     cardOpacitySV.value = 1;
+
+    // Verifica se meta já foi batida hoje
+    const alreadyDone = await isDailyGoalReachedToday();
+    setGoalAlreadyDoneToday(alreadyDone);
+
+    // Registra disponibilidade de cards (threshold 21:00)
+    if (!reviewAll) {
+      const hour = new Date().getHours();
+      const allData2 = await getAppData();
+      const deck2 = allData2.find(c => c.id === deckId);
+      const subject2 = deck2 ? findStudyUnit(deck2, subjectId) : null;
+      const allSubjectCards2 = subject2
+        ? (subject2.topics?.length > 0 ? subject2.topics.flatMap(t => t.flashcards || []) : subject2.flashcards || [])
+        : [];
+      const hasCardsToday = allSubjectCards2.some(c => {
+        if ((c.level || 0) >= 5) return false;
+        if (!c.nextReview) return true;
+        const t = new Date(c.nextReview);
+        // Card disponível antes das 21:00 hoje conta
+        const todayAt21 = new Date(); todayAt21.setHours(21, 0, 0, 0);
+        return t <= todayAt21;
+      });
+      if (hour < 21) recordCardsAvailability(hasCardsToday);
+    }
   }, [deckId, subjectId, currentIndex, isFlipped, translateX, translateY, resetKey]);
 
 
@@ -387,9 +503,36 @@ export const FlashcardScreen = ({ route, navigation }) => {
   useEffect(() => { return () => { saveSessionProgress(); } }, [saveSessionProgress]);
 
   // Intercepta o botão voltar: salva os dados ANTES de navegar
-  // Assim a SubjectListScreen já encontra os dados atualizados ao recarregar
+  // Mostra aviso se saiu no meio da sessão sem bater a meta
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      const hasStarted = swipeCount > 0;
+      const metaIncompleta = hasStarted && !dailyGoalSavedRef.current && !goalAlreadyDoneToday && !reviewAll && !sessionDone;
+
+      if (metaIncompleta) {
+        e.preventDefault();
+        setAlertConfig({
+          visible: true,
+          title: 'Sair da sessão?',
+          message: 'Você começou a estudar mas ainda não completou a meta de hoje. Se sair, o progresso do hábito será perdido — mas você pode completar em outra matéria.\n\nOs seus acertos já foram salvos normalmente.',
+          buttons: [
+            {
+              text: 'Continuar estudando',
+              onPress: () => setAlertConfig(p => ({ ...p, visible: false })),
+            },
+            {
+              text: 'Sair mesmo assim',
+              style: 'cancel',
+              onPress: () => {
+                setAlertConfig(p => ({ ...p, visible: false }));
+                saveSessionProgress().then(() => navigation.dispatch(e.data.action));
+              },
+            },
+          ],
+        });
+        return;
+      }
+
       if (reviewUpdates.current.length === 0) return;
       e.preventDefault();
       saveSessionProgress().then(() => {
@@ -397,7 +540,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       });
     });
     return unsubscribe;
-  }, [navigation, saveSessionProgress]);
+  }, [navigation, saveSessionProgress, swipeCount, goalAlreadyDoneToday, reviewAll, sessionDone]);
 
   const onFlip = useCallback(() => { isFlipped.value = !isFlipped.value; }, [isFlipped]);
   const footerPressedSV = useSharedValue(false);
@@ -420,6 +563,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
     sessionStudiedIds.current.add(updatedCard.id);
     // Rastreia último rating por card — recalcula totais baseado na última avaliação de cada card
     sessionLastRating.current[updatedCard.id] = rating;
+    if (rating === 'right') totalRightSwipesRef.current++;
     const allRatings = Object.values(sessionLastRating.current);
     sessionRatings.current.right = allRatings.filter(r => r === 'right').length;
     sessionRatings.current.up = allRatings.filter(r => r === 'up').length;
@@ -454,15 +598,20 @@ export const FlashcardScreen = ({ route, navigation }) => {
       }
     }
 
-    // Verifica meta diária: acertar min(10, total) cards únicos
+    // Verifica meta diária: cards nível 3+ sempre contam 1x; nível 0-2: 1 card=3x, 2=2x cada, 3+=min(total,10)
     if (!dailyGoalSavedRef.current) {
-      const correct = sessionRatings.current.right;
       const total = originalSessionTotal.current || totalCardsInSessionSV.value;
-      const goal = Math.min(10, total);
+      const highLevel = allCardsHighLevelRef.current;
+      const goal = highLevel ? Math.min(total, 10) : total === 1 ? 3 : total === 2 ? 4 : Math.min(total, 10);
+      // Cards nível alto: conta únicos acertados; nível baixo com 1-2 cards: conta swipes totais
+      const correct = (!highLevel && total <= 2) ? totalRightSwipesRef.current : sessionRatings.current.right;
       if (correct >= goal && goal > 0) {
         dailyGoalSavedRef.current = true;
         setGoalReached(true);
+        saveDailyGoalReached();
         global.onDailyGoalReached?.();
+        // Esconde o banner após 3 segundos
+        setTimeout(() => setGoalAlreadyDoneToday(true), 3000);
         saveStudySession({
           deckId,
           deckName: deckName || deckId,
@@ -903,9 +1052,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
         </TouchableWithoutFeedback>
       </Modal>}
 
-      {!reviewAll && (() => {
-        const goal = Math.min(10, originalSessionTotal.current || queueSize);
-        const correct = sessionRatings.current.right;
+      {!reviewAll && !goalAlreadyDoneToday && (() => {
+        const total = originalSessionTotal.current || queueSize;
+        const highLevel = allCardsHighLevelRef.current;
+        // Cards nível 3+ sempre contam 1x; nível 0-2: 1 card=3x, 2=2x cada, 3+=min(total,10)
+        const goal = highLevel ? Math.min(total, 10) : total === 1 ? 3 : total === 2 ? 4 : Math.min(total, 10);
+        const correct = (!highLevel && total <= 2) ? totalRightSwipesRef.current : sessionRatings.current.right;
         const started = swipeCount > 0;
         return (
           <TouchableOpacity onPress={() => setGoalModalVisible(true)} style={{
@@ -920,17 +1072,16 @@ export const FlashcardScreen = ({ route, navigation }) => {
               name={goalReached ? 'checkmark-circle' : 'flag-outline'}
               size={16}
               color={goalReached ? theme.primary : theme.textMuted}
-              style={{ marginTop: 0 }}
             />
             <Text style={{ color: goalReached ? theme.primary : theme.textSecondary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium, lineHeight: 18 }}>
               {goalReached
                 ? 'Meta diária concluída! 🎉'
                 : started
-                  ? <Text>Meta diária: {correct}/<Text style={{ color: theme.primary, fontFamily: theme.fontFamily.uiBold }}>{goal}</Text> acertos</Text>
-                  : <Text>Meta diária: <Text style={{ color: theme.primary, fontFamily: theme.fontFamily.uiBold }}>{goal}</Text> acertos</Text>
+                  ? <Text>Meta de hoje: {correct}/<Text style={{ color: theme.primary, fontFamily: theme.fontFamily.uiBold }}>{goal}</Text> acertos</Text>
+                  : <Text>Meta de hoje: <Text style={{ color: theme.primary, fontFamily: theme.fontFamily.uiBold }}>{goal}</Text> acertos</Text>
               }
             </Text>
-            <Ionicons name="information-circle-outline" size={14} color={goalReached ? theme.primary : theme.textMuted} style={{ marginTop: 0 }} />
+            <Ionicons name="information-circle-outline" size={14} color={goalReached ? theme.primary : theme.textMuted} />
           </TouchableOpacity>
         );
       })()}
@@ -1045,45 +1196,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
         {!reviewAll && <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, opacity: swipeReviewText ? 1 : 0 }}>{swipeReviewText || ' '}</Text>}
       </View>
 
-      <Modal visible={goalModalVisible} transparent animationType="fade" onRequestClose={() => setGoalModalVisible(false)}>
-        <TouchableWithoutFeedback onPress={() => setGoalModalVisible(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
-            <TouchableWithoutFeedback>
-              <View style={{ backgroundColor: theme.backgroundSecondary, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <Ionicons name="flag" size={20} color={theme.primary} />
-                  <Text style={{ color: theme.textPrimary, fontSize: 17, fontFamily: theme.fontFamily.uiBold }}>Meta diária</Text>
-                </View>
-                <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22 }}>
-                  Para marcar o dia como estudado e manter sua sequência 🔥, você precisa acertar cards nesta sessão seguindo a regra:
-                </Text>
-                <View style={{ marginTop: 12, gap: 10 }}>
-                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
-                    <Ionicons name="checkmark-circle" size={18} color={theme.primary} style={{ marginTop: 2 }} />
-                    <Text style={{ flex: 1, color: theme.textSecondary, fontSize: 14, lineHeight: 20 }}>
-                      <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>Menos de 10 cards: </Text>
-                      acerte todos para bater a meta.
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
-                    <Ionicons name="checkmark-circle" size={18} color={theme.primary} style={{ marginTop: 2 }} />
-                    <Text style={{ flex: 1, color: theme.textSecondary, fontSize: 14, lineHeight: 20 }}>
-                      <Text style={{ color: theme.textPrimary, fontFamily: theme.fontFamily.uiSemiBold }}>10 ou mais cards: </Text>
-                      basta acertar 10 — não é preciso estudar todos de uma vez.
-                    </Text>
-                  </View>
-                </View>
-                <Text style={{ color: theme.textSecondary, fontSize: 14, lineHeight: 22, marginTop: 12 }}>
-                  Se você errar um card e acertar depois, ele conta como acerto.
-                </Text>
-                <TouchableOpacity onPress={() => setGoalModalVisible(false)} style={{ marginTop: 20, backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
-                  <Text style={{ color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold, fontSize: 15 }}>Entendido</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <GoalInfoModal visible={goalModalVisible} onClose={() => setGoalModalVisible(false)} />
 
 
       <SwipeTutorial ref={tutorialRef} />

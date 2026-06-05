@@ -391,6 +391,53 @@ export const updateStudyUnit = (allData, deckId, unitId, updateFn) => {
   });
 };
 
+const DAILY_GOAL_KEY = '@FlashcardsApp:dailyGoal';
+const CARDS_AVAILABILITY_KEY = '@FlashcardsApp:cardsAvailability';
+
+export const getDailyGoalStatus = async () => {
+  try {
+    const val = await AsyncStorage.getItem(DAILY_GOAL_KEY);
+    return val ? JSON.parse(val) : null;
+  } catch { return null; }
+};
+
+export const saveDailyGoalReached = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    await AsyncStorage.setItem(DAILY_GOAL_KEY, JSON.stringify({ date: today }));
+  } catch (e) { console.error(e); }
+};
+
+export const isDailyGoalReachedToday = async () => {
+  const status = await getDailyGoalStatus();
+  if (!status) return false;
+  const today = new Date().toISOString().split('T')[0];
+  return status.date === today;
+};
+
+// Registra se havia cards disponíveis no dia (threshold: antes das 21:00)
+export const recordCardsAvailability = async (hasCards) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const raw = await AsyncStorage.getItem(CARDS_AVAILABILITY_KEY);
+    const log = raw ? JSON.parse(raw) : {};
+    log[today] = hasCards;
+    // Mantém só os últimos 7 dias
+    const keys = Object.keys(log).sort();
+    if (keys.length > 7) {
+      keys.slice(0, keys.length - 7).forEach(k => delete log[k]);
+    }
+    await AsyncStorage.setItem(CARDS_AVAILABILITY_KEY, JSON.stringify(log));
+  } catch (e) { console.error(e); }
+};
+
+export const getCardsAvailabilityLog = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(CARDS_AVAILABILITY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+};
+
 export default {
   STORAGE_KEY,
   getAppData,
@@ -409,4 +456,9 @@ export default {
   hasStudiedToday,
   getPerformanceData,
   savePerformanceData,
+  getDailyGoalStatus,
+  saveDailyGoalReached,
+  isDailyGoalReachedToday,
+  recordCardsAvailability,
+  getCardsAvailabilityLog,
 };

@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAppData, getStudyHistory, getPerformanceData } from '../services/storage';
+import { getAppData, getStudyHistory, getPerformanceData, getCardsAvailabilityLog } from '../services/storage';
 
 const FIRST_USE_KEY = '@FlashcardsApp:firstUseDate';
 import theme from '../styles/theme';
@@ -449,7 +449,7 @@ const DonutChart = ({ performanceData, progressData, weekDaysStudied, hoje, leve
   );
 };
 
-const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDecks, totalSubjects, totalTopics, totalFlashcards, statsData, progressData, performanceData, weekDaysStudied }) => {
+const StreakCard = ({ streak, bestStreak, studiedDatesSet, preservedDatesSet = new Set(), firstUseDate, totalDecks, totalSubjects, totalTopics, totalFlashcards, statsData, progressData, performanceData, weekDaysStudied }) => {
   const { width: screenWidth } = useWindowDimensions();
   const W = Math.max(300, screenWidth - 32);
   const EXTRA = 32;
@@ -612,20 +612,24 @@ const StreakCard = ({ streak, bestStreak, studiedDatesSet, firstUseDate, totalDe
           <Reanimated.View pointerEvents="none" style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, circleAnimStyle]}>
             {weekDates.map((day, i) => {
               const studied = studiedDatesSet.has(day.date);
+              const preserved = preservedDatesSet.has(day.date);
               const isPast = !day.isToday && !day.isFuture;
               const afterFirstUse = firstUseDate && day.date >= firstUseDate;
               const green = studied && (isPast || day.isToday);
-              const failed = !studied && isPast && afterFirstUse;
+              const preservedDay = preserved && !studied && isPast;
+              const failed = !studied && !preserved && isPast && afterFirstUse;
               return (
                 <View key={i} style={{ position: 'absolute', top: CIR_CY - CIR_R, left: CIR_CX[i] - CIR_R, width: CIR_R * 2, alignItems: 'center', gap: 3 }}>
-                  <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : failed ? sc.circleFailed : sc.circleGray, day.isToday && sc.circleToday]}>
+                  <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : preservedDay ? sc.circlePreserved : failed ? sc.circleFailed : sc.circleGray, day.isToday && sc.circleToday]}>
                     {green
                       ? <Ionicons name="checkmark-sharp" size={CIR_R * 1.4} color="#0c0d0d" />
-                      : failed
-                        ? <Ionicons name="close-sharp" size={CIR_R * 1.4} color="#e94542" />
-                        : day.isToday
-                          ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5e5d5d' }} />
-                          : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5e5d5dff" />
+                      : preservedDay
+                        ? <Ionicons name="pause" size={CIR_R * 1.1} color="#888" />
+                        : failed
+                          ? <Ionicons name="close-sharp" size={CIR_R * 1.4} color="#e94542" />
+                          : day.isToday
+                            ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5e5d5d' }} />
+                            : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5e5d5dff" />
                     }
                   </View>
                   <Text style={[sc.dayLbl, day.isToday && sc.dayLblToday]}>{day.label}</Text>
@@ -762,6 +766,11 @@ const sc = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#c32926',
   },
+  circlePreserved: {
+    backgroundColor: '#2A2A2A',
+    borderWidth: 2,
+    borderColor: '#555',
+  },
   circleToday: {
     borderWidth: 2,
     borderColor: theme.primary,
@@ -812,6 +821,7 @@ export const ProgressScreen = () => {
   const [progressData, setProgressData] = useState([]);
   const [todaySessions, setTodaySessions] = useState([]);
   const [studiedDatesSet, setStudiedDatesSet] = useState(new Set());
+  const [preservedDatesSet, setPreservedDatesSet] = useState(new Set());
   const [firstUseDate, setFirstUseDate] = useState(null);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
@@ -848,7 +858,7 @@ export const ProgressScreen = () => {
     if (!isFocused) return;
     const load = async () => {
       setLoading(true);
-      const [data, history] = await Promise.all([getAppData(), getStudyHistory()]);
+      const [data, history, availabilityLog] = await Promise.all([getAppData(), getStudyHistory(), getCardsAvailabilityLog()]);
 
       const getAllCards = (subject) =>
         subject.topics?.length > 0
@@ -897,7 +907,14 @@ export const ProgressScreen = () => {
       setStatsData({ acertos, quase, erros, total: allCards.length, hoje: todayEntries.reduce((sum, s) => sum + s.count, 0), hojeAcertos, hojeQuases, hojeErros });
 
       const daysWithStudy = new Set(history.map(s => s.date));
+      // Dias sem cards disponíveis (registrados no log) — streak preservado
+      const preserved = new Set(
+        Object.entries(availabilityLog)
+          .filter(([, hasCards]) => hasCards === false)
+          .map(([date]) => date)
+      );
       setStudiedDatesSet(daysWithStudy);
+      setPreservedDatesSet(preserved);
 
       // Primeiro uso: menor data do histórico, ou hoje se não há histórico
       let fud = await AsyncStorage.getItem(FIRST_USE_KEY);
@@ -908,20 +925,21 @@ export const ProgressScreen = () => {
       }
       setFirstUseDate(fud);
 
-      // Streak atual
+      // Streak atual — dias estudados OU preservados (sem cards disponíveis) contam
+      const isValidStreakDay = (dateStr) => daysWithStudy.has(dateStr) || preserved.has(dateStr);
       let streakCount = 0;
       const d = new Date();
-      if (!daysWithStudy.has(today)) d.setDate(d.getDate() - 1);
+      if (!isValidStreakDay(today)) d.setDate(d.getDate() - 1);
       while (true) {
         const dateStr = d.toISOString().split('T')[0];
-        if (daysWithStudy.has(dateStr)) { streakCount++; d.setDate(d.getDate() - 1); } else break;
+        if (isValidStreakDay(dateStr)) { streakCount++; d.setDate(d.getDate() - 1); } else break;
       }
       setStreak(streakCount);
 
-      // Melhor streak
-      const sortedDates = [...daysWithStudy].sort();
+      // Melhor streak — inclui dias preservados
+      const allValidDates = [...new Set([...daysWithStudy, ...preserved])].sort();
       let best = 0, cur = 0, prev = null;
-      for (const dateStr of sortedDates) {
+      for (const dateStr of allValidDates) {
         if (prev) {
           const diff = (new Date(dateStr) - new Date(prev)) / 86400000;
           cur = diff === 1 ? cur + 1 : 1;
@@ -931,13 +949,13 @@ export const ProgressScreen = () => {
       }
       setBestStreak(best);
 
-      // Week streak: total de dias estudados na semana atual (Seg–Dom), a partir do firstUseDate
+      // Week streak — inclui dias preservados
       const currentWeekDates = getWeekDates();
       const weekCount = currentWeekDates.filter(day => {
         if (day.isToday || day.isFuture) return false;
         if (day.date < fud) return false;
-        return daysWithStudy.has(day.date);
-      }).length + (daysWithStudy.has(today) ? 1 : 0);
+        return isValidStreakDay(day.date);
+      }).length + (isValidStreakDay(today) ? 1 : 0);
       const wc = Math.min(weekCount, 7);
       setWeekStreak(wc);
       setWeekDaysStudied(wc);
@@ -1558,6 +1576,7 @@ export const ProgressScreen = () => {
         streak={streak}
         bestStreak={bestStreak}
         studiedDatesSet={studiedDatesSet}
+        preservedDatesSet={preservedDatesSet}
         firstUseDate={firstUseDate}
         totalDecks={totalDecks}
         totalSubjects={totalSubjects}
