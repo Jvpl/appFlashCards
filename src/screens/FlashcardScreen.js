@@ -240,7 +240,6 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const setSessionNextReview = () => { }; // substituído por setSessionResult
   const [totalSubjectCards, setTotalSubjectCards] = useState(initialState.totalSubjectCards);
   const [doneCardCount, setDoneCardCount] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
   const originalSessionTotal = useRef(initialState.cards.length || 0);
   // true se todos os cards disponíveis são nível 3+ — meta vira 1 acerto por card independente da quantidade
   const allCardsHighLevelRef = useRef(initialState.cards.length > 0 && initialState.cards.every(c => (c.level || 0) >= 3));
@@ -376,12 +375,19 @@ export const FlashcardScreen = ({ route, navigation }) => {
           setCurrentCard(cardsToReview[0] ?? null); setNextCard(cardsToReview[1] ?? null);
           setTotalCardsInSession(cardsToReview.length);
           originalSessionTotal.current = cardsToReview.length;
+          // Reseta contagem de cards vistos para nova sessão
+          if (cardsToReview[0]?.id) {
+            sessionStudiedIds.current = new Set([cardsToReview[0].id]);
+
+          }
           allCardsHighLevelRef.current = cardsToReview.length > 0 && cardsToReview.every(c => (c.level || 0) >= 3);
           if (cardsToReview.length === 0 && allSubjectCards.length > 0) {
             let earliest = null;
+            const updatesMap = new Map(reviewUpdates.current.map(c => [c.id, c]));
             allSubjectCards.forEach(c => {
-              if (c.nextReview) {
-                const t = new Date(c.nextReview).getTime();
+              const updated = updatesMap.get(c.id) || c;
+              if (updated.nextReview) {
+                const t = new Date(updated.nextReview).getTime();
                 if (earliest === null || t < earliest) earliest = t;
               }
             });
@@ -424,6 +430,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const loadCardsRef = useRef(loadCards);
   useEffect(() => { loadCardsRef.current = loadCards; });
+
 
   const handleReviewCompleteRef = useRef(null);
 
@@ -562,6 +569,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
     if (existingIndex > -1) reviewUpdates.current[existingIndex] = updatedCard;
     else reviewUpdates.current.push(updatedCard);
     sessionStudiedIds.current.add(updatedCard.id);
+
     // Rastreia último rating por card — recalcula totais baseado na última avaliação de cada card
     sessionLastRating.current[updatedCard.id] = rating;
     if (rating === 'right') totalRightSwipesRef.current++;
@@ -577,9 +585,6 @@ export const FlashcardScreen = ({ route, navigation }) => {
       _queue.push(updatedCard);
       insertAnim.value = 0;
       insertAnim.value = withTiming(1, { duration: 350 });
-    } else {
-      // Memorizado: avança o contador de cards concluídos
-      setCorrectCount(prev => prev + 1);
     }
 
     // Salva desempenho a cada swipe para refletir em tempo real na aba Progresso
@@ -949,6 +954,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
                   setSessionResult(null);
                   hasLoadedOnce.current = false;
                   sessionStudiedIds.current = new Set();
+
                   setLoading(true);
                   await loadCards();
                 }}
@@ -1099,9 +1105,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
           {/* Pilha decorativa — pos 2+ atrás do skeleton */}
           {(() => {
             const remaining = _queue.length - 1;
-            const MAX_STACK = 5;
+            const MAX_STACK = 3;
             const stackCount = Math.min(remaining, MAX_STACK);
             const views = [];
+            // Cards decorativos estáticos
             for (let pos = stackCount; pos >= 2; pos--) {
               const relPos = stackCount - pos + 2; // skeleton=1, decorativo mais próximo=2, etc
               const translateY = -relPos * 6;
@@ -1109,30 +1116,34 @@ export const FlashcardScreen = ({ route, navigation }) => {
               const ratio = stackCount > 1 ? (relPos - 1) / stackCount : 0;
               const opacity = 0.6 - ratio * 0.3;
               const zIdx = stackCount - relPos + 1;
-              if (pos === stackCount) {
-                views.push(
-                  <InsertAnimCard
-                    key="insert"
-                    insertAnim={insertAnim}
-                    width={width}
-                    baseScale={1}
-                    baseTranslateY={translateY}
-                    opacity={opacity}
-                    zIndex={zIdx}
-                  />
-                );
-              } else {
-                views.push(
-                  <View key={pos} style={{
-                    position: 'absolute', width, height: 460,
-                    backgroundColor: '#242427ff', borderRadius: 20,
-                    borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
-                    transform: [{ translateY }],
-                    zIndex: zIdx,
-                    opacity,
-                  }} />
-                );
-              }
+              views.push(
+                <View key={pos} style={{
+                  position: 'absolute', width, height: 460,
+                  backgroundColor: '#242427ff', borderRadius: 20,
+                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
+                  transform: [{ translateY }],
+                  zIndex: zIdx,
+                  opacity,
+                }} />
+              );
+            }
+            // InsertAnimCard sempre na posição do último slot visível
+            if (stackCount >= 1) {
+              const lastRelPos = stackCount + 1;
+              const lastTranslateY = -lastRelPos * 6;
+              const lastWidth = screenWidth * 0.9 - lastRelPos * 11;
+              const lastOpacity = 0.6 - (stackCount / (stackCount + 1)) * 0.3;
+              views.push(
+                <InsertAnimCard
+                  key="insert"
+                  insertAnim={insertAnim}
+                  width={lastWidth}
+                  baseScale={1}
+                  baseTranslateY={lastTranslateY}
+                  opacity={lastOpacity}
+                  zIndex={0}
+                />
+              );
             }
             return views;
           })()}
@@ -1174,8 +1185,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
               index={jsCurrentIndex}
               currentIndex={currentIndex}
               totalCards={queueSize}
-              completedCards={correctCount}
-              sessionTotal={originalSessionTotal.current}
+              completedCards={queueSize}
+              sessionTotal={originalSessionTotal.current || totalCardsInSession}
               translateX={translateX} translateY={translateY}
               isFlipped={isFlipped}
               jsCurrentIndex={jsCurrentIndex}
