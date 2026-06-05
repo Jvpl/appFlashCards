@@ -395,6 +395,117 @@ export const updateStudyUnit = (allData, deckId, unitId, updateFn) => {
   });
 };
 
+// ============================================
+// Lixeira — Decks do usuário deletados (14 dias)
+// ============================================
+
+const TRASH_KEY = '@FlashcardsApp:trash';
+const TRASH_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+export const getTrash = async () => {
+  try {
+    const json = await AsyncStorage.getItem(TRASH_KEY);
+    const items = json ? JSON.parse(json) : [];
+    const cutoff = Date.now() - TRASH_TTL_MS;
+    return items.filter(i => i.deletedAt >= cutoff);
+  } catch { return []; }
+};
+
+export const moveToTrash = async (deck, categoryMeta = null) => {
+  try {
+    const items = await getTrash();
+    const already = items.findIndex(i => i.deck.id === deck.id);
+    const entry = { deck, deletedAt: Date.now(), categoryMeta };
+    if (already >= 0) items[already] = entry;
+    else items.push(entry);
+    await AsyncStorage.setItem(TRASH_KEY, JSON.stringify(items));
+  } catch (e) { console.error('Failed to move deck to trash', e); }
+};
+
+export const restoreFromTrash = async (deckId) => {
+  try {
+    const items = await getTrash();
+    const entry = items.find(i => i.deck.id === deckId);
+    if (!entry) return null;
+    const remaining = items.filter(i => i.deck.id !== deckId);
+    await AsyncStorage.setItem(TRASH_KEY, JSON.stringify(remaining));
+    return entry;
+  } catch (e) { console.error('Failed to restore deck from trash', e); return null; }
+};
+
+export const purgeFromTrash = async (deckId) => {
+  try {
+    const items = await getTrash();
+    await AsyncStorage.setItem(TRASH_KEY, JSON.stringify(items.filter(i => i.deck.id !== deckId)));
+  } catch (e) { console.error('Failed to purge from trash', e); }
+};
+
+// ============================================
+// Limpeza de progresso ao excluir conteúdo
+// ============================================
+
+const _preserveTodayIfStillStudied = async (removedIds, filterFn) => {
+  // After removing sessions, if user still has other study today, preserve the streak day
+  const today = new Date().toISOString().split('T')[0];
+  const history = await getStudyHistory();
+  const remaining = history.filter(filterFn);
+  const stillStudiedToday = remaining.some(s => s.date === today);
+  if (!stillStudiedToday) {
+    // No other study today — check if the removed entries had today's study
+    const hadStudyToday = history.filter(s => !filterFn(s)).some(s => s.date === today);
+    if (hadStudyToday) {
+      // Mark day as preserved (cards unavailable) so streak isn't broken
+      await recordCardsAvailability(false);
+    }
+  }
+  return remaining;
+};
+
+export const clearProgressForDecks = async (deckIds) => {
+  try {
+    const idSet = new Set(deckIds);
+    const newHistory = await _preserveTodayIfStillStudied(
+      deckIds,
+      s => !idSet.has(s.deckId)
+    );
+    await AsyncStorage.setItem(STUDY_HISTORY_KEY, JSON.stringify(newHistory));
+
+    const continueRaw = await AsyncStorage.getItem(CONTINUE_STUDY_KEY);
+    if (continueRaw) {
+      const cs = JSON.parse(continueRaw);
+      if (cs && idSet.has(cs.deckId)) {
+        await AsyncStorage.removeItem(CONTINUE_STUDY_KEY);
+      }
+    }
+  } catch (e) { console.error('Failed to clear progress for decks', e); }
+};
+
+export const clearProgressForSubjects = async (deckId, subjectIds) => {
+  try {
+    const idSet = new Set(subjectIds);
+    const newHistory = await _preserveTodayIfStillStudied(
+      subjectIds,
+      s => !(s.deckId === deckId && idSet.has(s.subjectId))
+    );
+    await AsyncStorage.setItem(STUDY_HISTORY_KEY, JSON.stringify(newHistory));
+
+    const perfRaw = await AsyncStorage.getItem(PERFORMANCE_KEY);
+    if (perfRaw) {
+      const perf = JSON.parse(perfRaw);
+      subjectIds.forEach(id => delete perf[id]);
+      await AsyncStorage.setItem(PERFORMANCE_KEY, JSON.stringify(perf));
+    }
+
+    const continueRaw = await AsyncStorage.getItem(CONTINUE_STUDY_KEY);
+    if (continueRaw) {
+      const cs = JSON.parse(continueRaw);
+      if (cs && cs.deckId === deckId && idSet.has(cs.subjectId)) {
+        await AsyncStorage.removeItem(CONTINUE_STUDY_KEY);
+      }
+    }
+  } catch (e) { console.error('Failed to clear progress for subjects', e); }
+};
+
 const DAILY_GOAL_KEY = '@FlashcardsApp:dailyGoal';
 const CARDS_AVAILABILITY_KEY = '@FlashcardsApp:cardsAvailability';
 
@@ -465,4 +576,10 @@ export default {
   isDailyGoalReachedToday,
   recordCardsAvailability,
   getCardsAvailabilityLog,
+  getTrash,
+  moveToTrash,
+  restoreFromTrash,
+  purgeFromTrash,
+  clearProgressForDecks,
+  clearProgressForSubjects,
 };

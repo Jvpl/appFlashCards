@@ -19,6 +19,7 @@ import {
   getAppData, saveAppData, getPurchasedDecks, getDeckCache,
   removePurchasedDeck, getContinueStudy,
   getUsedCategoryIds, saveUsedCategoryIds, getDeckOrder, updateDeckOrder,
+  moveToTrash, clearProgressForDecks,
 } from '../services/storage';
 import { getProducts } from '../services/firebase';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
@@ -33,6 +34,16 @@ import DeckStackCard from '../components/home/DeckStackCard';
 import MateriaCard from '../components/home/MateriaCard';
 import HomeTabBar from '../components/home/HomeTabBar';
 import OverflowCard from '../components/home/OverflowCard';
+
+// Retorna metadados da categoria de um deck para salvar na lixeira
+const _resolveCatMeta = (catId, customCats = []) => {
+  if (!catId || catId === 'personalizados') return null;
+  const preset = CONCURSO_CATEGORIES.find(c => c.id === catId);
+  if (preset) return { id: preset.id, name: preset.name, isCustom: false };
+  const custom = customCats.find(c => c.id === catId);
+  if (custom) return { id: custom.id, name: custom.name, icon: custom.icon, color: custom.color, isCustom: true };
+  return null;
+};
 
 const { width } = Dimensions.get('window');
 const GRID_PADDING = 16;
@@ -987,14 +998,23 @@ export const DeckListScreen = ({ navigation }) => {
     if (selectedIds.size === 0) return;
     setAlertConfig({
       visible: true, title: 'Apagar Decks',
-      message: `Apagar ${selectedIds.size} deck(s) e todas as matérias e flashcards dentro deles? Essa ação não pode ser desfeita.`,
+      message: `Apagar ${selectedIds.size} deck(s) e todas as matérias e flashcards dentro deles? Decks criados por você ficam na lixeira por 14 dias.`,
       buttons: [
         { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
         { text: 'Apagar', style: 'destructive', onPress: async () => {
           const allData = await getAppData();
+          const toDelete = allData.filter(d => selectedIds.has(d.id));
           const remaining = allData.filter(d => !selectedIds.has(d.id));
           await saveAppData(remaining);
-          await Promise.all(Array.from(selectedIds).map(id => removePurchasedDeck(id)));
+          await clearProgressForDecks(Array.from(selectedIds));
+          const customCatsSnap = await getCustomCategories();
+          await Promise.all(toDelete.map(d => {
+            if (d.isUserCreated) {
+              const catMeta = _resolveCatMeta(d.category, customCatsSnap);
+              return moveToTrash(d, catMeta);
+            }
+            return removePurchasedDeck(d.id);
+          }));
           exitSelectMode();
           loadData(); setAlertConfig(p => ({ ...p, visible: false }));
         }},
@@ -1014,10 +1034,17 @@ export const DeckListScreen = ({ navigation }) => {
         { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
         { text: 'Excluir', style: 'destructive', onPress: async () => {
           setAlertConfig(p => ({ ...p, visible: false }));
-          const deckIds = new Set(selectedItems.flatMap(i => i.decks.map(d => d.id)));
+          const allDecksInCats = selectedItems.flatMap(i => i.decks);
+          const deckIds = new Set(allDecksInCats.map(d => d.id));
           const allData = await getAppData();
+          const decksToTrash = allData.filter(d => deckIds.has(d.id) && d.isUserCreated);
           await saveAppData(allData.filter(d => !deckIds.has(d.id)));
-          await Promise.all(Array.from(deckIds).map(id => removePurchasedDeck(id)));
+          await clearProgressForDecks(Array.from(deckIds));
+          const customCatsSnap2 = await getCustomCategories();
+          await Promise.all([
+            ...decksToTrash.map(d => moveToTrash(d, _resolveCatMeta(d.category, customCatsSnap2))),
+            ...Array.from(deckIds).filter(id => !decksToTrash.find(d => d.id === id)).map(id => removePurchasedDeck(id)),
+          ]);
 
           const usedIds = await getUsedCategoryIds();
           const newUsedIds = new Set(usedIds);
@@ -1048,14 +1075,21 @@ export const DeckListScreen = ({ navigation }) => {
       }
     }
     setModalVisible(false);
+    const deckToDelete = selectedDeck;
+    const isUserDeck = deckToDelete.isUserCreated;
     setAlertConfig({
       visible: true, title: 'Apagar Deck',
-      message: `Apagar "${selectedDeck.name}"? Isso também apagará todas as matérias e flashcards dentro dele.`,
+      message: `Apagar "${deckToDelete.name}"?${isUserDeck ? ' Ele ficará na lixeira por 14 dias e pode ser restaurado em Configurações.' : ' Isso também apagará todas as matérias e flashcards dentro dele.'}`,
       buttons: [
         { text: 'Cancelar', style: 'cancel', onPress: () => { setSelectedDeck(null); setAlertConfig(p => ({ ...p, visible: false })); } },
         { text: 'Apagar', style: 'destructive', onPress: async () => {
           const allData = await getAppData();
-          await saveAppData(allData.filter(d => d.id !== selectedDeck.id));
+          await saveAppData(allData.filter(d => d.id !== deckToDelete.id));
+          await clearProgressForDecks([deckToDelete.id]);
+          if (isUserDeck) {
+            const cats = await getCustomCategories();
+            await moveToTrash(deckToDelete, _resolveCatMeta(deckToDelete.category, cats));
+          } else await removePurchasedDeck(deckToDelete.id);
           loadData(); setSelectedDeck(null); setAlertConfig(p => ({ ...p, visible: false }));
         }},
       ],
@@ -1708,20 +1742,37 @@ export const DeckListScreen = ({ navigation }) => {
                   <View style={ctxStyles.sep} />
                   <TouchableOpacity
                     style={ctxStyles.item}
-                    onPress={() => {
+                    onPress={async () => {
                       const deck = contextMenu.deck;
                       closeContextMenu();
                       if (!deck) return;
-                      setTimeout(() => {
+                      if (isDefaultDeck(deck.id)) {
+                        const canEdit = await canEditDefaultDecks();
+                        if (!canEdit) {
+                          setAlertConfig({ visible: true, title: 'Deck Protegido', message: 'Ative "Permitir edição de decks padrão" nas Configurações para apagar.', buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }] });
+                          return;
+                        }
+                      }
+                      setTimeout(async () => {
+                        const _snap = await getAppData();
+                        const _fresh = _snap.find(d => d.id === deck.id) || deck;
+                        const isUserDeck = _fresh.isUserCreated === true;
                         setAlertConfig({
                           visible: true,
                           title: 'Apagar Deck',
-                          message: `Apagar "${deck.name}"? Isso também apagará todas as matérias e flashcards dentro dele.`,
+                          message: `Apagar "${deck.name}"?${isUserDeck ? ' Ele ficará na lixeira por 14 dias e pode ser restaurado em Configurações.' : ' Isso também apagará todas as matérias e flashcards dentro dele.'}`,
                           buttons: [
                             { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
                             { text: 'Apagar', style: 'destructive', onPress: async () => {
                               const allData = await getAppData();
+                              const freshDeck = allData.find(d => d.id === deck.id) || deck;
+                              const isUser = freshDeck.isUserCreated === true;
                               await saveAppData(allData.filter(d => d.id !== deck.id));
+                              await clearProgressForDecks([deck.id]);
+                              if (isUser) {
+                                const cats = await getCustomCategories();
+                                await moveToTrash(freshDeck, _resolveCatMeta(freshDeck.category, cats));
+                              } else await removePurchasedDeck(deck.id);
                               loadData();
                               setAlertConfig(p => ({ ...p, visible: false }));
                             }},
