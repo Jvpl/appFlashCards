@@ -169,7 +169,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const [queueSize, setQueueSize] = useState(initialState.cards.length);
   const [swipeCount, setSwipeCount] = useState(0);
   const [goalReached, setGoalReached] = useState(false);
-  const [goalAlreadyDoneToday, setGoalAlreadyDoneToday] = useState(false);
+  // null = ainda verificando; true/false = resultado conhecido
+  const [goalAlreadyDoneToday, setGoalAlreadyDoneToday] = useState(null);
   const [goalModalVisible, setGoalModalVisible] = useState(false);
   const [currentCard, setCurrentCard] = useState(initialState.cards[0] ?? null);
   const [nextCard, setNextCard] = useState(initialState.cards[1] ?? null);
@@ -1052,7 +1053,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
         </TouchableWithoutFeedback>
       </Modal>}
 
-      {!reviewAll && !goalAlreadyDoneToday && (() => {
+      {!reviewAll && (() => {
+        if (goalAlreadyDoneToday !== false) return <View style={{ height: 38, marginTop: 10, marginBottom: 4 }} />;
         const total = originalSessionTotal.current || queueSize;
         const highLevel = allCardsHighLevelRef.current;
         // Cards nível 3+ sempre contam 1x; nível 0-2: 1 card=3x, 2=2x cada, 3+=min(total,10)
@@ -1101,29 +1103,32 @@ export const FlashcardScreen = ({ route, navigation }) => {
             const stackCount = Math.min(remaining, MAX_STACK);
             const views = [];
             for (let pos = stackCount; pos >= 2; pos--) {
-              const translateY = -pos * 10;
-              const ratio = stackCount > 2 ? (pos - 2) / (stackCount - 2) : 0;
-              const opacity = 0.7 - ratio * 0.55;
+              const relPos = stackCount - pos + 2; // skeleton=1, decorativo mais próximo=2, etc
+              const translateY = -relPos * 6;
+              const width = screenWidth * 0.9 - relPos * 10;
+              const ratio = stackCount > 1 ? (relPos - 1) / stackCount : 0;
+              const opacity = 0.6 - ratio * 0.3;
+              const zIdx = stackCount - relPos + 1;
               if (pos === stackCount) {
                 views.push(
                   <InsertAnimCard
                     key="insert"
                     insertAnim={insertAnim}
-                    width={screenWidth * 0.9}
+                    width={width}
                     baseScale={1}
                     baseTranslateY={translateY}
                     opacity={opacity}
-                    zIndex={10 - pos}
+                    zIndex={zIdx}
                   />
                 );
               } else {
                 views.push(
                   <View key={pos} style={{
-                    position: 'absolute', width: screenWidth * 0.9, height: 460,
+                    position: 'absolute', width, height: 460,
                     backgroundColor: '#242427ff', borderRadius: 20,
                     borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
                     transform: [{ translateY }],
-                    zIndex: 10 - pos,
+                    zIndex: zIdx,
                     opacity,
                   }} />
                 );
@@ -1133,7 +1138,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
           })()}
           {/* Skeleton do próximo card — sempre pos 1 */}
           {nextCard && (
-            <View style={{ position: 'absolute', width: screenWidth * 0.9, height: 460, backgroundColor: '#242427ff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex: 11, justifyContent: 'space-between', transform: [{ translateY: -10 }] }}>
+            <View style={{ position: 'absolute', width: screenWidth * 0.9 - 10, height: 460, backgroundColor: '#242427ff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', zIndex: 11, justifyContent: 'space-between', transform: [{ translateY: -6 }] }}>
+
               {/* Conteúdo central */}
               <View style={{ flex: 1, padding: 28, justifyContent: 'center', gap: 14 }}>
                 <SkeletonItem style={{ width: '60%', height: 14, borderRadius: 7 }} />
