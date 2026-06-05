@@ -327,10 +327,9 @@ export const SubjectListScreen = ({ route, navigation }) => {
   // ── Context menu ──────────────────────────────────────────────────
 
   const handleMenuPress = useCallback((subject, event) => {
-    if (isExample) return;
     const { pageX, pageY } = event.nativeEvent;
     setContextMenu({ visible: true, subject, x: pageX, y: pageY });
-  }, [isExample]);
+  }, []);
 
   const closeContextMenu = useCallback(() => setContextMenu(p => ({ ...p, visible: false })), []);
 
@@ -434,7 +433,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
             subject={toDisplaySubject(items[i])} deck={deckObj}
             width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
             onPress={() => isSelectionMode ? handleToggleSelection(items[i].id) : handleStudy(items[i])}
-            onLongPress={(e) => { handleToggleSelection(items[i].id); handleMenuPress(items[i], e); }}
+            onLongPress={(e) => { if (isExample) return; handleToggleSelection(items[i].id); handleMenuPress(items[i], e); }}
             onMenuPress={(e) => handleMenuPress(items[i], e)}
             isSelected={selectedSubjects.includes(items[i].id)}
             selectMode={isSelectionMode}
@@ -444,7 +443,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
               subject={toDisplaySubject(items[i + 1])} deck={deckObj}
               width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
               onPress={() => isSelectionMode ? handleToggleSelection(items[i + 1].id) : handleStudy(items[i + 1])}
-              onLongPress={(e) => { handleToggleSelection(items[i + 1].id); handleMenuPress(items[i + 1], e); }}
+              onLongPress={(e) => { if (isExample) return; handleToggleSelection(items[i + 1].id); handleMenuPress(items[i + 1], e); }}
               onMenuPress={(e) => handleMenuPress(items[i + 1], e)}
               isSelected={selectedSubjects.includes(items[i + 1].id)}
               selectMode={isSelectionMode}
@@ -662,7 +661,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
                   {/* Modo Revisão — só para matérias sem tópicos */}
                   {!hasTopics && (
                     <>
-                      <TouchableOpacity style={[ctx.item, ctx.itemReview, isReview && ctx.itemReviewActive]} onPress={() => { closeContextMenu(); if (sub) handleToggleReview(sub); }}>
+                      <TouchableOpacity disabled={isExample} style={[ctx.item, ctx.itemReview, isReview && ctx.itemReviewActive, isExample && { opacity: 0.35 }]} onPress={() => { closeContextMenu(); if (sub) handleToggleReview(sub); }}>
                         <View style={[ctx.reviewIconWrap, isReview && ctx.reviewIconWrapActive]}>
                           <Ionicons name="repeat-outline" size={16} color={isReview ? '#0F0F0F' : theme.primary} />
                         </View>
@@ -672,18 +671,18 @@ export const SubjectListScreen = ({ route, navigation }) => {
                         {isReview && <Ionicons name="checkmark-circle" size={16} color={theme.primary} />}
                       </TouchableOpacity>
                       <View style={ctx.sep} />
-                      <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('ManageFlashcards', { deckId, subjectId: sub.id, preloadedCards: [], subjectName: sub.name }); }}>
+                      <TouchableOpacity disabled={isExample} style={[ctx.item, isExample && { opacity: 0.35 }]} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('ManageFlashcards', { deckId, subjectId: sub.id, preloadedCards: [], subjectName: sub.name }); }}>
                         <Ionicons name="add-circle-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Criar card</Text>
                       </TouchableOpacity>
                       <View style={ctx.sep} />
-                      <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('FlashcardHistory', { deckId, subjectId: sub.id }); }}>
+                      <TouchableOpacity disabled={isExample} style={[ctx.item, isExample && { opacity: 0.35 }]} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('FlashcardHistory', { deckId, subjectId: sub.id }); }}>
                         <Ionicons name="layers-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Gerenciar Cards</Text>
                       </TouchableOpacity>
                       <View style={ctx.sep} />
                     </>
                   )}
                   {/* Adicionar assunto — para qualquer matéria */}
-                  <TouchableOpacity style={ctx.item} onPress={() => {
+                  <TouchableOpacity disabled={isExample} style={[ctx.item, isExample && { opacity: 0.35 }]} onPress={() => {
                     closeContextMenu();
                     if (sub) navigation.navigate('TopicList', {
                       deckId, deckName, subjectId: sub.id, subjectName: sub.name,
@@ -694,11 +693,11 @@ export const SubjectListScreen = ({ route, navigation }) => {
                     <Text style={[ctx.itemText, { color: theme.primary }]}>{hasTopics ? 'Ver assuntos' : 'Adicionar assunto'}</Text>
                   </TouchableOpacity>
                   <View style={ctx.sep} />
-                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (sub) setRenameModal({ visible: true, subject: sub, text: sub.name || '' }); }}>
+                  <TouchableOpacity disabled={isExample} style={[ctx.item, isExample && { opacity: 0.35 }]} onPress={() => { closeContextMenu(); if (sub) setRenameModal({ visible: true, subject: sub, text: sub.name || '' }); }}>
                     <Ionicons name="create-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Renomear</Text>
                   </TouchableOpacity>
                   <View style={ctx.sep} />
-                  <TouchableOpacity style={ctx.item} onPress={() => {
+                  <TouchableOpacity disabled={isExample} style={[ctx.item, isExample && { opacity: 0.35 }]} onPress={() => {
                     closeContextMenu();
                     if (sub) setTimeout(() => handleDeleteSubject(sub), 50);
                   }}>
