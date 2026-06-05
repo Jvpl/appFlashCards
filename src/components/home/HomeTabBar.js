@@ -11,7 +11,7 @@ import theme from '../../styles/theme';
 
 const TABS = [
   { id: 'decks',      label: 'Decks',      small: false },
-  { id: 'categorias', label: 'Categorias', small: true },
+  { id: 'categorias', label: 'Categorias', small: false },
 ];
 
 const HomeTabBar = ({ activeTab, onTabChange }) => (
