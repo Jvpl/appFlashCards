@@ -35,6 +35,7 @@ export function HomeStackNavigator() {
       <HomeStack.Screen name="SubjectList" component={SubjectListScreen} options={{ headerShown: false, cardStyleInterpolator: ({ current }) => ({ cardStyle: { opacity: current.progress } }) }} />
       <HomeStack.Screen name="TopicList" component={TopicListScreen} options={{ headerShown: false, cardStyleInterpolator: ({ current }) => ({ cardStyle: { opacity: current.progress } }) }} />
       <HomeStack.Screen name="AddDeck" component={AddDeckScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="EditDeck" component={AddDeckScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="AddSubject" component={AddSubjectScreen} options={{ title: 'Nova Matéria' }} />
       <HomeStack.Screen name="EditSubject" component={EditSubjectScreen} options={{ title: 'Editar Matéria' }} />
       <HomeStack.Screen name="AllItems" component={AllItemsScreen} options={{ headerShown: false }} />

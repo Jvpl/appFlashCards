@@ -493,7 +493,16 @@ export const AddDeckScreen = ({ route, navigation }) => {
         {/* ══ ETAPA 1: Nome ═══════════════════════════════════════ */}
         <Animated.View style={[s.stepPane, { transform: [{ translateX: slide1Anim }] }]}>
           {(true) && (
-            <Pressable style={[s.scroll, s.scrollContent]} onPress={() => inputRef.current?.blur()}>
+            <ScrollView
+              ref={scrollRef}
+              style={s.scroll}
+              contentContainerStyle={[s.scrollContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + insets.bottom + 8 : insets.bottom + 24 }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onScroll={e => { scrollY.current = e.nativeEvent.contentOffset.y; updateVisibility(); }}
+            >
+            <Pressable onPress={() => inputRef.current?.blur()}>
                 {/* ── Nome ────────────────────────────────────────────── */}
                 <View style={s.section} onLayout={e => { inputSectionBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height; }}>
 
@@ -864,6 +873,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
                 )}
 
           </Pressable>
+          </ScrollView>
           )}
 
         </Animated.View>

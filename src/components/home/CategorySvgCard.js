@@ -209,11 +209,8 @@ const CategorySvgCard = ({
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderRadius: 14,
     overflow: 'hidden',
-    backgroundColor: theme.backgroundSecondary,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    backgroundColor: 'transparent',
   },
   wrapperSelected: {
     borderColor: theme.primary,

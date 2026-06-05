@@ -342,7 +342,7 @@ export const AllItemsScreen = ({ route, navigation }) => {
                   title: item.name,
                   message: 'O que deseja fazer?',
                   buttons: [
-                    { text: 'Renomear', onPress: () => { setAlertConfig(p => ({ ...p, visible: false })); navigation.navigate('EditDeck', { deckId: item.id, deckName: item.name }); } },
+                    { text: 'Renomear', onPress: () => { setAlertConfig(p => ({ ...p, visible: false })); navigation.navigate('EditDeck', { editDeckId: item.id }); } },
                     { text: 'Apagar', style: 'destructive', onPress: () => { setAlertConfig(p => ({ ...p, visible: false })); handleDeleteDeck(item); } },
                     { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
                   ],
