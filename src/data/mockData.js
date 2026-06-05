@@ -1413,7 +1413,7 @@ export const initialData = [
           {
             id: 'ex_002',
             question: 'Como avaliar um card após ver a resposta?',
-            answer: 'Deslize o card em 3 direções: → direita (Acertei), ← esquerda (Errei) ou ↑ cima (Quase). Cada avaliação afeta o nível do card e quando ele vai aparecer de novo.',
+            answer: '→ Direita — Acertei\n← Esquerda — Errei\n↑ Cima — Quase\n\nCards marcados como Errei ou Quase voltam ao fim da pilha e reaparecem até serem acertados. Só o Acertei avança o card.',
             level: 1, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0,
           },
           {
