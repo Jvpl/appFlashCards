@@ -380,9 +380,9 @@ export const SettingsScreen = () => {
         {/* ── Restaurar ── */}
         <Text style={s.sectionTitle}>Restaurar</Text>
         <View style={s.group}>
-          <Row icon="trash-outline" label="Lixeira" sub="Decks apagados ficam aqui por 14 dias" onPress={() => setTrashVisible(true)} />
+          <Row icon="layers-outline" label="Restaurar decks criados" sub="Decks apagados ficam aqui por 14 dias" onPress={() => setTrashVisible(true)} />
           <Div />
-          <Row icon="bag-outline" label="Restaurar decks comprados" sub="Restaura decks adquiridos que foram removidos" onPress={handleRestorePurchasedDecks} />
+          <Row icon="bag-outline" label="Restaurar decks comprados" sub="Em breve" />
         </View>
 
         {/* ── Apagar conteúdo ── */}

@@ -301,12 +301,13 @@ export const saveStudySession = async (session) => {
     // Uma entrada por matéria por dia — acumula se rever a mesma matéria
     const existingIdx = history.findIndex(s => s.date === today && s.deckId === session.deckId && s.subjectName === session.subjectName);
     if (existingIdx >= 0) {
+      const prev = history[existingIdx];
       history[existingIdx] = {
-        ...history[existingIdx],
-        acertos: (session.acertos || 0),
-        quases: (session.quases || 0),
-        erros: (session.erros || 0),
-        count: (session.count || 0),
+        ...prev,
+        acertos: (prev.acertos || 0) + (session.acertos || 0),
+        quases: (prev.quases || 0) + (session.quases || 0),
+        erros: (prev.erros || 0) + (session.erros || 0),
+        count: (prev.count || 0) + (session.count || 0),
         lastSessionAt: Date.now(),
       };
     } else {
@@ -444,30 +445,23 @@ export const purgeFromTrash = async (deckId) => {
 // Limpeza de progresso ao excluir conteúdo
 // ============================================
 
-const _preserveTodayIfStillStudied = async (removedIds, filterFn) => {
-  // After removing sessions, if user still has other study today, preserve the streak day
+const _handleStreakOnDelete = async (filterFn) => {
   const today = new Date().toISOString().split('T')[0];
   const history = await getStudyHistory();
-  const remaining = history.filter(filterFn);
-  const stillStudiedToday = remaining.some(s => s.date === today);
-  if (!stillStudiedToday) {
-    // No other study today — check if the removed entries had today's study
-    const hadStudyToday = history.filter(s => !filterFn(s)).some(s => s.date === today);
-    if (hadStudyToday) {
-      // Mark day as preserved (cards unavailable) so streak isn't broken
-      await recordCardsAvailability(false);
-    }
+  const removedToday = history.filter(s => s.date === today && !filterFn(s));
+  const remainingToday = history.filter(s => s.date === today && filterFn(s));
+  // If the deleted deck had today's study and no other deck covers today, mark as preserved
+  if (removedToday.length > 0 && remainingToday.length === 0) {
+    await recordCardsAvailability(false);
   }
-  return remaining;
+  // Keep all past entries (streak history), only remove today's entries for deleted decks
+  return history.filter(s => s.date === today ? filterFn(s) : true);
 };
 
 export const clearProgressForDecks = async (deckIds) => {
   try {
     const idSet = new Set(deckIds);
-    const newHistory = await _preserveTodayIfStillStudied(
-      deckIds,
-      s => !idSet.has(s.deckId)
-    );
+    const newHistory = await _handleStreakOnDelete(s => !idSet.has(s.deckId));
     await AsyncStorage.setItem(STUDY_HISTORY_KEY, JSON.stringify(newHistory));
 
     const continueRaw = await AsyncStorage.getItem(CONTINUE_STUDY_KEY);
@@ -483,8 +477,7 @@ export const clearProgressForDecks = async (deckIds) => {
 export const clearProgressForSubjects = async (deckId, subjectIds) => {
   try {
     const idSet = new Set(subjectIds);
-    const newHistory = await _preserveTodayIfStillStudied(
-      subjectIds,
+    const newHistory = await _handleStreakOnDelete(
       s => !(s.deckId === deckId && idSet.has(s.subjectId))
     );
     await AsyncStorage.setItem(STUDY_HISTORY_KEY, JSON.stringify(newHistory));
