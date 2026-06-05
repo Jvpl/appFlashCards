@@ -20,138 +20,221 @@ const SWIPE_Y = 70;
 const EASE_OUT = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 const EASE_BACK = Easing.bezier(0.55, 0.06, 0.68, 0.19);
 
-export const SwipeTutorial = forwardRef((props, ref) => {
-  const [visible, setVisible] = useState(false);
-  const manuallyShown = useRef(false);
+// Fase 1: toque para virar o card
+const Phase1 = ({ onNext }) => {
+  const fingerY = useRef(new Animated.Value(0)).current;
+  const fingerOp = useRef(new Animated.Value(1)).current;
+  const flipAnim = useRef(new Animated.Value(0)).current;
+  const animRef = useRef(null);
 
-  useImperativeHandle(ref, () => ({
-    show: () => { manuallyShown.current = true; setVisible(true); },
-  }));
+  useEffect(() => {
+    const tap = Animated.sequence([
+      Animated.delay(800),
+      // dedo aparece e toca
+      Animated.parallel([
+        Animated.timing(fingerY, { toValue: 10, duration: 300, easing: EASE_OUT, useNativeDriver: true }),
+        Animated.timing(fingerOp, { toValue: 0.6, duration: 200, useNativeDriver: true }),
+      ]),
+      Animated.delay(200),
+      // card vira
+      Animated.timing(flipAnim, { toValue: 1, duration: 500, easing: EASE_OUT, useNativeDriver: true }),
+      Animated.delay(1200),
+      // volta
+      Animated.parallel([
+        Animated.timing(flipAnim, { toValue: 0, duration: 500, easing: EASE_OUT, useNativeDriver: true }),
+        Animated.timing(fingerY, { toValue: 0, duration: 300, easing: EASE_BACK, useNativeDriver: true }),
+        Animated.timing(fingerOp, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]),
+      Animated.delay(600),
+    ]);
 
+    const anim = Animated.loop(tap);
+    animRef.current = anim;
+    anim.start();
+    return () => { anim.stop(); };
+  }, []);
+
+  const frontRotateY = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+  const backRotateY  = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
+  const frontOpacity = flipAnim.interpolate({ inputRange: [0, 0.49, 0.5, 1], outputRange: [1, 1, 0, 0] });
+  const backOpacity  = flipAnim.interpolate({ inputRange: [0, 0.49, 0.5, 1], outputRange: [0, 0, 1, 1] });
+
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Text style={s.title}>Como estudar</Text>
+      <Text style={s.subtitle}><Text style={s.highlight}>Toque</Text> no <Text style={s.highlight}>card</Text> para revelar a resposta</Text>
+
+      <View style={[s.cardWrap, { marginBottom: 50, marginTop: 10 }]}>
+        {/* Frente */}
+        <Animated.View style={[s.card, { opacity: frontOpacity, transform: [{ perspective: 800 }, { rotateY: frontRotateY }] }]}>
+          <View style={s.cardBody}>
+            <View style={[s.line, { width: '70%' }]} />
+            <View style={[s.line, { width: '90%', marginTop: 8 }]} />
+            <View style={[s.line, { width: '60%', marginTop: 8 }]} />
+          </View>
+        </Animated.View>
+        {/* Verso */}
+        <Animated.View style={[s.card, { opacity: backOpacity, backgroundColor: theme.backgroundTertiary, transform: [{ perspective: 800 }, { rotateY: backRotateY }] }]}>
+          <View style={s.cardBody}>
+            <View style={[s.line, { width: '80%', backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+            <View style={[s.line, { width: '60%', marginTop: 8, backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+            <View style={[s.line, { width: '75%', marginTop: 8, backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+          </View>
+        </Animated.View>
+
+        {/* Dedo */}
+        <Animated.View
+          pointerEvents="none"
+          style={[s.finger, { transform: [{ translateY: fingerY }], opacity: fingerOp }]}
+        />
+      </View>
+
+      {/* Dots + navegação */}
+      <View style={s.dotsRow}>
+        <View style={[s.dot, s.dotActive]} />
+        <View style={s.dot} />
+      </View>
+      <Text style={s.hint} onPress={onNext}>Toque para <Text style={s.highlight}>continuar</Text>  ➔</Text>
+    </View>
+  );
+};
+
+// Fase 2: swipes
+const Phase2 = ({ onBack, onDismiss }) => {
   const fingerX  = useRef(new Animated.Value(0)).current;
   const fingerY  = useRef(new Animated.Value(0)).current;
   const fingerOp = useRef(new Animated.Value(1)).current;
   const rightOp  = useRef(new Animated.Value(0)).current;
   const upOp     = useRef(new Animated.Value(0)).current;
   const leftOp   = useRef(new Animated.Value(0)).current;
-  const overlayOp = useRef(new Animated.Value(0)).current;
   const animRef  = useRef(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(TUTORIAL_KEY).then(val => {
-      if (!val) setVisible(true);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!visible) return;
-
-    Animated.timing(overlayOp, {
-      toValue: 1, duration: 500, useNativeDriver: true,
-    }).start();
-
     const swipe = (dx, dy, opAnim) => Animated.sequence([
       Animated.parallel([
         Animated.timing(fingerX,  { toValue: dx, duration: 700, easing: EASE_OUT, useNativeDriver: true }),
         Animated.timing(fingerY,  { toValue: dy, duration: 700, easing: EASE_OUT, useNativeDriver: true }),
-        Animated.timing(fingerOp, { toValue: 0.3, duration: 300, delay: 400,      useNativeDriver: true }),
-        Animated.timing(opAnim,   { toValue: 1,  duration: 320, delay: 280,       useNativeDriver: true }),
+        Animated.timing(fingerOp, { toValue: 0.3, duration: 300, delay: 400, useNativeDriver: true }),
+        Animated.timing(opAnim,   { toValue: 1, duration: 320, delay: 280, useNativeDriver: true }),
       ]),
       Animated.delay(600),
       Animated.parallel([
-        Animated.timing(fingerX,  { toValue: 0,  duration: 380, easing: EASE_BACK, useNativeDriver: true }),
-        Animated.timing(fingerY,  { toValue: 0,  duration: 380, easing: EASE_BACK, useNativeDriver: true }),
-        Animated.timing(fingerOp, { toValue: 1,  duration: 200,                    useNativeDriver: true }),
-        Animated.timing(opAnim,   { toValue: 0,  duration: 200,                    useNativeDriver: true }),
+        Animated.timing(fingerX,  { toValue: 0, duration: 380, easing: EASE_BACK, useNativeDriver: true }),
+        Animated.timing(fingerY,  { toValue: 0, duration: 380, easing: EASE_BACK, useNativeDriver: true }),
+        Animated.timing(fingerOp, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(opAnim,   { toValue: 0, duration: 200, useNativeDriver: true }),
       ]),
       Animated.delay(420),
     ]);
 
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(700),
-        swipe(SWIPE_X,  0,        rightOp),
-        swipe(0,        -SWIPE_Y, upOp),
-        swipe(-SWIPE_X, 0,        leftOp),
-      ])
-    );
+    const anim = Animated.loop(Animated.sequence([
+      Animated.delay(700),
+      swipe(SWIPE_X, 0, rightOp),
+      swipe(0, -SWIPE_Y, upOp),
+      swipe(-SWIPE_X, 0, leftOp),
+    ]));
     animRef.current = anim;
     anim.start();
-
     return () => {
       anim.stop();
       [fingerX, fingerY, fingerOp, rightOp, upOp, leftOp].forEach(v => v.setValue(0));
       fingerOp.setValue(1);
     };
+  }, []);
+
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Text style={s.title}>Como avaliar</Text>
+      <Text style={s.subtitle}>Deslize o card em <Text style={s.highlight}>3 direções</Text></Text>
+
+      <View style={[s.stage, { marginTop: 30 }]}>
+        {/* ← Errei */}
+        <Animated.View style={[s.sideLabel, { opacity: leftOp, alignItems: 'center' }]}>
+          <SvgXml xml={ICON_ERRO_SVG} width={14} height={14} />
+          <Text style={[s.labelTxt, { color: '#e94542' }]}>Errei</Text>
+        </Animated.View>
+
+        <View style={s.center}>
+          <View style={s.cardWrap}>
+            {/* ↑ Quase */}
+            <Animated.View style={{ opacity: upOp, position: 'absolute', top: -55, alignItems: 'center', alignSelf: 'center', gap: 5 }}>
+              <SvgXml xml={ICON_QUASE_SVG} width={16} height={11} />
+              <Text style={[s.labelTxt, { color: '#1cabcd' }]}>Quase</Text>
+            </Animated.View>
+            <View style={s.card}>
+              <View style={s.cardBody}>
+                <View style={[s.line, { width: '70%' }]} />
+                <View style={[s.line, { width: '90%', marginTop: 8 }]} />
+                <View style={[s.line, { width: '60%', marginTop: 8 }]} />
+                <View style={[s.line, { width: '80%', marginTop: 22 }]} />
+                <View style={[s.line, { width: '50%', marginTop: 8 }]} />
+              </View>
+            </View>
+            <Animated.View
+              pointerEvents="none"
+              style={[s.finger, { transform: [{ translateX: fingerX }, { translateY: fingerY }], opacity: fingerOp }]}
+            />
+          </View>
+        </View>
+
+        {/* → Acertei */}
+        <Animated.View style={[s.sideLabel, { opacity: rightOp, alignItems: 'center' }]}>
+          <SvgXml xml={ICON_ACERTO_SVG} width={16} height={11} />
+          <Text style={[s.labelTxt, { color: '#6fb631' }]}>Acertei</Text>
+        </Animated.View>
+      </View>
+
+      {/* Dots + navegação */}
+      <View style={s.dotsRow}>
+        <View style={s.dot} />
+        <View style={[s.dot, s.dotActive]} />
+      </View>
+      <Text style={s.hint} onPress={onDismiss}>Toque para <Text style={s.highlight}>começar</Text></Text>
+    </View>
+  );
+};
+
+export const SwipeTutorial = forwardRef((props, ref) => {
+  const [visible, setVisible] = useState(false);
+  const [phase, setPhase] = useState(1);
+  const manuallyShown = useRef(false);
+  const overlayOp = useRef(new Animated.Value(0)).current;
+
+  useImperativeHandle(ref, () => ({
+    show: () => { manuallyShown.current = true; setPhase(1); setVisible(true); },
+  }));
+
+  useEffect(() => {
+    AsyncStorage.getItem(TUTORIAL_KEY).then(val => {
+      if (!val) { setPhase(1); setVisible(true); }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    Animated.timing(overlayOp, { toValue: 1, duration: 500, useNativeDriver: true }).start();
   }, [visible]);
 
   const dismiss = async () => {
-    animRef.current?.stop();
     if (!manuallyShown.current) await AsyncStorage.setItem(TUTORIAL_KEY, '1');
     manuallyShown.current = false;
-    Animated.timing(overlayOp, {
-      toValue: 0, duration: 280, useNativeDriver: true,
-    }).start(() => setVisible(false));
+    Animated.timing(overlayOp, { toValue: 0, duration: 280, useNativeDriver: true }).start(() => setVisible(false));
   };
 
   if (!visible) return null;
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent>
-      <TouchableOpacity style={{ flex: 1 }} onPress={dismiss} activeOpacity={1}>
+      <TouchableOpacity
+        style={{ flex: 1 }}
+        onPress={phase === 1 ? () => setPhase(2) : dismiss}
+        activeOpacity={1}
+      >
         <Animated.View style={[s.overlay, { opacity: overlayOp }]}>
-
-          <Text style={s.title}>Como estudar</Text>
-          <Text style={s.subtitle}>Deslize o card em 3 direções</Text>
-
-          <View style={s.stage}>
-
-            {/* ← Errei */}
-            <Animated.View style={[s.sideLabel, { opacity: leftOp, alignItems: 'center' }]}>
-              <SvgXml xml={ICON_ERRO_SVG} width={14} height={14} />
-              <Text style={[s.labelTxt, { color: '#e94542' }]}>Errei</Text>
-            </Animated.View>
-
-            {/* Centro: label topo + card + dedo */}
-            <View style={s.center}>
-
-              <View style={s.cardWrap}>
-                {/* ↑ Quase — absoluto acima do card */}
-                <Animated.View style={[{ opacity: upOp, position: 'absolute', top: -55, alignItems: 'center', alignSelf: 'center', gap: 5 }]}>
-                  <SvgXml xml={ICON_QUASE_SVG} width={16} height={11} />
-                  <Text style={[s.labelTxt, { color: '#1cabcd' }]}>Quase</Text>
-                </Animated.View>
-                <View style={s.card}>
-                  <View style={s.cardBody}>
-                    <View style={[s.line, { width: '70%' }]} />
-                    <View style={[s.line, { width: '90%', marginTop: 8 }]} />
-                    <View style={[s.line, { width: '60%', marginTop: 8 }]} />
-                    <View style={[s.line, { width: '80%', marginTop: 22 }]} />
-                    <View style={[s.line, { width: '50%', marginTop: 8 }]} />
-                  </View>
-                </View>
-                {/* Dedo — overflow visível para passar por cima dos labels */}
-                <Animated.View
-                  pointerEvents="none"
-                  style={[s.finger, {
-                    transform: [{ translateX: fingerX }, { translateY: fingerY }],
-                    opacity: fingerOp,
-                  }]}
-                />
-              </View>
-
-            </View>
-
-            {/* → Memorizado — renderizado depois do center para ficar na frente do dedo */}
-            <Animated.View style={[s.sideLabel, { opacity: rightOp, alignItems: 'center' }]}>
-              <SvgXml xml={ICON_ACERTO_SVG} width={16} height={11} />
-              <Text style={[s.labelTxt, { color: '#6fb631' }]}>Acertei</Text>
-            </Animated.View>
-
-          </View>
-
-          <Text style={s.hint}>Toque em qualquer lugar para começar</Text>
-
+          {phase === 1
+            ? <Phase1 onNext={() => setPhase(2)} />
+            : <Phase2 onBack={() => setPhase(1)} onDismiss={dismiss} />
+          }
         </Animated.View>
       </TouchableOpacity>
     </Modal>
@@ -165,7 +248,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   title: {
     color: '#fff',
     fontSize: 22,
@@ -178,14 +260,11 @@ const s = StyleSheet.create({
     fontSize: 14,
     marginBottom: 44,
   },
-
   stage: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 50,
-    marginTop: 30,
   },
-
   sideLabel: {
     width: 86,
     gap: 5,
@@ -196,19 +275,9 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-
   center: {
     alignItems: 'center',
   },
-
-  topLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 30,
-    marginBottom: 4,
-  },
-
   cardWrap: {
     width: CARD_W,
     height: CARD_H,
@@ -236,7 +305,6 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 5,
   },
-
   finger: {
     width: 36,
     height: 36,
@@ -249,10 +317,29 @@ const s = StyleSheet.create({
     elevation: 8,
     zIndex: 1,
   },
-
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 16,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  dotActive: {
+    backgroundColor: '#fff',
+    width: 16,
+  },
   hint: {
     color: 'rgba(255,255,255,0.6)',
-    fontSize: 13,
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  highlight: {
+    color: '#337418',
+    fontWeight: '700',
   },
 });
 
