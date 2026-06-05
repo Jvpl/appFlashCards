@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Animated, Easing, Modal, Dimensions,
+  Animated, Easing, Modal, Dimensions, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SvgXml } from 'react-native-svg';
@@ -21,7 +21,7 @@ const EASE_OUT = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 const EASE_BACK = Easing.bezier(0.55, 0.06, 0.68, 0.19);
 
 // Fase 1: toque para virar o card
-const Phase1 = ({ onNext }) => {
+const Phase1 = ({ onNext, requireButtons }) => {
   const fingerY = useRef(new Animated.Value(0)).current;
   const fingerOp = useRef(new Animated.Value(1)).current;
   const flipAnim = useRef(new Animated.Value(0)).current;
@@ -60,47 +60,49 @@ const Phase1 = ({ onNext }) => {
   const backOpacity  = flipAnim.interpolate({ inputRange: [0, 0.49, 0.5, 1], outputRange: [0, 0, 1, 1] });
 
   return (
-    <View style={{ alignItems: 'center' }}>
-      <Text style={s.title}>Como estudar</Text>
-      <Text style={s.subtitle}><Text style={s.highlight}>Toque</Text> no <Text style={s.highlight}>card</Text> para revelar a resposta</Text>
+    <View style={requireButtons ? s.phaseContainer : { alignItems: 'center' }}>
+      <View style={{ alignItems: 'center' }}>
+        <Text style={s.title}>Como estudar</Text>
+        <Text style={s.subtitle}><Text style={s.highlight}>Toque</Text> no <Text style={s.highlight}>card</Text> para revelar a resposta</Text>
 
-      <View style={[s.cardWrap, { marginBottom: 50, marginTop: 10 }]}>
-        {/* Frente */}
-        <Animated.View style={[s.card, { opacity: frontOpacity, transform: [{ perspective: 800 }, { rotateY: frontRotateY }] }]}>
-          <View style={s.cardBody}>
-            <View style={[s.line, { width: '70%' }]} />
-            <View style={[s.line, { width: '90%', marginTop: 8 }]} />
-            <View style={[s.line, { width: '60%', marginTop: 8 }]} />
-          </View>
-        </Animated.View>
-        {/* Verso */}
-        <Animated.View style={[s.card, { opacity: backOpacity, backgroundColor: theme.backgroundTertiary, transform: [{ perspective: 800 }, { rotateY: backRotateY }] }]}>
-          <View style={s.cardBody}>
-            <View style={[s.line, { width: '80%', backgroundColor: 'rgba(255,255,255,0.2)' }]} />
-            <View style={[s.line, { width: '60%', marginTop: 8, backgroundColor: 'rgba(255,255,255,0.2)' }]} />
-            <View style={[s.line, { width: '75%', marginTop: 8, backgroundColor: 'rgba(255,255,255,0.2)' }]} />
-          </View>
-        </Animated.View>
+        <View style={[s.cardWrap, { marginBottom: requireButtons ? 32 : 50, marginTop: 10 }]}>
+          <Animated.View style={[s.card, { opacity: frontOpacity, transform: [{ perspective: 800 }, { rotateY: frontRotateY }] }]}>
+            <View style={s.cardBody}>
+              <View style={[s.line, { width: '70%' }]} />
+              <View style={[s.line, { width: '90%', marginTop: 8 }]} />
+              <View style={[s.line, { width: '60%', marginTop: 8 }]} />
+            </View>
+          </Animated.View>
+          <Animated.View style={[s.card, { opacity: backOpacity, backgroundColor: theme.backgroundTertiary, transform: [{ perspective: 800 }, { rotateY: backRotateY }] }]}>
+            <View style={s.cardBody}>
+              <View style={[s.line, { width: '80%', backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+              <View style={[s.line, { width: '60%', marginTop: 8, backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+              <View style={[s.line, { width: '75%', marginTop: 8, backgroundColor: 'rgba(255,255,255,0.2)' }]} />
+            </View>
+          </Animated.View>
+          <Animated.View pointerEvents="none" style={[s.finger, { transform: [{ translateY: fingerY }], opacity: fingerOp }]} />
+        </View>
 
-        {/* Dedo */}
-        <Animated.View
-          pointerEvents="none"
-          style={[s.finger, { transform: [{ translateY: fingerY }], opacity: fingerOp }]}
-        />
+        <View style={s.dotsRow}>
+          <View style={[s.dot, s.dotActive]} />
+          <View style={s.dot} />
+        </View>
       </View>
 
-      {/* Dots + navegação */}
-      <View style={s.dotsRow}>
-        <View style={[s.dot, s.dotActive]} />
-        <View style={s.dot} />
-      </View>
-      <Text style={s.hint} onPress={onNext}>Toque para <Text style={s.highlight}>continuar</Text>  ➔</Text>
+      {requireButtons
+        ? (
+          <TouchableOpacity style={[s.btnPrimary, { marginTop: 20 }]} onPress={onNext}>
+            <Text style={s.btnPrimaryTxt}>Continuar  ➔</Text>
+          </TouchableOpacity>
+        )
+        : <Text style={s.hint} onPress={onNext}>Toque para <Text style={s.highlight}>continuar</Text>  ➔</Text>
+      }
     </View>
   );
 };
 
 // Fase 2: swipes
-const Phase2 = ({ onBack, onDismiss }) => {
+const Phase2 = ({ onBack, onDismiss, requireButtons }) => {
   const fingerX  = useRef(new Animated.Value(0)).current;
   const fingerY  = useRef(new Animated.Value(0)).current;
   const fingerOp = useRef(new Animated.Value(1)).current;
@@ -143,11 +145,12 @@ const Phase2 = ({ onBack, onDismiss }) => {
   }, []);
 
   return (
-    <View style={{ alignItems: 'center' }}>
+    <View style={requireButtons ? s.phaseContainer : { alignItems: 'center' }}>
+      <View style={{ alignItems: 'center' }}>
       <Text style={s.title}>Como avaliar</Text>
       <Text style={s.subtitle}>Deslize o card em <Text style={s.highlight}>3 direções</Text></Text>
 
-      <View style={[s.stage, { marginTop: 30 }]}>
+      <View style={[s.stage, { marginTop: requireButtons ? 16 : 30 }]}>
         {/* ← Errei */}
         <Animated.View style={[s.sideLabel, { opacity: leftOp, alignItems: 'center' }]}>
           <SvgXml xml={ICON_ERRO_SVG} width={14} height={14} />
@@ -189,24 +192,46 @@ const Phase2 = ({ onBack, onDismiss }) => {
         <View style={s.dot} />
         <View style={[s.dot, s.dotActive]} />
       </View>
-      <Text style={s.hint} onPress={onDismiss}>Toque para <Text style={s.highlight}>começar</Text></Text>
+      </View>
+
+      {requireButtons
+        ? (
+          <View style={s.btnRow}>
+            <TouchableOpacity style={s.btnSecondary} onPress={onBack}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[s.btnSecondaryTxt, { transform: [{ scaleX: -1 }] }]}>➔</Text>
+                <Text style={s.btnSecondaryTxt}>Voltar</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.btnPrimary, { flex: 1, paddingHorizontal: 0 }]} onPress={onDismiss}>
+              <Text style={s.btnPrimaryTxt}>Começar  ➔</Text>
+            </TouchableOpacity>
+          </View>
+        )
+        : <Text style={s.hint} onPress={onDismiss}>Toque para <Text style={s.highlight}>começar</Text></Text>
+      }
     </View>
   );
 };
 
-export const SwipeTutorial = forwardRef((props, ref) => {
+export const SwipeTutorial = forwardRef(({ requireButtons, onBackRequest } = {}, ref) => {
   const [visible, setVisible] = useState(false);
   const [phase, setPhase] = useState(1);
   const manuallyShown = useRef(false);
+  const visibleRef = useRef(false);
   const overlayOp = useRef(new Animated.Value(0)).current;
 
+  const setVisibleSync = (val) => { visibleRef.current = val; setVisible(val); };
+
   useImperativeHandle(ref, () => ({
-    show: () => { manuallyShown.current = true; setPhase(1); setVisible(true); },
+    show: () => { manuallyShown.current = true; setPhase(1); setVisibleSync(true); },
+    hide: () => { manuallyShown.current = false; setVisibleSync(false); },
+    isVisible: () => visibleRef.current,
   }));
 
   useEffect(() => {
     AsyncStorage.getItem(TUTORIAL_KEY).then(val => {
-      if (!val) { setPhase(1); setVisible(true); }
+      if (!val) { setPhase(1); setVisibleSync(true); }
     });
   }, []);
 
@@ -218,24 +243,40 @@ export const SwipeTutorial = forwardRef((props, ref) => {
   const dismiss = async () => {
     if (!manuallyShown.current) await AsyncStorage.setItem(TUTORIAL_KEY, '1');
     manuallyShown.current = false;
-    Animated.timing(overlayOp, { toValue: 0, duration: 280, useNativeDriver: true }).start(() => setVisible(false));
+    setVisibleSync(false);
+    overlayOp.setValue(0);
   };
 
   if (!visible) return null;
 
+  const overlayContent = (
+    <Animated.View style={[s.overlay, { opacity: overlayOp }]}>
+      {phase === 1
+        ? <Phase1 onNext={() => setPhase(2)} requireButtons={requireButtons} />
+        : <Phase2 onBack={() => setPhase(1)} onDismiss={dismiss} requireButtons={requireButtons} />
+      }
+    </Animated.View>
+  );
+
+  // requireButtons: renderiza como View absoluta (sem Modal) para sumir junto com a tela na transição
+  if (requireButtons) {
+    return (
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View style={{ flex: 1 }} pointerEvents="auto">
+          {overlayContent}
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent>
+    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={dismiss}>
       <TouchableOpacity
         style={{ flex: 1 }}
         onPress={phase === 1 ? () => setPhase(2) : dismiss}
         activeOpacity={1}
       >
-        <Animated.View style={[s.overlay, { opacity: overlayOp }]}>
-          {phase === 1
-            ? <Phase1 onNext={() => setPhase(2)} />
-            : <Phase2 onBack={() => setPhase(1)} onDismiss={dismiss} />
-          }
-        </Animated.View>
+        {overlayContent}
       </TouchableOpacity>
     </Modal>
   );
@@ -247,6 +288,12 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  phaseContainer: {
+    width: W * 0.78,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: Platform.OS === 'ios' ? 16 : 8,
   },
   title: {
     color: '#fff',
@@ -340,6 +387,37 @@ const s = StyleSheet.create({
   highlight: {
     color: '#337418',
     fontWeight: '700',
+  },
+  btnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+  },
+  btnPrimary: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    backgroundColor: '#5DD62C',
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  btnPrimaryTxt: {
+    color: '#0F0F0F',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  btnSecondary: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    backgroundColor: '#202020',
+    borderRadius: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  btnSecondaryTxt: {
+    color: '#F8F8F8',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

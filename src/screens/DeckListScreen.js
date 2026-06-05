@@ -889,6 +889,7 @@ export const DeckListScreen = ({ navigation }) => {
     setDeckOrder(prev => [deck.id, ...prev.filter(id => id !== deck.id)]);
     navigation.navigate('SubjectList', {
       deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects,
+      isExample: deck.isExample || false,
     });
   }, [multiSelectMode, navigation, toggleSelection]);
 
@@ -921,7 +922,7 @@ export const DeckListScreen = ({ navigation }) => {
     if (!continueStudy) return;
     const deck = decks.find(d => d.id === continueStudy.deckId);
     if (!deck) return;
-    navigation.navigate('SubjectList', { deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects });
+    navigation.navigate('SubjectList', { deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects, isExample: deck.isExample || false });
   };
 
   const handleCategoryMenuPress = useCallback((item, event) => {

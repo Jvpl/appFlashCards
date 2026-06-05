@@ -26,7 +26,7 @@ const SaveCardButtonLottie = require('../assets/SaveCardButton.json');
 
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, preloadedCards, cardId, subjectName } = route.params; // cardId opcional para modo edição
+  const { deckId, subjectId, preloadedCards, cardId, subjectName, isExample } = route.params; // cardId opcional para modo edição
   const insets = useSafeAreaInsets();
 
   const questionEditorRef = useRef(null);

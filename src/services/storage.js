@@ -21,12 +21,14 @@ export const getAppData = async () => {
         data = data.filter(deck =>
           deck.isUserCreated === true || deck.id === 'deck_exemplo'
         );
-        if (!data.some(d => d.id === 'deck_exemplo')) {
-          data.unshift({ ...initialData[0] });
-        }
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
       }
+
+      // Deck exemplo sempre vem do mockData (níveis fixos, nunca persistidos)
+      const exampleFromMock = initialData.find(d => d.id === 'deck_exemplo');
+      data = data.filter(d => d.id !== 'deck_exemplo');
+      if (exampleFromMock) data.unshift({ ...exampleFromMock });
 
       // Migração de campos dos cards (existente)
       const migrateCards = (cards) => {
@@ -59,7 +61,9 @@ export const getAppData = async () => {
 export const saveAppData = async (value) => {
   try {
     _memoryCache = value;
-    const jsonValue = JSON.stringify(value);
+    // Nunca persiste o deck exemplo — seus níveis são fixos no mockData
+    const toSave = value.filter(d => d.id !== 'deck_exemplo');
+    const jsonValue = JSON.stringify(toSave);
     await AsyncStorage.setItem(STORAGE_KEY, jsonValue);
   } catch (e) { console.error("Failed to save data", e); }
 };

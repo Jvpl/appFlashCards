@@ -139,9 +139,11 @@ function InputBar({ inputRef, value, onChange, saving, onSave }) {
 // ── Main screen ───────────────────────────────────────────────────
 
 export const SubjectListScreen = ({ route, navigation }) => {
-  const { deckId, deckName, preloadedSubjects } = route.params;
+  const { deckId, deckName, preloadedSubjects, isExample } = route.params;
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
+
+  const [exampleModalVisible, setExampleModalVisible] = useState(false);
 
   const [subjects, setSubjects] = useState(preloadedSubjects || []);
   const [loading, setLoading] = useState(preloadedSubjects ? false : true);
@@ -217,20 +219,20 @@ export const SubjectListScreen = ({ route, navigation }) => {
     if (hasTopics) {
       navigation.navigate('TopicList', {
         deckId, deckName, subjectId: subject.id, subjectName: subject.name,
-        preloadedTopics: subject.topics || [],
+        preloadedTopics: subject.topics || [], isExample,
       });
     } else {
       navigation.navigate('Flashcard', {
         deckId, deckName, subjectId: subject.id, subjectName: subject.name,
         preloadedCards: subject.flashcards || [],
-        reviewMode: !!subject.reviewMode,
+        reviewMode: !!subject.reviewMode, isExample,
       });
     }
-  }, [navigation, deckId, deckName]);
+  }, [navigation, deckId, deckName, isExample]);
 
   const handleManageCards = useCallback((subject) => {
-    navigation.navigate('ManageFlashcards', { deckId, subjectId: subject.id, preloadedCards: subject.flashcards, subjectName: subject.name });
-  }, [navigation, deckId]);
+    navigation.navigate('ManageFlashcards', { deckId, subjectId: subject.id, preloadedCards: subject.flashcards, subjectName: subject.name, isExample });
+  }, [navigation, deckId, isExample]);
 
   // ── Delete deck ───────────────────────────────────────────────────
 
@@ -325,9 +327,10 @@ export const SubjectListScreen = ({ route, navigation }) => {
   // ── Context menu ──────────────────────────────────────────────────
 
   const handleMenuPress = useCallback((subject, event) => {
+    if (isExample) return;
     const { pageX, pageY } = event.nativeEvent;
     setContextMenu({ visible: true, subject, x: pageX, y: pageY });
-  }, []);
+  }, [isExample]);
 
   const closeContextMenu = useCallback(() => setContextMenu(p => ({ ...p, visible: false })), []);
 
@@ -489,6 +492,10 @@ export const SubjectListScreen = ({ route, navigation }) => {
             <TouchableOpacity onPress={handleSelectAll} style={s.headerBtn} hitSlop={HIT_SLOP}>
               <Ionicons name={selCount === subjectCount && subjectCount > 0 ? 'checkbox' : 'square-outline'} size={20} color={theme.primary} />
             </TouchableOpacity>
+          ) : isExample ? (
+            <TouchableOpacity style={s.headerBtn} hitSlop={HIT_SLOP} onPress={() => setExampleModalVisible(true)}>
+              <Ionicons name="help-circle-outline" size={22} color={theme.textPrimary} />
+            </TouchableOpacity>
           ) : (
             <TouchableOpacity
               ref={headerMenuBtnRef}
@@ -584,21 +591,29 @@ export const SubjectListScreen = ({ route, navigation }) => {
             </ScrollView>
           )}
 
-          {/* FAB — + normal ou lixeira no modo seleção */}
+          {/* FAB — + normal ou lixeira no modo seleção / botão ? no deck exemplo */}
           {subjectCount > 0 && !isCreating && (
-            <View style={[s.fabPos, { bottom: 20 }, isSelectionMode && selCount === 0 && { opacity: 0.4 }]}>
-              <GlowFab
-                onPress={isSelectionMode ? (selCount > 0 ? handleBulkDelete : null) : () => setIsCreating(true)}
-                color={isSelectionMode ? theme.danger : theme.primary}
-                activeOpacity={isSelectionMode && selCount === 0 ? 1 : 0.85}
-                disabled={isSelectionMode && selCount === 0}
-              >
-                {isSelectionMode
-                  ? <Ionicons name="trash-outline" size={24} color="white" />
-                  : <Ionicons name="add" size={26} color="#0F0F0F" />
-                }
-              </GlowFab>
-            </View>
+            isExample ? (
+              <View style={[s.fabPos, { bottom: 20 }]}>
+                <GlowFab onPress={() => setExampleModalVisible(true)} color={theme.primary}>
+                  <Ionicons name="help" size={26} color="#0F0F0F" />
+                </GlowFab>
+              </View>
+            ) : (
+              <View style={[s.fabPos, { bottom: 20 }, isSelectionMode && selCount === 0 && { opacity: 0.4 }]}>
+                <GlowFab
+                  onPress={isSelectionMode ? (selCount > 0 ? handleBulkDelete : null) : () => setIsCreating(true)}
+                  color={isSelectionMode ? theme.danger : theme.primary}
+                  activeOpacity={isSelectionMode && selCount === 0 ? 1 : 0.85}
+                  disabled={isSelectionMode && selCount === 0}
+                >
+                  {isSelectionMode
+                    ? <Ionicons name="trash-outline" size={24} color="white" />
+                    : <Ionicons name="add" size={26} color="#0F0F0F" />
+                  }
+                </GlowFab>
+              </View>
+            )
           )}
         </>
       )}
@@ -781,6 +796,37 @@ export const SubjectListScreen = ({ route, navigation }) => {
                 );
               })}
             </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Modal explicativo do deck exemplo */}
+      <Modal visible={exampleModalVisible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setExampleModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setExampleModalVisible(false)}>
+          <View style={s.exampleModalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={s.exampleModal}>
+                <View style={s.exampleModalHeader}>
+                  <Ionicons name="information-circle-outline" size={22} color={theme.primary} />
+                  <Text style={s.exampleModalTitle}>Como funciona esta tela</Text>
+                </View>
+                <View style={s.exampleModalDivider} />
+                {[
+                  { icon: 'layers-outline', text: 'Cada card desta matéria está em um nível diferente (0 a 5), para você ver como o sistema de progressão funciona.' },
+                  { icon: 'hand-left-outline', text: 'Toque em "Como usar o app" para iniciar o estudo. O tutorial de swipe vai aparecer automaticamente.' },
+                  { icon: 'swap-horizontal-outline', text: 'Deslize o card para a direita (acertei), esquerda (errei) ou para cima (quase) para avançar.' },
+                  { icon: 'lock-closed-outline', text: 'Este é um deck de demonstração — você pode visualizar tudo, mas não pode editar ou excluir nada aqui.' },
+                ].map((item, i) => (
+                  <View key={i} style={s.exampleModalRow}>
+                    <Ionicons name={item.icon} size={18} color={theme.primary} style={{ marginTop: 1 }} />
+                    <Text style={s.exampleModalText}>{item.text}</Text>
+                  </View>
+                ))}
+                <TouchableOpacity style={s.exampleModalBtn} onPress={() => setExampleModalVisible(false)} activeOpacity={0.85}>
+                  <Text style={s.exampleModalBtnText}>Entendi</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
@@ -1033,5 +1079,64 @@ const sortDrop = StyleSheet.create({
   itemTxt: { flex: 1, color: theme.textSecondary, fontFamily: theme.fontFamily.uiMedium, fontSize: 14 },
   itemTxtActive: { color: theme.primary, fontFamily: theme.fontFamily.uiSemiBold },
 });
+
+// ── Example modal styles ──────────────────────────────────────────
+
+Object.assign(s, StyleSheet.create({
+  exampleModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  exampleModal: {
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  exampleModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  exampleModalTitle: {
+    color: theme.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  exampleModalDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    marginBottom: 14,
+  },
+  exampleModalRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 14,
+  },
+  exampleModalText: {
+    flex: 1,
+    color: theme.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  exampleModalBtn: {
+    marginTop: 6,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exampleModalBtnText: {
+    color: '#0F0F0F',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+}));
 
 export default SubjectListScreen;

@@ -139,7 +139,7 @@ const GoalInfoModal = ({ visible, onClose }) => {
 };
 
 export const FlashcardScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, deckName, subjectName, parentSubjectName, preloadedCards, reviewAll, reviewMode } = route.params;
+  const { deckId, subjectId, deckName, subjectName, parentSubjectName, preloadedCards, reviewAll, reviewMode, isExample } = route.params;
   const insets = useSafeAreaInsets();
   const initialState = React.useMemo(() => {
     if (!preloadedCards || reviewAll || reviewMode) {
@@ -147,8 +147,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
     }
     const now = new Date();
     const filtered = preloadedCards
-      .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now))
-      .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+      .filter(c => isExample || ((c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now)))
+      .sort((a, b) => (a.level || 0) - (b.level || 0) || (a.nextReview || 0) - (b.nextReview || 0));
     if (filtered.length === 0 && preloadedCards.length > 0) {
       let earliest = null;
       preloadedCards.forEach(c => {
@@ -248,6 +248,15 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const tutorialRef = useRef(null);
 
+  // No deck exemplo, sempre mostrar o tutorial ao entrar
+  useEffect(() => {
+    if (isExample) {
+      const timer = setTimeout(() => tutorialRef.current?.show(), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [isExample]);
+
+
   useLayoutEffect(() => {
     navigation.setOptions({
       title: subjectName || 'Estudar',
@@ -262,14 +271,16 @@ export const FlashcardScreen = ({ route, navigation }) => {
           >
             <Ionicons name="help-circle-outline" size={22} color={theme.textMuted} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8, opacity: sessionDone ? 0.3 : 1 }}
-            onPress={() => { if (!sessionDone) setHeaderMenuVisible(v => !v); }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            disabled={sessionDone}
-          >
-            <Ionicons name="ellipsis-vertical" size={22} color={theme.textPrimary} />
-          </TouchableOpacity>
+          {!isExample && (
+            <TouchableOpacity
+              style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8, opacity: sessionDone ? 0.3 : 1 }}
+              onPress={() => { if (!sessionDone) setHeaderMenuVisible(v => !v); }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              disabled={sessionDone}
+            >
+              <Ionicons name="ellipsis-vertical" size={22} color={theme.textPrimary} />
+            </TouchableOpacity>
+          )}
         </View>
       ),
     });
@@ -369,8 +380,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
           setTotalCardsInSession(prev => prev - removed + newCards.length);
         } else {
           const cardsToReview = allSubjectCards
-            .filter(c => (c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now) && !studiedThisSession.has(c.id))
-            .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+            .filter(c => isExample || ((c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now) && !studiedThisSession.has(c.id)))
+            .sort((a, b) => isExample ? (a.level || 0) - (b.level || 0) : (a.nextReview || 0) - (b.nextReview || 0));
           setCards(cardsToReview); _queue = [...cardsToReview];
           setCurrentCard(cardsToReview[0] ?? null); setNextCard(cardsToReview[1] ?? null);
           setTotalCardsInSession(cardsToReview.length);
@@ -471,7 +482,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
   }, []);
 
   const saveSessionProgress = useCallback(async (clearUpdates = true) => {
-    if (reviewUpdates.current.length === 0) return;
+    if (isExample || reviewUpdates.current.length === 0) return;
     if (!clearUpdates) {
       if (saveInProgress.current) { pendingSave.current = true; return; }
       saveInProgress.current = true;
@@ -514,8 +525,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
   // Mostra aviso se saiu no meio da sessão sem bater a meta
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      // Se o tutorial estiver aberto, deixa navegar livremente
+      if (tutorialRef.current?.isVisible()) return;
+
       const hasStarted = swipeCount > 0;
-      const metaIncompleta = hasStarted && !dailyGoalSavedRef.current && !goalAlreadyDoneToday && !reviewAll && !sessionDone;
+      const metaIncompleta = hasStarted && !dailyGoalSavedRef.current && !goalAlreadyDoneToday && !reviewAll && !sessionDone && !isExample;
 
       if (metaIncompleta) {
         e.preventDefault();
@@ -564,10 +578,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const handleReview = useCallback((cardToReview, rating, isLast) => {
     if (!cardToReview) return;
-    const updatedCard = calculateCardUpdate(cardToReview, rating);
-    const existingIndex = reviewUpdates.current.findIndex(c => c.id === updatedCard.id);
-    if (existingIndex > -1) reviewUpdates.current[existingIndex] = updatedCard;
-    else reviewUpdates.current.push(updatedCard);
+    const updatedCard = isExample ? { ...cardToReview } : calculateCardUpdate(cardToReview, rating);
+    if (!isExample) {
+      const existingIndex = reviewUpdates.current.findIndex(c => c.id === updatedCard.id);
+      if (existingIndex > -1) reviewUpdates.current[existingIndex] = updatedCard;
+      else reviewUpdates.current.push(updatedCard);
+    }
     sessionStudiedIds.current.add(updatedCard.id);
 
     // Rastreia último rating por card — recalcula totais baseado na última avaliação de cada card
@@ -898,6 +914,41 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const animatedTopGlowStyle = useAnimatedStyle(() => ({ opacity: topGlowOpacity.value }));
 
   if (sessionDone) {
+    if (isExample) {
+      return (
+        <View style={fcs.root}>
+          <View style={fcs.doneContainer}>
+            <View style={fcs.doneIconRing}>
+              <Ionicons name="checkmark-done" size={40} color={theme.primary} />
+            </View>
+            <Text style={fcs.doneTitle}>Tutorial concluído!</Text>
+            <Text style={fcs.doneSubtitle}>
+              Agora você sabe como usar os flashcards.{'\n'}Deseja refazer o tutorial?
+            </Text>
+            <View style={fcs.doneBtnRow}>
+              <TouchableOpacity style={fcs.doneBtn} onPress={() => navigation.goBack()}>
+                <Text style={fcs.doneBtnTxt}>Voltar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={fcs.doneBtnPrimary}
+                onPress={() => {
+                  sessionDoneRef.current = false;
+                  setSessionResult(null);
+                  hasLoadedOnce.current = false;
+                  sessionStudiedIds.current = new Set();
+                  _queue = [];
+                  setLoading(true);
+                  loadCards();
+                }}
+              >
+                <Text style={fcs.doneBtnPrimaryTxt}>Refazer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={fcs.root}>
         {headerMenuVisible && (
@@ -1197,7 +1248,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
               swipeDirection={swipeDirection}
               footerPressedSV={footerPressedSV}
               cardOpacitySV={cardOpacitySV}
-              onEdit={() => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCard?.id })}
+              onEdit={isExample ? undefined : () => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCard?.id })}
             />
           )}
         </Animated.View>
@@ -1216,7 +1267,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       <GoalInfoModal visible={goalModalVisible} onClose={() => setGoalModalVisible(false)} />
 
 
-      <SwipeTutorial ref={tutorialRef} />
+      <SwipeTutorial ref={tutorialRef} requireButtons={isExample} />
 
       <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
 
