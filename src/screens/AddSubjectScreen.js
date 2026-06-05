@@ -21,6 +21,18 @@ export const AddSubjectScreen = ({ route, navigation }) => {
       return;
     }
     const allData = await getAppData();
+    const deck = allData.find(d => d.id === deckId);
+    const nameLower = name.trim().toLowerCase();
+    const duplicate = deck?.subjects?.find(s => s.name?.trim().toLowerCase() === nameLower);
+    if (duplicate) {
+      setAlertConfig({
+        visible: true,
+        title: 'Nome já existe',
+        message: `Já existe uma matéria chamada "${name.trim()}" neste deck. Escolha um nome diferente.`,
+        buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }],
+      });
+      return;
+    }
     const newData = allData.map(deck => {
       if (deck.id === deckId) {
         const newSubject = {

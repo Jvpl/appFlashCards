@@ -173,9 +173,9 @@ const styles = StyleSheet.create({
     borderColor: theme.backgroundTertiary,
   },
   buttonDisabled: {
-    backgroundColor: theme.background,
-    borderColor: theme.backgroundSecondary,
-    opacity: 0.5,
+    backgroundColor: theme.backgroundSecondary,
+    borderColor: theme.backgroundTertiary,
+    opacity: 0.4,
   },
   buttonText: {
     color: theme.textSecondary,
@@ -183,6 +183,6 @@ const styles = StyleSheet.create({
     fontWeight: theme.fontWeight.semibold,
   },
   buttonTextDisabled: {
-    color: theme.backgroundTertiary,
+    color: theme.textMuted,
   },
 });

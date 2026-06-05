@@ -1,680 +1,3052 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, InteractionManager, KeyboardAvoidingView, ScrollView, Modal, TouchableWithoutFeedback, TextInput, Platform, BackHandler } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
-import { View as SafeAreaView } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { unstable_batchedUpdates } from 'react-native';
+import {
+  View, Text, TouchableOpacity, StyleSheet,
+  TextInput, ScrollView, BackHandler, Dimensions,
+  InteractionManager, Modal, TouchableWithoutFeedback, StatusBar,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getAppData, saveAppData, getPurchasedDecks, getDeckCache, removePurchasedDeck } from '../services/storage';
+import { SvgXml } from 'react-native-svg';
+import {
+  administrativoIcon, educacaoIcon, fiscalIcon, justicaIcon,
+  militarIcon, operacionalIcon, saudeIcon, segurancaIcon,
+} from '../assets/svgIconPaths';
+
+import {
+  getAppData, saveAppData, getPurchasedDecks, getDeckCache,
+  removePurchasedDeck, getContinueStudy,
+  getUsedCategoryIds, saveUsedCategoryIds, getDeckOrder, updateDeckOrder,
+} from '../services/storage';
 import { getProducts } from '../services/firebase';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
+import { CONCURSO_CATEGORIES, getCatLabel, getCustomCategories, saveCustomCategories } from '../config/categories';
 import { CustomBottomModal } from '../components/ui/CustomBottomModal';
-import { SkeletonItem } from '../components/ui/SkeletonItem';
+import { EditCategoryModal } from '../components/ui/EditCategoryModal';
 import { CustomAlert } from '../components/ui/CustomAlert';
-import styles from '../styles/globalStyles';
+
 import theme from '../styles/theme';
+import CategorySvgCard from '../components/home/CategorySvgCard';
+import DeckStackCard from '../components/home/DeckStackCard';
+import MateriaCard from '../components/home/MateriaCard';
+import HomeTabBar from '../components/home/HomeTabBar';
+import OverflowCard from '../components/home/OverflowCard';
+
+const { width } = Dimensions.get('window');
+const GRID_PADDING = 16;
+const GRID_GAP = 10;
+const CARD_WIDTH = (width - GRID_PADDING * 2 - GRID_GAP) / 2;
+const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.25);
+// Offset da linha esquerda: posiciona o botão "Ordenar" no centro do card da direita
+// Centro do card direito = CARD_WIDTH + GRID_GAP + CARD_WIDTH/2
+// Subtrai metade do botão (~41px) + gap (6px) = ~47px
+const SORT_LINE_W = Math.round(CARD_WIDTH + GRID_GAP + CARD_WIDTH / 2 - 47);
+const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
+
+const CATEGORY_SVG_ICONS = {
+  administrativo: administrativoIcon, educacao: educacaoIcon,
+  fiscal: fiscalIcon, justica: justicaIcon, militar: militarIcon,
+  operacional: operacionalIcon, saude: saudeIcon, seguranca: segurancaIcon,
+};
+
+const buildIconSvg = (iconData) => {
+  if (!iconData) return null;
+  const paths = iconData.paths.filter(s => typeof s === 'string' && s.startsWith('M'));
+  if (!paths.length) return null;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${iconData.w} ${iconData.h}">${
+    paths.map(d => `<path fill="${theme.primary}" d="${d}"/>`).join('')
+  }</svg>`;
+};
+
+const CategorySearchIcon = ({ category, size = 17 }) => {
+  const iconData = CATEGORY_SVG_ICONS[category.id];
+  if (iconData) {
+    const svg = buildIconSvg(iconData);
+    if (svg) return <SvgXml xml={svg} width={size} height={size} />;
+  }
+  const ionIcon = category.isCustom ? (category.icon || 'folder-outline') : (category.icon || 'folder-outline');
+  return <Ionicons name={ionIcon} size={size} color={theme.primary} />;
+};
+
+
+
+const leftCats  = CONCURSO_CATEGORIES.filter((_, i) => i % 2 === 0);
+const rightCats = CONCURSO_CATEGORIES.filter((_, i) => i % 2 !== 0);
+
+const SORT_OPTIONS = [
+  { key: 'az',       label: 'A–Z',            icon: 'arrow-up-outline' },
+  { key: 'za',       label: 'Z–A',            icon: 'arrow-down-outline' },
+  { key: 'more',     label: 'Mais matérias',  icon: 'layers-outline' },
+  { key: 'less',     label: 'Menos matérias', icon: 'layers-outline' },
+  { key: 'category', label: 'Por categoria',  icon: 'folder-outline' },
+  { key: 'recent',   label: 'Mais recentes',  icon: 'time-outline' },
+];
+const SORT_LABELS = Object.fromEntries(SORT_OPTIONS.map(o => [o.key, o.label]));
+
+const CAT_SORT_LABELS = {
+  az: 'A–Z', za: 'Z–A',
+  more: 'Mais decks', less: 'Menos decks',
+  preset: 'Padrão', custom: 'Personalizada',
+};
+
+const SUBJECT_SORT_OPTIONS = [
+  { key: 'az',     label: 'A–Z',           icon: 'arrow-up-outline' },
+  { key: 'za',     label: 'Z–A',           icon: 'arrow-down-outline' },
+  { key: 'more',   label: 'Mais cards',    icon: 'layers-outline' },
+  { key: 'less',   label: 'Menos cards',   icon: 'layers-outline' },
+  { key: 'deck',   label: 'Por deck',      icon: 'folder-outline' },
+  { key: 'recent', label: 'Mais recentes', icon: 'time-outline' },
+];
+const SUBJECT_SORT_LABELS = Object.fromEntries(SUBJECT_SORT_OPTIONS.map(o => [o.key, o.label]));
+
+// getCatLabel importado de config/categories.js
+
+const MAX_VISIBLE = 8;
+
+const matchConcursoCategory = (deck) => {
+  if (deck.isUserCreated || deck.isExample) return 'personalizados';
+  const text = `${deck.name || ''} ${deck.category || ''}`.toLowerCase();
+  for (const cat of CONCURSO_CATEGORIES) {
+    if (cat.id === 'personalizados') continue;
+    if (cat.keywords.some(kw => text.includes(kw))) return cat.id;
+  }
+  return 'personalizados'; // fallback em "Meus estudos"
+};
+
+// ─────────────────────────────────────────────
+// Utilitários SRS
+// ─────────────────────────────────────────────
+
+const getProgressColor = (subjects) => {
+  let total = 0, sum = 0;
+  (subjects || []).forEach(s => (s.flashcards || []).forEach(c => { total++; sum += c.level || 0; }));
+  if (total === 0) return theme.srsLevel0;
+  return theme[`srsLevel${Math.min(5, Math.round(sum / total))}`];
+};
+
+const getProgressPercent = (subjects) => {
+  let total = 0, sum = 0;
+  (subjects || []).forEach(s => (s.flashcards || []).forEach(c => { total++; sum += c.level || 0; }));
+  return total > 0 ? Math.round((sum / (total * 5)) * 100) : 0;
+};
+
+const getTotalCards = (subjects) =>
+  (subjects || []).reduce((sum, s) => sum + (s.flashcards?.length || 0), 0);
+
+// ─────────────────────────────────────────────
+// Header — "Início"
+// ─────────────────────────────────────────────
+
+const HomeHeader = ({ onMenuPress, multiSelectMode, selectedCount, onBack, insetTop }) => (
+  <View style={[hhStyles.wrapper, { paddingTop: insetTop }]}>
+    <View style={hhStyles.container}>
+      {multiSelectMode ? (
+        <>
+          <TouchableOpacity onPress={onBack} style={hhStyles.iconBtn} hitSlop={HIT_SLOP}>
+            <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+          </TouchableOpacity>
+          <Text style={hhStyles.multiTitle}>{selectedCount} selecionado(s)</Text>
+          <View style={hhStyles.iconBtn} />
+        </>
+      ) : (
+        <>
+          <View style={hhStyles.logoRow}>
+            <View style={hhStyles.logoMark}>
+              <Ionicons name="flash" size={13} color={theme.background} />
+            </View>
+            <Text style={hhStyles.logoText}>Início</Text>
+          </View>
+          <TouchableOpacity onPress={onMenuPress} style={hhStyles.iconBtn} hitSlop={HIT_SLOP}>
+            <Ionicons name="menu-outline" size={26} color={theme.textPrimary} />
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+    <View style={hhStyles.divider} />
+  </View>
+);
+
+
+// ─────────────────────────────────────────────
+// Mini card: deck exemplo (dismissível)
+// ─────────────────────────────────────────────
+
+const MiniExampleCard = ({ onPress, onDismiss }) => (
+  <View style={miniStyles.card}>
+    <View style={[miniStyles.iconWrap, { backgroundColor: '#6366F120' }]}>
+      <Ionicons name="albums-outline" size={22} color="#6366F1" />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={miniStyles.title}>Deck de Exemplo</Text>
+      <Text style={miniStyles.sub}>Explore como o app funciona</Text>
+    </View>
+    <TouchableOpacity style={miniStyles.actionBtn} onPress={onPress} activeOpacity={0.8}>
+      <Text style={miniStyles.actionText}>Explorar</Text>
+    </TouchableOpacity>
+    <TouchableOpacity onPress={onDismiss} hitSlop={HIT_SLOP} style={miniStyles.dismissBtn}>
+      <Ionicons name="close" size={16} color={theme.textMuted} />
+    </TouchableOpacity>
+  </View>
+);
+
+// ─────────────────────────────────────────────
+// Mini card: continuar estudando
+// ─────────────────────────────────────────────
+
+const MiniContinueCard = ({ continueStudy, onPress }) => (
+  <TouchableOpacity style={[miniStyles.card, miniStyles.continueCard]} onPress={onPress} activeOpacity={0.85}>
+    <View style={[miniStyles.iconWrap, { backgroundColor: theme.primaryTransparent }]}>
+      <Ionicons name="play-circle" size={26} color={theme.primary} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={miniStyles.continueLabel}>CONTINUAR</Text>
+      <Text style={miniStyles.title} numberOfLines={1}>{continueStudy.subjectName}</Text>
+      <Text style={miniStyles.sub} numberOfLines={1}>{continueStudy.deckName}</Text>
+    </View>
+    <Ionicons name="chevron-forward" size={18} color={theme.primary} />
+  </TouchableOpacity>
+);
+
+// ─────────────────────────────────────────────
+// Card de destaque/continuar — LEGADO (não usado, mantido para referência)
+// ─────────────────────────────────────────────
+
+const FeaturedCard = ({ label, title, subtitle, accentColor, onPress }) => {
+  const color = accentColor || theme.primary;
+  return (
+    <TouchableOpacity
+      style={[fStyles.card, { borderColor: color + '50' }]}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
+      {/* Borda lateral colorida forte */}
+      <View style={[fStyles.leftBorder, { backgroundColor: color }]} />
+
+      {/* Fundo tintado visível */}
+      <View style={[fStyles.tint, { backgroundColor: color + '20' }]} />
+
+      <View style={fStyles.body}>
+        <View style={{ flex: 1 }}>
+          <View style={[fStyles.labelWrap, { backgroundColor: color + '30' }]}>
+            <Text style={[fStyles.label, { color }]}>{label}</Text>
+          </View>
+          <Text style={fStyles.title} numberOfLines={2}>{title}</Text>
+          {!!subtitle && <Text style={fStyles.subtitle} numberOfLines={1}>{subtitle}</Text>}
+        </View>
+        <View style={[fStyles.playBtn, { backgroundColor: color }]}>
+          <Ionicons name="play" size={20} color={theme.background} />
+        </View>
+      </View>
+
+      <View style={[fStyles.bottomAccent, { backgroundColor: color + '60' }]} />
+    </TouchableOpacity>
+  );
+};
+
+// ─────────────────────────────────────────────
+// Card de deck recente — compacto com ícone + stats
+// ─────────────────────────────────────────────
+
+const RecentDeckCard = ({ deck, onPress }) => {
+  const srsColor = getProgressColor(deck.subjects);
+  const subjects = deck.subjects || [];
+  const studiedSubjects = subjects.filter(s => (s.flashcards || []).some(c => (c.level || 0) > 0)).length;
+  const progressPct = subjects.length > 0 ? Math.round((studiedSubjects / subjects.length) * 100) : 0;
+  const totalCards = getTotalCards(deck.subjects);
+  // Decks sem progresso teriam cinza -- usar cor da categoria ou azul como fallback
+  const rawCatId = deck.category;
+  const catId = (rawCatId && rawCatId !== 'personalizados' && CONCURSO_CATEGORIES.find(c => c.id === rawCatId))
+    ? rawCatId : 'personalizados';
+  const catColor = CONCURSO_CATEGORIES.find(c => c.id === catId)?.color;
+  const iconColor = progressPct > 0 ? srsColor : (catColor || '#6366F1');
+
+  return (
+    <TouchableOpacity style={rcStyles.card} onPress={onPress} activeOpacity={0.75}>
+      {/* Zona colorida de ícone */}
+      <View style={[rcStyles.iconZone, { backgroundColor: iconColor + '35' }]}>
+        <View style={[rcStyles.iconCircle, { backgroundColor: iconColor + '50', borderColor: iconColor + '80' }]}>
+          <Ionicons name="layers" size={20} color={iconColor} />
+        </View>
+        {progressPct > 0 && (
+          <Text style={[rcStyles.pctBadge, { color: iconColor }]}>{progressPct}%</Text>
+        )}
+      </View>
+      <View style={rcStyles.info}>
+        <Text style={rcStyles.name} numberOfLines={2}>{deck.name}</Text>
+        <Text style={rcStyles.stats}>
+          {totalCards} card{totalCards !== 1 ? 's' : ''}
+        </Text>
+      </View>
+      {/* Barra de progresso */}
+      <View style={rcStyles.progressBar}>
+        <View style={[rcStyles.progressFill, { width: progressPct > 0 ? `${progressPct}%` : '0%', backgroundColor: iconColor }]} />
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// ─────────────────────────────────────────────
+// Pill de categoria — scroll horizontal compacto
+// ─────────────────────────────────────────────
+
+const CategoryCard = ({ category, deckCount, onPress, isActive }) => {
+  const color = category.color;
+  return (
+    <TouchableOpacity
+      style={[cpStyles.card, isActive && { borderColor: color + 'CC', borderWidth: 2 }]}
+      onPress={onPress}
+      activeOpacity={0.78}
+    >
+      {/* Header colorido estilo pasta */}
+      <View style={[cpStyles.header, { backgroundColor: color + '22' }]}>
+        {/* Blobs decorativos */}
+        <View style={[cpStyles.blob1, { backgroundColor: color + '40' }]} />
+        <View style={[cpStyles.blob2, { backgroundColor: color + '28' }]} />
+        {/* Ícone principal */}
+        <Ionicons name={category.icon} size={34} color={color} style={{ zIndex: 2 }} />
+        {/* Badge de quantidade */}
+        {deckCount > 0 && (
+          <View style={[cpStyles.badge, { backgroundColor: color }]}>
+            <Text style={cpStyles.badgeText}>{deckCount}</Text>
+          </View>
+        )}
+      </View>
+      {/* Linha colorida separadora */}
+      <View style={[cpStyles.divider, { backgroundColor: color + (isActive ? 'FF' : 'AA') }]} />
+      {/* Footer com nome */}
+      <View style={cpStyles.footer}>
+        <Text style={[cpStyles.name, isActive && { color }]} numberOfLines={2}>
+          {category.name}
+        </Text>
+        <Text style={[cpStyles.count, { color: color + 'CC' }]}>
+          {deckCount > 0 ? `${deckCount} deck${deckCount > 1 ? 's' : ''}` : 'Explorar'}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// ─────────────────────────────────────────────
+// Category folder card — 2-column stacked
+// ─────────────────────────────────────────────
+
+// CategoryFolderCard removido — substituído por CategorySvgCard em home/
+
+// ─────────────────────────────────────────────
+// DeckCard — grid (expandido)
+// ─────────────────────────────────────────────
+
+const DeckCard = ({ deck, onPress, onLongPress, isSelected, multiSelectMode }) => {
+  const progressColor = getProgressColor(deck.subjects);
+  const subjects = deck.subjects || [];
+  const subjectCount = subjects.length;
+  const studiedSubjects = subjects.filter(s => (s.flashcards || []).some(c => (c.level || 0) > 0)).length;
+  const progressPercent = subjectCount > 0 ? Math.round((studiedSubjects / subjectCount) * 100) : 0;
+
+  return (
+    <TouchableOpacity
+      style={[cardStyles.card, isSelected && cardStyles.cardSelected]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      activeOpacity={0.7}
+    >
+      <View style={[cardStyles.leftAccent, { backgroundColor: isSelected ? theme.primary : progressColor }]} />
+
+      {multiSelectMode && (
+        <View style={cardStyles.checkmark}>
+          <Ionicons
+            name={isSelected ? 'checkbox' : 'square-outline'}
+            size={20} color={isSelected ? theme.primary : theme.textMuted}
+          />
+        </View>
+      )}
+
+      {deck.isExample && (
+        <View style={cardStyles.exampleBadge}>
+          <Text style={cardStyles.exampleBadgeText}>Exemplo</Text>
+        </View>
+      )}
+
+      <View style={{ flex: 1, justifyContent: 'space-between' }}>
+        <Text style={cardStyles.name} numberOfLines={3}>{deck.name || 'Deck sem nome'}</Text>
+        <View>
+          {deck.category ? (
+            <Text style={cardStyles.category} numberOfLines={1}>{deck.category}</Text>
+          ) : null}
+          <Text style={cardStyles.subjectCount}>
+            {subjectCount} {subjectCount === 1 ? 'matéria' : 'matérias'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={cardStyles.progressBarBg}>
+        <View style={[cardStyles.progressBarFill, {
+          width: progressPercent > 0 ? `${progressPercent}%` : 4,
+          backgroundColor: progressColor,
+        }]} />
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const CreateDeckCard = ({ onPress }) => (
+  <TouchableOpacity style={cardStyles.createCard} onPress={onPress} activeOpacity={0.7}>
+    <View style={cardStyles.createIconWrap}>
+      <Ionicons name="add" size={24} color={theme.primary} />
+    </View>
+    <Text style={cardStyles.createCardText}>Criar deck</Text>
+  </TouchableOpacity>
+);
+
+// ─────────────────────────────────────────────
+// Helpers de grid
+// ─────────────────────────────────────────────
+
+const renderGridRows = (items, renderCard) => {
+  const rows = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push(
+      <View key={i} style={s.gridRow}>
+        {renderCard(items[i], i)}
+        {items[i + 1]
+          ? renderCard(items[i + 1], i + 1)
+          : <View style={{ width: CARD_WIDTH }} />}
+      </View>
+    );
+  }
+  return rows;
+};
+
+
+// ─────────────────────────────────────────────
+// Cache de módulo: persiste entre re-mounts causados pelo resetTs,
+// evita o flash do estado vazio quando o componente remonta.
+// ─────────────────────────────────────────────
+
+let _cachedDecks = [];
+
+// ─────────────────────────────────────────────
+// Tela principal
+// ─────────────────────────────────────────────
 
 export const DeckListScreen = ({ navigation }) => {
-  const [decks, setDecks] = useState([]);
-  // Check global cache for initial state
-  const [loading, setLoading] = useState(!global.screenCache.decks);
-
-  const [selectedDeck, setSelectedDeck] = useState(null);
-  const [isModalVisible, setModalVisible] = useState(false);
+  const insets = useSafeAreaInsets();
+  const [decks, setDecks] = useState(_cachedDecks);
+  const [loading, setLoading] = useState(_cachedDecks.length === 0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [continueStudy, setContinueStudy] = useState(null);
   const [allowDefaultDeckEditing, setAllowDefaultDeckEditing] = useState(false);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
-  const [selectedDecks, setSelectedDecks] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [contextMenu, setContextMenu] = useState({ visible: false, deck: null, x: 0, y: 0 });
+  const [categoryContextMenu, setCategoryContextMenu] = useState({ visible: false, item: null, x: 0, y: 0 });
+  const [editCatModal, setEditCatModal] = useState({ visible: false, item: null });
+  const [renameModal, setRenameModal] = useState({ visible: false, deck: null, text: '' });
+  const [subjectContextMenu, setSubjectContextMenu] = useState({ visible: false, item: null, x: 0, y: 0 });
+  const [renameSubjectModal, setRenameSubjectModal] = useState({ visible: false, item: null, text: '' });
+  const [selectedDeck, setSelectedDeck] = useState(null);
+  const [isModalVisible, setModalVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
-  const [studyModeModal, setStudyModeModal] = useState({ visible: false, deck: null });
+  const [activeCategoryId, setActiveCategoryId] = useState(null);
+  const [exampleDismissed, setExampleDismissed] = useState(false);
+  const [usedCategoryIds, setUsedCategoryIds] = useState(new Set());
+  const [usedCategoryOrder, setUsedCategoryOrder] = useState([]); // ordem de inserção
+  const [customCats, setCustomCats] = useState([]);
+  // Novos estados para o redesign
+  const [activeTab, setActiveTab] = useState('decks');          // 'categorias' | 'decks' | 'materias'
+  const [expandedSections, setExpandedSections] = useState({}); // { 'decks-meus': true, ... }
+  const [sortOrder, setSortOrder] = useState(null);             // 'az'|'za'|'more'|'less'|'category'
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [sortMenuPos, setSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
+  const [deckFilter, setDeckFilter] = useState('all');          // 'all'|'meus'|'comprados'
+  const [deckOrder, setDeckOrder] = useState([]);              // IDs ordenados por último acesso
+  const [visibleDeckCount, setVisibleDeckCount] = useState(MAX_VISIBLE - 1);
+  const sortBtnRef = useRef(null);
+  const [subjectSortOrder, setSubjectSortOrder] = useState(null);
+  const [subjectSortMenuOpen, setSubjectSortMenuOpen] = useState(false);
+  const [subjectSortMenuPos, setSubjectSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
+  const subjectSortBtnRef = useRef(null);
+  const [catSortOrder, setCatSortOrder] = useState(null);
+  const [catSortMenuOpen, setCatSortMenuOpen] = useState(false);
+  const [catSortMenuPos, setCatSortMenuPos] = useState({ x: 0, y: 0, w: 0 });
+  const catSortBtnRef = useRef(null);
   const isFocused = useIsFocused();
+  const searchRef = useRef(null);
 
-  // Auto-scroll refs
-  const scrollViewRef = useRef(null);
-  const searchContainerRef = useRef(null);
+  // ── Carregamento ──────────────────────────
 
   const loadData = useCallback(async () => {
-    // Only show skeleton if we don't have data yet AND it's not cached
-    const shouldShowSkeleton = decks.length === 0 && !global.screenCache.decks;
-
+    const shouldShowSkeleton = _cachedDecks.length === 0;
     if (shouldShowSkeleton) setLoading(true);
-
-    const minDelay = shouldShowSkeleton ? new Promise(resolve => setTimeout(resolve, 500)) : Promise.resolve();
-
+    const minDelay = shouldShowSkeleton ? new Promise(r => setTimeout(r, 400)) : Promise.resolve();
     try {
-      // Carregar decks do usuário (AsyncStorage)
       const userDecks = await getAppData();
-
-      // Carregar decks comprados (Firebase cache)
       const purchasedIds = await getPurchasedDecks();
-
-      // Verificar quais produtos ainda existem no Firebase
       let validProductIds = null;
       try {
         const products = await getProducts();
         validProductIds = new Set(products.map(p => p.deckId || p.id));
-      } catch (_) {
-        // Offline: não remove nada
-      }
-
+      } catch (_) {}
       const purchasedDecks = await Promise.all(
         purchasedIds.map(async (deckId) => {
-          // Se o produto foi apagado do Firebase, limpar cache local
           if (validProductIds && !validProductIds.has(deckId)) {
             await removePurchasedDeck(deckId);
             return null;
           }
           const deck = await getDeckCache(deckId);
-          if (deck) {
-            return { ...deck, isPurchased: true, name: deck.name || deckId };
-          }
-          return null;
+          return deck ? { ...deck, isPurchased: true, name: deck.name || deckId } : null;
         })
       );
-
-      // Combinar os dois (filtrar nulls)
-      const allDecks = [...userDecks, ...purchasedDecks.filter(d => d !== null)];
-
       await minDelay;
-      setDecks(allDecks);
-
-      // Load default deck editing preference
+      const prevUserDeckCount = _cachedDecks.filter(d => !d.isExample).length;
+      _cachedDecks = [...userDecks, ...purchasedDecks.filter(Boolean)];
       const allowEditing = await canEditDefaultDecks();
-      setAllowDefaultDeckEditing(allowEditing);
 
-      // Mark decks screen as loaded
-      global.screenCache.decks = true;
+      // Carrega customCats e usedCategoryIds em paralelo
+      let customs = [];
+      let stored = new Set();
+      let order = [];
+      try { customs = await getCustomCategories(); } catch (_) {}
+      try { order = await getDeckOrder(); } catch (_) {}
+      try {
+        const activeCatIds = new Set(
+          _cachedDecks
+            .filter(d => !d.isExample)
+            .map(d => {
+              const catId = d.category;
+              if (!catId || catId === 'personalizados') return 'personalizados';
+              if (CONCURSO_CATEGORIES.find(c => c.id === catId)) return catId;
+              if (catId.startsWith('custom_')) return catId;
+              return 'personalizados';
+            })
+        );
+        stored = await getUsedCategoryIds();
+        activeCatIds.forEach(id => stored.add(id));
+        await saveUsedCategoryIds(stored);
+      } catch (_) {}
+
+      // Todos os setState juntos — evita re-renders intermediários
+      unstable_batchedUpdates(() => {
+        setDecks(_cachedDecks);
+        setAllowDefaultDeckEditing(allowEditing);
+        setCustomCats(customs);
+        setUsedCategoryIds(new Set(stored));
+        setUsedCategoryOrder([...stored]);
+        setDeckOrder(order);
+        // Se acabou de criar o primeiro deck, muda de categorias para decks
+        const newUserDeckCount = _cachedDecks.filter(d => !d.isExample).length;
+        if (prevUserDeckCount === 0 && newUserDeckCount > 0) {
+          setActiveTab(prev => prev === 'categorias' ? 'decks' : prev);
+        }
+      });
     } catch (error) {
       console.error('Error loading decks:', error);
-      setAlertConfig({
-        visible: true,
-        title: 'Erro',
-        message: 'Não foi possível carregar os decks.',
-        buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-      });
     } finally {
-      if (shouldShowSkeleton) setLoading(false);
+      setLoading(false);
     }
-  }, [decks.length]);
+  }, []);
+
+  // Atualização leve após editar categoria — sem recarregar produtos/purchased
+  const refreshAfterCategoryEdit = useCallback(async () => {
+    try {
+      const [userDecks, customs, stored] = await Promise.all([
+        getAppData(),
+        getCustomCategories(),
+        getUsedCategoryIds(),
+      ]);
+      _cachedDecks = [...userDecks, ..._cachedDecks.filter(d => d.isPurchased)];
+      unstable_batchedUpdates(() => {
+        setDecks(_cachedDecks);
+        setCustomCats(customs);
+        setUsedCategoryIds(new Set(stored));
+        setUsedCategoryOrder([...stored]);
+      });
+    } catch (e) {
+      loadData(); // fallback
+    }
+  }, [loadData]);
+
+  const loadSecondaryData = useCallback(async () => {
+    const [continueData, dismissed] = await Promise.all([
+      getContinueStudy(),
+      AsyncStorage.getItem('dismissedExampleDeck').catch(() => null),
+    ]);
+    setContinueStudy(continueData);
+    setExampleDismissed(dismissed === 'true');
+  }, []);
+
+  const handleDismissExample = useCallback(async () => {
+    setExampleDismissed(true);
+    await AsyncStorage.setItem('dismissedExampleDeck', 'true').catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (isFocused) {
-      // Aguarda a transição de navegação terminar antes de carregar dados pesados/skeleton
       const task = InteractionManager.runAfterInteractions(() => {
         loadData();
+        loadSecondaryData();
       });
       return () => task.cancel();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFocused]);
 
-  // Controla swipe: desabilita ao sair de DeckList (blur) e reabilita ao retornar (focus)
+  // ── Drawer / swipe ────────────────────────
+
   useEffect(() => {
     const drawerNav = navigation.getParent();
     if (!drawerNav) return;
-    const unsubFocus = navigation.addListener('focus', () => {
-      drawerNav.setOptions({ swipeEnabled: true });
-    });
+    const unsubFocus = navigation.addListener('focus', () => drawerNav.setOptions({ swipeEnabled: true }));
     const unsubBlur = navigation.addListener('blur', () => {
       drawerNav.setOptions({ swipeEnabled: false });
     });
     return () => { unsubFocus(); unsubBlur(); };
   }, [navigation]);
 
-  // Desabilita swipe durante seleção múltipla (somente quando DeckList está em foco)
   useEffect(() => {
     const drawerNav = navigation.getParent();
-    if (drawerNav && isFocused) {
-      drawerNav.setOptions({ swipeEnabled: !multiSelectMode });
-    }
+    if (drawerNav && isFocused) drawerNav.setOptions({ swipeEnabled: !multiSelectMode });
   }, [multiSelectMode, navigation, isFocused]);
 
-  const calculateProgress = (subjects) => {
-    if (!subjects || subjects.length === 0) return 0;
-    let totalMaxLevel = 0;
-    let currentLevelSum = 0;
-    subjects.forEach(s => {
-        s.flashcards.forEach(c => {
-            totalMaxLevel += 5;
-            currentLevelSum += c.level || 0;
-        });
-    });
-    return totalMaxLevel > 0 ? Math.round((currentLevelSum / totalMaxLevel) * 100) : 0;
-  }
+  // ── Back handler ──────────────────────────
 
-  const toggleMultiSelectMode = () => {
-    setMultiSelectMode(!multiSelectMode);
-    setSelectedDecks(new Set());
+  useEffect(() => {
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isFocused && multiSelectMode) { exitSelectMode(); return true; }
+      if (isFocused && activeCategoryId) { setActiveCategoryId(null); return true; }
+      if (isFocused && searchTerm) { setSearchTerm(''); return true; }
+      return false;
+    });
+    return () => handler.remove();
+  }, [isFocused, multiSelectMode, activeCategoryId, searchTerm, exitSelectMode]);
+
+  // ── Dados derivados ───────────────────────
+
+  const userDecks = useMemo(() =>
+    decks.filter(d => d.isPurchased !== true),
+  [decks]);
+
+  const purchasedDecks = useMemo(() =>
+    decks.filter(d => d.isPurchased === true),
+  [decks]);
+
+  // Retorna o catId efetivo de um deck (aceita categorias padrão e customizadas)
+  const getDeckCatId = useCallback((deck) => {
+    const catId = deck.category;
+    if (!catId || catId === 'personalizados') return 'personalizados';
+    if (CONCURSO_CATEGORIES.find(c => c.id === catId)) return catId;
+    if (catId.startsWith('custom_')) return catId;
+    return 'personalizados';
+  }, []);
+
+  const categoryCounts = useMemo(() => {
+    const counts = {};
+    decks.filter(d => !d.isExample).forEach(deck => {
+      const catId = getDeckCatId(deck);
+      counts[catId] = (counts[catId] || 0) + 1;
+    });
+    return counts;
+  }, [decks, getDeckCatId]);
+
+  const expandedDecks = useMemo(() => {
+    if (!activeCategoryId) return [];
+    if (activeCategoryId === 'personalizados') {
+      return decks.filter(d => !d.isExample && getDeckCatId(d) === 'personalizados');
+    }
+    return decks.filter(d => getDeckCatId(d) === activeCategoryId);
+  }, [activeCategoryId, decks, getDeckCatId]);
+
+  const exampleDeck = useMemo(() => decks.find(d => d.isExample), [decks]);
+
+  const continueStudyPct = useMemo(() => {
+    if (!continueStudy) return 0;
+    const deck = decks.find(d => d.id === continueStudy.deckId);
+    return deck ? getProgressPercent(deck.subjects) : 0;
+  }, [continueStudy, decks]);
+
+  // ── Dados derivados novos ─────────────────
+
+  // Primeiro acesso: sem decks do usuário E sem comprados E exemplo não dispensado
+  const isFirstAccess = useMemo(() =>
+    userDecks.filter(d => !d.isExample).length === 0 &&
+    purchasedDecks.length === 0 &&
+    usedCategoryIds.size === 0 &&
+    !exampleDismissed,
+  [userDecks, purchasedDecks, usedCategoryIds, exampleDismissed]);
+
+  // Categorias que têm pelo menos 1 deck (agrupa TODOS os decks pelo campo category)
+  // Categorias com 0 decks mas que já foram usadas aparecem como "vazio"
+  const activeCategories = useMemo(() => {
+    const nonExample = decks.filter(d => !d.isExample);
+    const catMap = {};
+    nonExample.forEach(deck => {
+      const catId = getDeckCatId(deck);
+      if (!catMap[catId]) catMap[catId] = [];
+      catMap[catId].push(deck);
+    });
+
+    // Lookup rápido por id
+    const presetById = Object.fromEntries(CONCURSO_CATEGORIES.map(c => [c.id, c]));
+    const customById = Object.fromEntries(customCats.map(c => [c.id, c]));
+
+    const result = [];
+    const seen = new Set();
+
+    // Respeita a ordem de inserção (usedCategoryOrder), exceto "personalizados" que vai por último
+    for (const id of usedCategoryOrder) {
+      if (id === 'personalizados' || seen.has(id)) continue;
+      seen.add(id);
+      const cat = presetById[id] || customById[id];
+      if (!cat) continue;
+      result.push({ category: cat, decks: catMap[id] || [] });
+    }
+
+    // Categorias com decks que ainda não estão no usedCategoryOrder (edge case)
+    for (const id of Object.keys(catMap)) {
+      if (id === 'personalizados' || seen.has(id)) continue;
+      seen.add(id);
+      const cat = presetById[id] || customById[id];
+      if (!cat) continue;
+      result.push({ category: cat, decks: catMap[id] });
+    }
+
+    // "Meus estudos" sempre por último
+    if (catMap['personalizados']?.length > 0 || usedCategoryIds.has('personalizados')) {
+      const meusEstudos = presetById['personalizados'];
+      if (meusEstudos) result.push({ category: meusEstudos, decks: catMap['personalizados'] || [] });
+    }
+
+    return result;
+  }, [decks, getDeckCatId, usedCategoryIds, usedCategoryOrder, customCats]);
+
+  // Flat list de matérias de todos os decks (exceto deck de exemplo)
+  const allSubjects = useMemo(() => {
+    const result = [];
+    decks.filter(d => !d.isExample).forEach(deck => {
+      (deck.subjects || []).forEach(subject => {
+        result.push({ subject, deck, isPurchased: deck.isPurchased === true });
+      });
+    });
+    return result;
+  }, [decks]);
+
+  // ── Ordenação ────────────────────────────
+
+  const sortSubjects = useCallback((list) => {
+    if (!subjectSortOrder) return list;
+    const copy = [...list];
+    switch (subjectSortOrder) {
+      case 'az':     return copy.sort((a, b) => (a.subject.name || '').localeCompare(b.subject.name || '', 'pt'));
+      case 'za':     return copy.sort((a, b) => (b.subject.name || '').localeCompare(a.subject.name || '', 'pt'));
+      case 'more':   return copy.sort((a, b) => (b.subject.flashcards?.length || 0) - (a.subject.flashcards?.length || 0));
+      case 'less':   return copy.sort((a, b) => (a.subject.flashcards?.length || 0) - (b.subject.flashcards?.length || 0));
+      case 'deck':   return copy.sort((a, b) => (a.deck.name || '').localeCompare(b.deck.name || '', 'pt'));
+      case 'recent': return copy.reverse();
+      default:       return list;
+    }
+  }, [subjectSortOrder]);
+
+  const handleSubjectMenuPress = useCallback((item, event) => {
+    const { pageX, pageY } = event.nativeEvent;
+    setSubjectContextMenu({ visible: true, item, x: pageX, y: pageY });
+  }, []);
+
+  const closeSubjectContextMenu = useCallback(() => {
+    setSubjectContextMenu(p => ({ ...p, visible: false }));
+  }, []);
+
+  const sortDecks = useCallback((list) => {
+    if (!sortOrder) {
+      if (deckOrder.length === 0) return list;
+      const posMap = new Map(deckOrder.map((id, i) => [id, i]));
+      return [...list].sort((a, b) => {
+        const pa = posMap.has(a.id) ? posMap.get(a.id) : Infinity;
+        const pb = posMap.has(b.id) ? posMap.get(b.id) : Infinity;
+        return pa - pb;
+      });
+    }
+    const copy = [...list];
+    switch (sortOrder) {
+      case 'az':       return copy.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt'));
+      case 'za':       return copy.sort((a, b) => (b.name || '').localeCompare(a.name || '', 'pt'));
+      case 'more':     return copy.sort((a, b) => (b.subjects?.length || 0) - (a.subjects?.length || 0));
+      case 'less':     return copy.sort((a, b) => (a.subjects?.length || 0) - (b.subjects?.length || 0));
+      case 'category': return copy.sort((a, b) => (a.category || '').localeCompare(b.category || '', 'pt'));
+      case 'recent':   return copy.reverse();
+      default:         return list;
+    }
+  }, [sortOrder, deckOrder]);
+
+  const sortCategories = useCallback((list) => {
+    if (!catSortOrder) return list;
+    const copy = [...list];
+    switch (catSortOrder) {
+      case 'az':   return copy.sort((a, b) => (a.category.name || '').localeCompare(b.category.name || '', 'pt'));
+      case 'za':   return copy.sort((a, b) => (b.category.name || '').localeCompare(a.category.name || '', 'pt'));
+      case 'more':   return copy.sort((a, b) => b.decks.length - a.decks.length);
+      case 'less':   return copy.sort((a, b) => a.decks.length - b.decks.length);
+      case 'preset': return copy.sort((a, b) => {
+        const aCustom = a.category.isCustom ? 1 : 0;
+        const bCustom = b.category.isCustom ? 1 : 0;
+        return aCustom - bCustom;
+      });
+      case 'custom': return copy.sort((a, b) => {
+        const aCustom = a.category.isCustom ? 1 : 0;
+        const bCustom = b.category.isCustom ? 1 : 0;
+        return bCustom - aCustom;
+      });
+      default:       return list;
+    }
+  }, [catSortOrder]);
+
+  // ── Search ────────────────────────────────
+
+  const searchResults = useMemo(() => {
+    if (!searchTerm.trim()) return [];
+    const term = searchTerm.toLowerCase().trim();
+    const results = [];
+    const addedDecks = new Set();
+    const addedSubjects = new Set();
+    const addedCategories = new Set();
+    decks.filter(d => !d.isExample).forEach(deck => {
+      if (deck.name?.toLowerCase().includes(term) && !addedDecks.has(deck.id)) {
+        results.push({ type: 'deck', label: deck.name, sublabel: deck.category || 'Deck', deck });
+        addedDecks.add(deck.id);
+      }
+      deck.subjects?.forEach(subj => {
+        const key = `${deck.id}:${subj.id}`;
+        if (subj.name?.toLowerCase().includes(term) && !addedSubjects.has(key)) {
+          results.push({ type: 'subject', label: subj.name, sublabel: deck.name, deck, subjectId: subj.id });
+          addedSubjects.add(key);
+        }
+      });
+    });
+    // Categorias padrão
+    CONCURSO_CATEGORIES.forEach(cat => {
+      if (cat.id === 'personalizados') return;
+      if (cat.name.toLowerCase().includes(term) && usedCategoryIds.has(cat.id) && !addedCategories.has(cat.id)) {
+        results.push({ type: 'category', label: cat.name, sublabel: 'Categoria padrão', category: cat });
+        addedCategories.add(cat.id);
+      }
+    });
+    // Categorias customizadas
+    customCats.forEach(cat => {
+      if (cat.name.toLowerCase().includes(term) && !addedCategories.has(cat.id)) {
+        results.push({ type: 'category', label: cat.name, sublabel: 'Categoria personalizada', category: cat });
+        addedCategories.add(cat.id);
+      }
+    });
+    return results.slice(0, 15);
+  }, [decks, searchTerm, customCats, usedCategoryIds]);
+
+  // ── Handlers ─────────────────────────────
+
+  const toggleSelection = useCallback((id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const enterSelectMode = useCallback((id) => {
+    setMultiSelectMode(true);
+    setSelectedIds(new Set([id]));
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setMultiSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleMenuPress = useCallback((deck, event) => {
+    const { pageX, pageY } = event.nativeEvent;
+    setContextMenu({ visible: true, deck, x: pageX, y: pageY });
+  }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(p => ({ ...p, visible: false }));
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (activeTab === 'decks') {
+      const meusIds = userDecks.filter(d => !d.isExample).map(d => d.id);
+      const compradosIds = purchasedDecks.map(d => d.id);
+      setSelectedIds(new Set([...meusIds, ...compradosIds]));
+    } else if (activeTab === 'materias') {
+      setSelectedIds(new Set(allSubjects.map(i => `${i.deck.id}:${i.subject.id}`)));
+    } else if (activeTab === 'categorias') {
+      setSelectedIds(new Set(activeCategories.map(i => i.category.id)));
+    }
+  }, [activeTab, userDecks, purchasedDecks, allSubjects, activeCategories]);
+
+  const handleDeckPress = useCallback(async (deck) => {
+    if (multiSelectMode) { toggleSelection(deck.id); return; }
+    await updateDeckOrder(deck.id);
+    setDeckOrder(prev => [deck.id, ...prev.filter(id => id !== deck.id)]);
+    navigation.navigate('SubjectList', {
+      deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects,
+      isExample: deck.isExample || false,
+    });
+  }, [multiSelectMode, navigation, toggleSelection]);
+
+  const handleDeckLongPress = useCallback((deck) => {
+    if (!multiSelectMode && (allowDefaultDeckEditing || !isDefaultDeck(deck.id))) {
+      enterSelectMode(deck.id);
+    }
+  }, [multiSelectMode, allowDefaultDeckEditing, enterSelectMode]);
+
+  const handleSubjectPress = useCallback((item) => {
+    if (multiSelectMode) { toggleSelection(`${item.deck.id}:${item.subject.id}`); return; }
+    navigation.navigate('Flashcard', {
+      deckId: item.deck.id,
+      deckName: item.deck.name,
+      subjectId: item.subject.id,
+      subjectName: item.subject.name,
+      preloadedCards: item.subject.flashcards || [],
+    });
+  }, [multiSelectMode, navigation, toggleSelection]);
+
+  const handleSubjectLongPress = useCallback((item) => {
+    if (!multiSelectMode) enterSelectMode(`${item.deck.id}:${item.subject.id}`);
+  }, [multiSelectMode, enterSelectMode]);
+
+  const handleCategoryCardLongPress = useCallback((item) => {
+    if (!multiSelectMode) enterSelectMode(item.category.id);
+  }, [multiSelectMode, enterSelectMode]);
+
+  const handleContinuePress = () => {
+    if (!continueStudy) return;
+    const deck = decks.find(d => d.id === continueStudy.deckId);
+    if (!deck) return;
+    navigation.navigate('SubjectList', { deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects, isExample: deck.isExample || false });
   };
 
-  const toggleDeckSelection = (deckId) => {
-    const newSelected = new Set(selectedDecks);
-    if (newSelected.has(deckId)) {
-      newSelected.delete(deckId);
-    } else {
-      newSelected.add(deckId);
-    }
-    setSelectedDecks(newSelected);
-  };
+  const handleCategoryMenuPress = useCallback((item, event) => {
+    const { pageX, pageY } = event.nativeEvent;
+    setCategoryContextMenu({ visible: true, item, x: pageX, y: pageY });
+  }, []);
 
-  const deleteSelectedDecks = async () => {
-    if (selectedDecks.size === 0) {
-      setAlertConfig({
-        visible: true,
-        title: "Atenção",
-        message: "Selecione ao menos um deck para apagar.",
-        buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-      });
-      return;
-    }
-
-    // Check if any purchased decks are selected
-    const hasPurchasedDeck = Array.from(selectedDecks).some(id => {
-      const deck = decks.find(d => d.id === id);
-      return deck && deck.isPurchased;
-    });
-
-    if (hasPurchasedDeck) {
-      setAlertConfig({
-        visible: true,
-        title: "Deck Comprado",
-        message: "Decks comprados não podem ser apagados. Eles ficam salvos na sua conta.",
-        buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-      });
-      return;
-    }
-
-    // Check if any protected default decks are selected
-    const hasProtectedDefaultDeck = Array.from(selectedDecks).some(id => {
-      return isDefaultDeck(id) && !allowDefaultDeckEditing;
-    });
-
-    if (hasProtectedDefaultDeck) {
-      setAlertConfig({
-        visible: true,
-        title: "Deck Protegido",
-        message: "Alguns decks selecionados são padrão. Para apagá-los, ative 'Permitir edição de decks padrão' nas Configurações.",
-        buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-      });
-      return;
-    }
-
+  const handleDeleteCategory = useCallback(async (item) => {
+    if (!item) return;
+    const catId = item.category.id;
     setAlertConfig({
       visible: true,
-      title: "Apagar Decks",
-      message: `Tem certeza que deseja apagar ${selectedDecks.size} deck(s) selecionado(s)?`,
+      title: `Excluir "${item.category.name}"?`,
+      message: `Isso apagará a categoria${item.decks.length > 0 ? ` e todos os seus ${item.decks.length} deck(s) e flashcards` : ''}. Essa ação não pode ser desfeita.`,
       buttons: [
-        { text: "Cancelar", style: "cancel", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) },
-        {
-          text: "Confirmar",
-          style: "destructive",
-          onPress: async () => {
-            const allData = await getAppData();
-            const newData = allData.filter(d => !selectedDecks.has(d.id));
-            await saveAppData(newData);
-            setMultiSelectMode(false);
-            setSelectedDecks(new Set());
-            loadData();
-            setAlertConfig(prev => ({ ...prev, visible: false }));
+        { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+        { text: 'Excluir', style: 'destructive', onPress: async () => {
+          setAlertConfig(p => ({ ...p, visible: false }));
+          const deckIds = new Set(item.decks.map(d => d.id));
+          const allData = await getAppData();
+          await saveAppData(allData.filter(d => !deckIds.has(d.id)));
+          await Promise.all(Array.from(deckIds).map(id => removePurchasedDeck(id)));
+
+          const usedIds = await getUsedCategoryIds();
+          const newUsedIds = new Set(usedIds);
+          newUsedIds.delete(catId);
+          await saveUsedCategoryIds(Array.from(newUsedIds));
+
+          if (item.category.isCustom) {
+            const customCats = await getCustomCategories();
+            await saveCustomCategories(customCats.filter(c => c.id !== catId));
           }
-        }
-      ]
+
+          exitSelectMode();
+          loadData();
+        }},
+      ],
+    });
+  }, [exitSelectMode, loadData]);
+
+  const handleCategoryPress = (category) => {
+    if (multiSelectMode) return;
+    navigation.navigate('CategoryDetail', {
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryIcon: category.icon,
     });
   };
 
-  const handleSelectAll = () => {
-    // Logic: If ANY item is selected, Deselect All.
-    // If NOTHING is selected, show Select Options.
-    
-    if (selectedDecks.size > 0) {
-        setSelectedDecks(new Set());
-        return;
-    }
+  const pruneEmptyCategoryIds = async (remainingDecks) => {
+    const activeCatIds = new Set(
+      remainingDecks.filter(d => !d.isExample).map(d => getDeckCatId(d))
+    );
+    const customs = await getCustomCategories();
+    const customCatIds = new Set(customs.map(c => c.id));
+    const usedIds = await getUsedCategoryIds();
+    const pruned = new Set([...usedIds].filter(id => activeCatIds.has(id) || customCatIds.has(id)));
+    await saveUsedCategoryIds(pruned);
+  };
 
-    // Toggle ON: Select Logic
-    if (!allowDefaultDeckEditing) {
-      // Locked: Select all USER decks
-      const allUserDecks = decks.filter(d => d.isUserCreated).map(d => d.id);
-      setSelectedDecks(new Set(allUserDecks));
-      return;
-    }
-
-    // Unlocked: Show options
+  const deleteSelectedDecks = useCallback(async () => {
+    if (selectedIds.size === 0) return;
     setAlertConfig({
-        visible: true,
-        title: "Seleção Rápida",
-        message: "O que você deseja selecionar?",
-        buttons: [
-            { 
-                text: "Todos os decks", 
-                onPress: () => {
-                    setSelectedDecks(new Set(decks.map(d => d.id)));
-                    setAlertConfig(prev => ({ ...prev, visible: false }));
-                }
-            },
-            { 
-                text: "Apenas decks padrão ou do sistema", 
-                onPress: () => {
-                    const defaultIds = decks.filter(d => !d.isUserCreated).map(d => d.id);
-                    setSelectedDecks(new Set(defaultIds));
-                    setAlertConfig(prev => ({ ...prev, visible: false }));
-                }
-            },
-            { 
-                text: "Apenas meus decks criados", 
-                onPress: () => {
-                    const userIds = decks.filter(d => d.isUserCreated).map(d => d.id);
-                    setSelectedDecks(new Set(userIds));
-                    setAlertConfig(prev => ({ ...prev, visible: false }));
-                }
-            },
-            { 
-                text: "Cancelar", 
-                style: "cancel", 
-                onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) 
-            }
-        ]
+      visible: true, title: 'Apagar Decks',
+      message: `Apagar ${selectedIds.size} deck(s) e todas as matérias e flashcards dentro deles? Essa ação não pode ser desfeita.`,
+      buttons: [
+        { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+        { text: 'Apagar', style: 'destructive', onPress: async () => {
+          const allData = await getAppData();
+          const remaining = allData.filter(d => !selectedIds.has(d.id));
+          await saveAppData(remaining);
+          await Promise.all(Array.from(selectedIds).map(id => removePurchasedDeck(id)));
+          exitSelectMode();
+          loadData(); setAlertConfig(p => ({ ...p, visible: false }));
+        }},
+      ],
     });
-  };
+  }, [selectedIds, exitSelectMode, loadData]);
 
-  // Update header based on multiSelectMode and deck conditions
-  useEffect(() => {
-    const drawerNav = navigation.getParent();
-    navigation.setOptions({
-      title: multiSelectMode ? `${selectedDecks.size} selecionado(s)` : 'Início',
-      headerRight: multiSelectMode ? () => null : () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => drawerNav?.openDrawer()} style={{ marginRight: 15 }}>
-            <Ionicons name="menu" size={28} color="white" />
-          </TouchableOpacity>
-        </View>
-      ),
-      headerLeft: multiSelectMode ? () => (
-         <TouchableOpacity onPress={() => { setMultiSelectMode(false); setSelectedDecks(new Set()); }} style={{ marginLeft: 15 }}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-         </TouchableOpacity>
-      ) : undefined,
+  const deleteSelectedCategories = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    const selectedItems = activeCategories.filter(i => selectedIds.has(i.category.id));
+    const totalDecks = selectedItems.reduce((sum, i) => sum + i.decks.length, 0);
+    setAlertConfig({
+      visible: true,
+      title: `Excluir ${selectedIds.size} categoria(s)?`,
+      message: `Isso apagará as categorias${totalDecks > 0 ? ` e todos os seus ${totalDecks} deck(s) e flashcards` : ''}. Essa ação não pode ser desfeita.`,
+      buttons: [
+        { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+        { text: 'Excluir', style: 'destructive', onPress: async () => {
+          setAlertConfig(p => ({ ...p, visible: false }));
+          const deckIds = new Set(selectedItems.flatMap(i => i.decks.map(d => d.id)));
+          const allData = await getAppData();
+          await saveAppData(allData.filter(d => !deckIds.has(d.id)));
+          await Promise.all(Array.from(deckIds).map(id => removePurchasedDeck(id)));
+
+          const usedIds = await getUsedCategoryIds();
+          const newUsedIds = new Set(usedIds);
+          selectedItems.forEach(i => newUsedIds.delete(i.category.id));
+          await saveUsedCategoryIds(Array.from(newUsedIds));
+
+          const customIdsToRemove = selectedItems.filter(i => i.category.isCustom).map(i => i.category.id);
+          if (customIdsToRemove.length > 0) {
+            const customs = await getCustomCategories();
+            await saveCustomCategories(customs.filter(c => !customIdsToRemove.includes(c.id)));
+          }
+
+          exitSelectMode();
+          loadData();
+        }},
+      ],
     });
-  }, [multiSelectMode, selectedDecks, navigation]);
-
-  // Handle back button press for multi-selection mode
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isFocused && multiSelectMode) {
-        setMultiSelectMode(false);
-        setSelectedDecks(new Set());
-        return true; // Consume the event
-      }
-      return false; // Allow default navigation
-    });
-    return () => backHandler.remove();
-  }, [isFocused, multiSelectMode]);
-
-  const handleDeckPress = (deck) => {
-    setStudyModeModal({ visible: true, deck });
-  };
-
-  const startStudy = (reviewAll) => {
-    const deck = studyModeModal.deck;
-    setStudyModeModal({ visible: false, deck: null });
-    if (!reviewAll) {
-      navigation.navigate('SubjectList', { deckId: deck.id, deckName: deck.name, preloadedSubjects: deck.subjects });
-    } else {
-      const allCards = (deck.subjects || []).flatMap(s =>
-        (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }))
-      );
-      navigation.navigate('Flashcard', {
-        deckId: deck.id,
-        subjectId: null,
-        subjectName: 'Revisão Geral',
-        reviewAll: true,
-        preloadedCards: allCards,
-      });
-    }
-  };
-
-  const handleOptionsPress = (deck) => {
-    setSelectedDeck(deck);
-    setModalVisible(true);
-  };
+  }, [selectedIds, activeCategories, exitSelectMode, loadData]);
 
   const performDelete = async () => {
     if (!selectedDeck) return;
-
-    // Check if it's a purchased deck
-    if (selectedDeck.isPurchased) {
-      setModalVisible(false);
-      setAlertConfig({
-          visible: true,
-          title: "Deck Comprado",
-          message: "Este deck foi comprado e não pode ser apagado. Ele fica salvo permanentemente na sua conta.",
-          buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-      });
-      return;
-    }
-
-    // Check if it's a default deck and protection is enabled
     if (isDefaultDeck(selectedDeck.id)) {
       const canEdit = await canEditDefaultDecks();
       if (!canEdit) {
         setModalVisible(false);
-        setAlertConfig({
-            visible: true,
-            title: "Deck Protegido",
-            message: "Este é um deck padrão do aplicativo. Para apagá-lo, ative a opção 'Permitir edição de decks padrão' nas Configurações.",
-            buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-        });
+        setAlertConfig({ visible: true, title: 'Deck Protegido', message: 'Ative "Permitir edição de decks padrão" nas Configurações para apagar.', buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }] });
         return;
       }
     }
-
     setModalVisible(false);
-
     setAlertConfig({
-        visible: true,
-        title: "Apagar Deck",
-        message: `Tem certeza que deseja apagar o deck "${selectedDeck.name}" e todas as suas matérias e flashcards?`,
-        buttons: [
-            { text: "Cancelar", style: "cancel", onPress: () => { setSelectedDeck(null); setAlertConfig(prev => ({ ...prev, visible: false })); } },
-            {
-                text: "Confirmar",
-                style: "destructive", // Adicionado para iOS
-                onPress: async () => {
-                    const allData = await getAppData();
-                    const newData = allData.filter(d => d.id !== selectedDeck.id);
-                    await saveAppData(newData);
-                    loadData(); // Recarrega os dados
-                    setSelectedDeck(null);
-                    setAlertConfig(prev => ({ ...prev, visible: false }));
-                }
-            }
-        ]
+      visible: true, title: 'Apagar Deck',
+      message: `Apagar "${selectedDeck.name}"? Isso também apagará todas as matérias e flashcards dentro dele.`,
+      buttons: [
+        { text: 'Cancelar', style: 'cancel', onPress: () => { setSelectedDeck(null); setAlertConfig(p => ({ ...p, visible: false })); } },
+        { text: 'Apagar', style: 'destructive', onPress: async () => {
+          const allData = await getAppData();
+          await saveAppData(allData.filter(d => d.id !== selectedDeck.id));
+          loadData(); setSelectedDeck(null); setAlertConfig(p => ({ ...p, visible: false }));
+        }},
+      ],
     });
   };
 
+  const openDrawer = () => navigation.getParent()?.openDrawer();
+
+  // ── Skeleton ──────────────────────────────
+
   if (loading) {
-      return (
-        <SafeAreaView style={styles.baseContainer}>
-            <View style={{ paddingTop: 20 }}>
-                {[1, 2, 3].map((item) => (
-                    <View key={item} style={styles.itemContainer}>
-                        <View style={{ flex: 1, marginRight: 16 }}>
-                            <SkeletonItem style={{ width: '70%', height: 24, marginBottom: 8 }} />
-                            <SkeletonItem style={{ width: '40%', height: 16 }} />
-                        </View>
-                        <SkeletonItem style={{ width: 50, height: 50, borderRadius: 25, borderWidth: 0 }} />
-                    </View>
-                ))}
-            </View>
-        </SafeAreaView>
-      );
+    return (
+      <View style={s.container}>
+        <HomeHeader onMenuPress={openDrawer} multiSelectMode={false} selectedCount={0} onBack={exitSelectMode} insetTop={insets.top} />
+        <View style={s.searchBarWrapper}>
+          <View style={s.searchBarSkeleton} />
+        </View>
+        <View style={{ paddingHorizontal: GRID_PADDING, paddingTop: 12, gap: 12 }}>
+          <View style={s.featuredSkeleton} />
+          <View style={s.gridRow}>
+            <View style={[s.cardSkeleton, { opacity: 0.8 }]} />
+            <View style={[s.cardSkeleton, { opacity: 0.6 }]} />
+          </View>
+          <View style={s.gridRow}>
+            <View style={[s.cardSkeleton, { opacity: 0.4 }]} />
+            <View style={[s.cardSkeleton, { opacity: 0.25 }]} />
+          </View>
+        </View>
+      </View>
+    );
   }
 
-  const defaultDecks = decks.filter(d => !d.isUserCreated);
-  const userDecks = decks.filter(d => d.isUserCreated);
-  const filteredUserDecks = userDecks.filter(d => d.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const isSearching = searchTerm.trim().length > 0;
+
+  // ── Helpers de grid com overflow ──────────
+
+  const renderGridWithOverflow = (items, renderCard, visibleCount, onShowMore) => {
+    const showOverflow = items.length > visibleCount;
+    const displayItems = showOverflow ? items.slice(0, visibleCount) : items;
+    const overflowCount = items.length - visibleCount;
+    const overflowCard = (
+      <OverflowCard
+        count={overflowCount}
+        width={CARD_WIDTH}
+        height={CARD_HEIGHT}
+        onPress={onShowMore}
+      />
+    );
+
+    const rows = [];
+    for (let i = 0; i < displayItems.length; i += 2) {
+      const isLastRow = i + 2 >= displayItems.length;
+      const isOddLastItem = isLastRow && !displayItems[i + 1]; // last item is alone
+
+      if (showOverflow && isOddLastItem) {
+        // Pair the lone last item with the overflow card in the same row
+        rows.push(
+          <View key={i} style={s.gridRow}>
+            {renderCard(displayItems[i], i)}
+            {overflowCard}
+          </View>
+        );
+      } else {
+        rows.push(
+          <View key={i} style={s.gridRow}>
+            {renderCard(displayItems[i], i)}
+            {displayItems[i + 1]
+              ? renderCard(displayItems[i + 1], i + 1)
+              : <View style={{ width: CARD_WIDTH, opacity: 0 }} />}
+          </View>
+        );
+      }
+    }
+
+    // If all items fill even rows and there's overflow, add overflow in its own row
+    if (showOverflow && displayItems.length % 2 === 0) {
+      rows.push(
+        <View key="overflow-row" style={s.gridRow}>
+          {overflowCard}
+          <View style={{ width: CARD_WIDTH }} />
+        </View>
+      );
+    }
+
+    return rows;
+  };
+
+  // ── Render ────────────────────────────────
 
   return (
-    <SafeAreaView style={styles.baseContainer}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView 
-        ref={scrollViewRef}
-        contentContainerStyle={{ paddingBottom: 100 }}
-      >
-        {defaultDecks.map(item => (
-          <TouchableOpacity 
-            key={item.id} 
-            style={[
-              styles.itemContainer,
-              multiSelectMode && selectedDecks.has(item.id) && styles.selectedDeckItem
-            ]} 
-            onPress={() => multiSelectMode ? (allowDefaultDeckEditing ? toggleDeckSelection(item.id) : null) : handleDeckPress(item)}
-            onLongPress={() => {
-                if (!multiSelectMode && allowDefaultDeckEditing) {
-                    setMultiSelectMode(true);
-                    toggleDeckSelection(item.id);
-                }
-            }}
-          >
-            {multiSelectMode && allowDefaultDeckEditing && (
-              <View style={styles.checkboxContainer}>
-                <Ionicons 
-                  name={selectedDecks.has(item.id) ? "checkbox" : "square-outline"} 
-                  size={24} 
-                  color={selectedDecks.has(item.id) ? theme.primary : theme.textMuted}
-                />
-              </View>
-            )}
-            <View style={styles.itemTextContainer}>
-              <Text style={styles.itemTitle}>{item.name || 'Deck sem nome'}</Text>
-              <Text style={styles.itemSubtitle}>{item.subjects?.length || 0} matéria(s)</Text>
-            </View>
-            {!multiSelectMode && (
-              allowDefaultDeckEditing ? (
-                <View style={styles.subjectRightContainer}>
-                    <View style={[styles.progressContainer, {borderColor: calculateProgress(item.subjects) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text></View>
-                    <TouchableOpacity onPress={() => handleOptionsPress(item)} style={styles.subjectOptionsButton}>
-                        <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
-                    </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.subjectRightContainer}>
-                    <View style={styles.progressContainer}>
-                        <Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text>
-                    </View>
-                </View>
-              )
-            )}
-          </TouchableOpacity>
-        ))}
+    <View style={s.container}>
+      <HomeHeader
+        onMenuPress={openDrawer}
+        multiSelectMode={multiSelectMode}
+        selectedCount={selectedIds.size}
+        onBack={exitSelectMode}
+        insetTop={insets.top}
+      />
 
-        {userDecks.length > 0 && (
-          <View>
-            <View style={styles.userSubjectsDividerContainer}>
-              <View style={styles.userSubjectsDivider} />
-              <Text style={styles.userSubjectsDividerText}>Meus Decks</Text>
-              <View style={styles.userSubjectsDivider} />
-            </View>
-            <View 
-              style={styles.searchContainer}
-              ref={searchContainerRef}
-              collapsable={false}
-            >
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Pesquisar em meus decks..."
-                placeholderTextColor={theme.textMuted}
-                value={searchTerm}
-                onChangeText={setSearchTerm}
-                onPressIn={() => {
-                  if (searchContainerRef.current && scrollViewRef.current) {
-                    setTimeout(() => {
-                      searchContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
-                        // Scroll to search bar position with offset for visibility
-                        scrollViewRef.current.scrollTo({ y: pageY - 100, animated: true });
-                      });
-                    }, 100);
-                  }
-                }}
-              />
-            </View>
+      {(userDecks.filter(d => !d.isExample).length > 0 || purchasedDecks.length > 0) && (
+        <View style={s.searchBarWrapper}>
+          <View style={[s.searchBar, searchFocused && s.searchBarFocused]}>
+            <Ionicons name="search" size={17} color={isSearching ? theme.primary : theme.textMuted} style={{ marginRight: 8 }} />
+            <TextInput
+              ref={searchRef}
+              style={s.searchInput}
+              placeholder="Buscar decks, matérias ou categorias..."
+              placeholderTextColor={theme.textMuted}
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              returnKeyType="search"
+              autoCorrect={false}
+            />
+            {isSearching && (
+              <TouchableOpacity onPress={() => setSearchTerm('')} hitSlop={HIT_SLOP}>
+                <Ionicons name="close-circle" size={17} color={theme.textMuted} />
+              </TouchableOpacity>
+            )}
           </View>
-        )}
-
-        {filteredUserDecks.map(item => (
-          <TouchableOpacity 
-            key={item.id} 
-            style={[
-              styles.itemContainer,
-              multiSelectMode && selectedDecks.has(item.id) && styles.selectedDeckItem
-            ]} 
-            onPress={() => multiSelectMode ? toggleDeckSelection(item.id) : handleDeckPress(item)}
-            onLongPress={() => {
-                if (!multiSelectMode) {
-                    setMultiSelectMode(true);
-                    toggleDeckSelection(item.id);
-                }
-            }}
-          >
-            {multiSelectMode && (
-              <View style={styles.checkboxContainer}>
-                <Ionicons 
-                  name={selectedDecks.has(item.id) ? "checkbox" : "square-outline"} 
-                  size={24} 
-                  color={selectedDecks.has(item.id) ? theme.primary : theme.textMuted}
-                />
-              </View>
-            )}
-            {!multiSelectMode && (
-              <Ionicons name="person-outline" size={16} color={theme.primary} style={{marginRight: 8}} />
-            )}
-            <View style={styles.itemTextContainer}>
-                <Text style={styles.itemTitle}>{item.name || 'Deck sem nome'}</Text>
-                <Text style={styles.itemSubtitle}>{item.subjects?.length || 0} matéria(s)</Text>
-            </View>
-            {!multiSelectMode && (
-              <View style={styles.subjectRightContainer}>
-                  <View style={[styles.progressContainer, {borderColor: calculateProgress(item.subjects) === 100 ? theme.success : theme.primary}]}><Text style={styles.progressText}>{calculateProgress(item.subjects)}%</Text></View>
-                  <TouchableOpacity onPress={() => handleOptionsPress(item)} style={styles.subjectOptionsButton}>
-                      <Ionicons name="ellipsis-vertical" size={20} color={theme.textMuted} />
-                  </TouchableOpacity>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
-
-
-      </ScrollView>
-
-      {!multiSelectMode ? (
-        <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('AddDeck')}>
-            <Ionicons name="add" size={30} color="white" />
-        </TouchableOpacity>
-      ) : (
-        <>
-           <TouchableOpacity
-             style={[
-                 styles.fab,
-                 { 
-                     bottom: 90, 
-                     width: 44, // Even smaller
-                     height: 44, 
-                     borderRadius: 12,
-                     right: 26, // Centering adjustment (Assuming Fab is 56 right 20 -> Center at 48. This center at 26+22=48)
-                     borderWidth: 2,
-                     borderColor: theme.primary,
-                     // Hollow Logic: Filled if ANY selected
-                     backgroundColor: selectedDecks.size > 0 ? theme.primary : 'transparent',
-                 }
-             ]}
-             onPress={handleSelectAll}
-           >
-             <Ionicons 
-                name="checkmark-done-outline" 
-                size={22} 
-                color={selectedDecks.size > 0 ? theme.textPrimary : theme.primary}
-             />
-           </TouchableOpacity>
-
-           <TouchableOpacity
-               style={[
-                   styles.fab,
-                   { backgroundColor: theme.danger },
-                   selectedDecks.size === 0 && { opacity: 0.5 }
-                ]}
-               activeOpacity={selectedDecks.size === 0 ? 1 : 0.7} 
-               onPress={selectedDecks.size > 0 ? deleteSelectedDecks : null} 
-           >
-               <Ionicons name="trash" size={24} color="white" />
-           </TouchableOpacity>
-        </>
+        </View>
       )}
 
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={isModalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Opções do Deck</Text>
-                 <TouchableOpacity style={styles.modalButton} onPress={async () => {
-                  // Check if it's a default deck and protection is enabled
-                  if (isDefaultDeck(selectedDeck.id)) {
-                    const canEdit = await canEditDefaultDecks();
-                    if (!canEdit) {
-                      setModalVisible(false);
-                      setAlertConfig({
+      {isSearching ? (
+        /* ── Busca ── */
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={s.searchContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {searchResults.length === 0 ? (
+            <View style={s.emptyState}>
+              <Ionicons name="search-outline" size={36} color={theme.backgroundTertiary} />
+              <Text style={s.emptyStateText}>Nenhum resultado para "{searchTerm}"</Text>
+            </View>
+          ) : searchResults.map((item, index) => (
+            <TouchableOpacity
+              key={`${item.type}-${index}`}
+              style={s.searchResultItem}
+              onPress={() => {
+                if (item.type === 'deck' || item.type === 'subject') {
+                  handleDeckPress(item.deck);
+                } else if (item.type === 'category') {
+                  navigation.navigate('CategoryDetail', {
+                    categoryId: item.category.id,
+                    categoryName: item.category.name,
+                    categoryIcon: item.category.icon,
+                  });
+                  // Limpa após a transição de fade começar (2 frames)
+                  requestAnimationFrame(() => requestAnimationFrame(() => setSearchTerm('')));
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={s.searchResultIcon}>
+                {item.type === 'category' ? (
+                  <CategorySearchIcon category={item.category} size={22} />
+                ) : (
+                  <Ionicons
+                    name={item.type === 'subject' ? 'book-outline' : 'layers-outline'}
+                    size={17}
+                    color={theme.primary}
+                  />
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.searchResultLabel} numberOfLines={1}>{item.label}</Text>
+                <Text style={s.searchResultSub} numberOfLines={1}>{item.sublabel}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={15} color={theme.textMuted} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+      ) : isFirstAccess ? (
+        /* ── Primeiro acesso ── */
+        <ScrollView style={s.firstAccessScroll} contentContainerStyle={s.firstAccessScrollContent} showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}>
+          <View style={s.firstAccessContent}>
+            {/* Card deck de exemplo */}
+            <TouchableOpacity
+              style={s.exampleCard}
+              onPress={() => exampleDeck && handleDeckPress(exampleDeck)}
+              activeOpacity={0.85}
+            >
+              <View style={s.exampleCardLabel}>
+                <Text style={s.exampleCardLabelText}>DECK DE EXEMPLO</Text>
+              </View>
+              <Text style={s.exampleCardTitle}>Como funciona o app?</Text>
+              <Text style={s.exampleCardSub}>Toque para ver seus primeiros flashcards e entender o sistema de revisão espaçada</Text>
+              <View style={s.exampleCardBtn}>
+                <Text style={s.exampleCardBtnText}>Explorar exemplo →</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Botão criar primeiro deck */}
+            <TouchableOpacity
+              style={s.createFirstBtn}
+              onPress={() => navigation.navigate('AddDeck')}
+              activeOpacity={0.8}
+            >
+              <View style={s.createFirstBtnIcon}>
+                <Ionicons name="add" size={20} color={theme.background} />
+              </View>
+              <Text style={s.createFirstBtnText}>Criar meu primeiro deck</Text>
+            </TouchableOpacity>
+
+            {/* Botão loja */}
+            <TouchableOpacity
+              style={s.lojaBtn}
+              onPress={() => navigation.navigate('Loja')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="storefront-outline" size={18} color={theme.textPrimary} />
+              <Text style={s.lojaBtnText}>Explorar a loja</Text>
+            </TouchableOpacity>
+
+            {/* Por onde começar — somem quando criar o primeiro deck */}
+            <View style={s.stepsSection}>
+              <View style={s.stepsSectionLabelRow}>
+                <Text style={s.stepsSectionLabel}>POR ONDE COMEÇAR?</Text>
+                <View style={s.stepsSectionDivider} />
+              </View>
+              <View style={s.stepsList}>
+                <View style={s.stepItem}>
+                  <View style={s.stepNumber}>
+                    <Text style={s.stepNumberText}>1</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.stepTitle}>Crie ou compre um deck</Text>
+                    <Text style={s.stepSub}>Use os botões acima para começar</Text>
+                  </View>
+                </View>
+                <View style={s.stepItem}>
+                  <View style={s.stepNumber}>
+                    <Text style={s.stepNumberText}>2</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.stepTitle}>Adicione matérias e flashcards</Text>
+                    <Text style={s.stepSub}>Organize seu conteúdo de estudo</Text>
+                  </View>
+                </View>
+                <View style={[s.stepItem, { borderBottomWidth: 0 }]}>
+                  <View style={s.stepNumber}>
+                    <Text style={s.stepNumberText}>3</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.stepTitle}>Estude e evolua</Text>
+                    <Text style={s.stepSub}>Acompanhe seu progresso</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+
+      ) : (
+        /* ── Com conteúdo ── */
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={s.mainContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+          {/* Card de exemplo — aparece enquanto não houver nenhum deck criado */}
+          {userDecks.filter(d => !d.isExample).length === 0 && purchasedDecks.length === 0 && (
+            <TouchableOpacity
+              style={[s.exampleCard, { marginHorizontal: GRID_PADDING, marginTop: 12 }]}
+              onPress={() => exampleDeck && handleDeckPress(exampleDeck)}
+              activeOpacity={0.85}
+            >
+              <View style={s.exampleCardLabel}>
+                <Text style={s.exampleCardLabelText}>DECK DE EXEMPLO</Text>
+              </View>
+              <Text style={s.exampleCardTitle}>Como funciona o app?</Text>
+              <Text style={s.exampleCardSub}>Toque para ver seus primeiros flashcards e entender o sistema de revisão espaçada</Text>
+              <View style={s.exampleCardBtn}>
+                <Text style={s.exampleCardBtnText}>Explorar exemplo →</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* 1. BOTÃO CRIAR DECK */}
+          <View style={s.createDeckWrapper}>
+            <TouchableOpacity
+              style={s.createDeckBtn}
+              onPress={() => navigation.navigate('AddDeck')}
+              activeOpacity={0.8}
+            >
+              <View style={s.createDeckIcon}>
+                <Ionicons name="add" size={18} color={theme.primary} />
+              </View>
+              <Text style={s.createDeckBtnText}>Criar deck</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 3. TAB BAR */}
+          <View style={s.tabBarWrapper}>
+            <HomeTabBar activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); exitSelectMode(); setSortMenuOpen(false); setVisibleDeckCount(MAX_VISIBLE - 1); }} />
+          </View>
+
+          {/* 4. CONTEÚDO DA ABA */}
+          <View style={s.tabContent}>
+
+            {/* Barra de seleção minimalista — só aparece em modo seleção */}
+            {multiSelectMode && (
+              <View style={s.selectBar}>
+                <TouchableOpacity onPress={exitSelectMode} style={s.selectBarCancel} hitSlop={HIT_SLOP}>
+                  <Ionicons name="close" size={15} color={theme.textSecondary} />
+                  <Text style={s.selectBarCancelTxt}>Cancelar</Text>
+                </TouchableOpacity>
+                <Text style={s.selectBarCount}>
+                  {selectedIds.size === 1 ? '1 selecionado' : `${selectedIds.size} selecionados`}
+                </Text>
+                <View style={s.selectBarActions}>
+                  <TouchableOpacity onPress={handleSelectAll} hitSlop={HIT_SLOP} style={s.selectBarAction}>
+                    <Ionicons name="checkmark-done-outline" size={17} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                  {(activeTab === 'decks' || activeTab === 'categorias') && selectedIds.size > 0 && (
+                    <TouchableOpacity onPress={activeTab === 'categorias' ? deleteSelectedCategories : deleteSelectedDecks} hitSlop={HIT_SLOP} style={[s.selectBarAction, s.selectBarDelete]}>
+                      <Ionicons name="trash-outline" size={15} color={theme.danger} />
+                    </TouchableOpacity>
+                  )}
+                  {activeTab === 'materias' && selectedIds.size > 0 && (
+                    <TouchableOpacity
+                      hitSlop={HIT_SLOP}
+                      style={[s.selectBarAction, s.selectBarDelete]}
+                      onPress={() => {
+                        setAlertConfig({
                           visible: true,
-                          title: "Deck Protegido",
-                          message: "Este é um deck padrão do aplicativo. Para editá-lo, ative a opção 'Permitir edição de decks padrão' nas Configurações.",
-                          buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-                      });
-                      return;
-                    }
-                  }
-                  setModalVisible(false);
-                  navigation.navigate('EditDeck', { deckId: selectedDeck.id });
-                }}>
-                  <Ionicons name="create-outline" size={22} color="#FFFFFF" />
-                  <Text style={styles.modalButtonText}>Editar Nome</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.backgroundTertiary }]} onPress={() => {
-                    setModalVisible(false);
-                    setMultiSelectMode(true);
-                    toggleDeckSelection(selectedDeck.id);
-                }}>
-                    <Ionicons name="checkbox-outline" size={22} color="white" />
-                    <Text style={styles.modalButtonText}>Selecionar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.danger}]} onPress={performDelete}>
-                  <Ionicons name="trash-outline" size={22} color="#FFFFFF" />
-                  <Text style={styles.modalButtonText}>Apagar Deck</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, {backgroundColor: theme.backgroundTertiary, marginTop: 20}]} onPress={() => setModalVisible(false)}>
-                  <Text style={styles.modalButtonText}>Cancelar</Text>
-                </TouchableOpacity>
+                          title: 'Apagar Matérias',
+                          message: `Apagar ${selectedIds.size} matéria(s) e todos os flashcards dentro delas? Essa ação não pode ser desfeita.`,
+                          buttons: [
+                            { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+                            { text: 'Apagar', style: 'destructive', onPress: async () => {
+                              const allData = await getAppData();
+                              const updated = allData.map(deck => ({
+                                ...deck,
+                                subjects: (deck.subjects || []).filter(s => !selectedIds.has(`${deck.id}:${s.id}`)),
+                              }));
+                              await saveAppData(updated);
+                              exitSelectMode();
+                              loadData();
+                              setAlertConfig(p => ({ ...p, visible: false }));
+                            }},
+                          ],
+                        });
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={15} color={theme.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            </TouchableWithoutFeedback>
+            )}
+
+            {/* ── ABA CATEGORIAS ── */}
+            {activeTab === 'categorias' && (
+              activeCategories.length === 0 ? (
+                <View style={s.emptyTab}>
+                  <Ionicons name="folder-open-outline" size={36} color={theme.backgroundTertiary} />
+                  <Text style={s.emptyTabText}>Nenhuma categoria ainda.</Text>
+                  <Text style={s.emptyTabSub}>Crie um deck ou explore a loja para ver categorias aqui.</Text>
+                </View>
+              ) : (
+                <>
+                  {!multiSelectMode && activeCategories.length >= 2 && (
+                    <View style={s.deckMetaRow}>
+                      <View style={[s.deckMetaLine, { flex: 1 }]} />
+                      <TouchableOpacity
+                        ref={catSortBtnRef}
+                        style={[s.deckMetaBtn, catSortOrder && s.deckMetaBtnActive, { marginHorizontal: 6 }]}
+                        hitSlop={HIT_SLOP}
+                        onPress={() => {
+                          catSortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
+                            const sbH = StatusBar.currentHeight || 0;
+                            setCatSortMenuPos({ x, y: y + bh + sbH, w: bw });
+                            setCatSortMenuOpen(true);
+                          });
+                        }}
+                      >
+                        <Ionicons
+                          name="swap-vertical-outline"
+                          size={13}
+                          color={catSortOrder ? theme.primary : theme.textMuted}
+                        />
+                        <Text style={[s.deckMetaBtnTxt, catSortOrder && s.deckMetaBtnTxtActive]}>
+                          {catSortOrder ? CAT_SORT_LABELS[catSortOrder] : 'Ordenar'}
+                        </Text>
+                      </TouchableOpacity>
+                      <View style={[s.deckMetaLine, { width: GRID_PADDING + 24 }]} />
+                    </View>
+                  )}
+                  {renderGridWithOverflow(
+                    sortCategories(activeCategories),
+                    (item) => (
+                      <CategorySvgCard
+                        key={item.category.id}
+                        category={item.category}
+                        decks={item.decks}
+                        width={CARD_WIDTH}
+                        onPress={() => multiSelectMode ? toggleSelection(item.category.id) : handleCategoryPress(item.category)}
+                        onLongPress={() => handleCategoryCardLongPress(item)}
+                        isSelected={selectedIds.has(item.category.id)}
+                        selectMode={multiSelectMode}
+                        onMenuPress={(e) => handleCategoryMenuPress(item, e)}
+                      />
+                    ),
+                    'categorias',
+                  )}
+                </>
+              )
+            )}
+
+            {/* ── ABA DECKS ── */}
+            {activeTab === 'decks' && (() => {
+              const meusDecks = userDecks.filter(d => !d.isExample);
+              const compradosDecks = purchasedDecks;
+              const hasMeus = meusDecks.length > 0;
+              const hasComprados = compradosDecks.length > 0;
+              const totalDecks = meusDecks.length + compradosDecks.length;
+              const showFilters = hasMeus && hasComprados && totalDecks >= 2;
+
+              if (!hasMeus && !hasComprados) {
+                return (
+                  <View style={s.emptyTab}>
+                    <Ionicons name="layers-outline" size={36} color={theme.backgroundTertiary} />
+                    <Text style={s.emptyTabText}>Nenhum deck ainda.</Text>
+                    <Text style={s.emptyTabSub}>Crie um deck e adicione matérias para começar.</Text>
+                  </View>
+                );
+              }
+
+              // Decks a exibir conforme filtro
+              let displayDecks;
+              if (showFilters && deckFilter === 'meus') displayDecks = sortDecks(meusDecks);
+              else if (showFilters && deckFilter === 'comprados') displayDecks = sortDecks(compradosDecks);
+              else displayDecks = sortDecks([...compradosDecks, ...meusDecks]);
+
+              const renderDeckCard = (deck) => (
+                <DeckStackCard
+                  key={deck.id}
+                  deck={deck}
+                  width={CARD_WIDTH}
+                  height={CARD_HEIGHT}
+                  categoryLabel={getCatLabel(deck, customCats)}
+                  onPress={() => handleDeckPress(deck)}
+                  onLongPress={() => handleDeckLongPress(deck)}
+                  onMenuPress={(e) => handleMenuPress(deck, e)}
+                  isSelected={selectedIds.has(deck.id)}
+                  multiSelectMode={multiSelectMode}
+                />
+              );
+
+              const sectionKey = showFilters && deckFilter === 'comprados'
+                ? 'decks-comprados'
+                : showFilters && deckFilter === 'meus'
+                ? 'decks-meus'
+                : 'decks-todos';
+
+              return (
+                <>
+                  {/* Linha de controles: chips + organizar */}
+                  {!multiSelectMode && totalDecks >= 2 && (
+                    <>
+                      {/* Filter chips — só quando há meus + comprados */}
+                      {showFilters && (
+                        <View style={s.filterChips}>
+                          {[
+                            { key: 'all',       label: 'Todos' },
+                            { key: 'meus',      label: 'Criados' },
+                            { key: 'comprados', label: 'Comprados' },
+                          ].map(chip => (
+                            <TouchableOpacity
+                              key={chip.key}
+                              style={[s.filterChip, deckFilter === chip.key && s.filterChipActive]}
+                              onPress={() => { setDeckFilter(chip.key); setVisibleDeckCount(MAX_VISIBLE - 1); }}
+                              hitSlop={HIT_SLOP}
+                            >
+                              <Text style={[s.filterChipTxt, deckFilter === chip.key && s.filterChipTxtActive]}>
+                                {chip.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Linha longa — gap — botão — gap — linha curta */}
+                      <View style={s.deckMetaRow}>
+                        <View style={[s.deckMetaLine, { flex: 1 }]} />
+                        <TouchableOpacity
+                          ref={sortBtnRef}
+                          style={[s.deckMetaBtn, sortOrder && s.deckMetaBtnActive, { marginHorizontal: 6 }]}
+                          hitSlop={HIT_SLOP}
+                          onPress={() => {
+                            sortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
+                              const sbH = StatusBar.currentHeight || 0;
+                              setSortMenuPos({ x, y: y + bh + sbH, w: bw });
+                              setSortMenuOpen(true);
+                            });
+                          }}
+                        >
+                          <Ionicons
+                            name="swap-vertical-outline"
+                            size={13}
+                            color={sortOrder ? theme.primary : theme.textMuted}
+                          />
+                          <Text style={[s.deckMetaBtnTxt, sortOrder && s.deckMetaBtnTxtActive]}>
+                            {sortOrder ? SORT_LABELS[sortOrder] : 'Ordenar'}
+                          </Text>
+                        </TouchableOpacity>
+                        <View style={[s.deckMetaLine, { width: GRID_PADDING + 24 }]} />
+                      </View>
+                    </>
+                  )}
+
+                  {renderGridWithOverflow(
+                    displayDecks,
+                    renderDeckCard,
+                    visibleDeckCount,
+                    () => setVisibleDeckCount(prev => prev + (MAX_VISIBLE - 1))
+                  )}
+                </>
+              );
+            })()}
+
+
           </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        </ScrollView>
+      )}
+
+      {/* ── Dropdown de ordenação ── */}
       <Modal
+        transparent
         animationType="fade"
-        transparent={true}
-        visible={studyModeModal.visible}
-        onRequestClose={() => setStudyModeModal({ visible: false, deck: null })}
+        visible={sortMenuOpen}
+        onRequestClose={() => setSortMenuOpen(false)}
+        statusBarTranslucent
       >
-        <TouchableWithoutFeedback onPress={() => setStudyModeModal({ visible: false, deck: null })}>
-          <View style={styles.modalOverlay}>
+        <TouchableWithoutFeedback onPress={() => setSortMenuOpen(false)}>
+          <View style={{ flex: 1 }}>
+            <View style={[sortStyles.dropdown, {
+              position: 'absolute',
+              right: GRID_PADDING,
+              top: sortMenuPos.y + 10,
+              width: 230,
+            }]}>
+              <View style={sortStyles.header}>
+                <Ionicons name="swap-vertical-outline" size={13} color={theme.primary} />
+                <Text style={sortStyles.headerTxt}>Ordenar por</Text>
+              </View>
+              <View style={sortStyles.sep} />
+              {SORT_OPTIONS.map((opt) => {
+                const isActive = sortOrder === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[sortStyles.item, isActive && sortStyles.itemActive]}
+                    onPress={() => { setSortOrder(isActive ? null : opt.key); setSortMenuOpen(false); }}
+                  >
+                    <View style={[sortStyles.itemIconWrap, isActive && sortStyles.itemIconWrapActive]}>
+                      <Ionicons name={opt.icon} size={14} color={isActive ? theme.primary : theme.textMuted} />
+                    </View>
+                    <Text style={[sortStyles.itemTxt, isActive && sortStyles.itemTxtActive]} numberOfLines={1}>
+                      {opt.label}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={14} color={theme.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Dropdown de ordenação — categorias ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={catSortMenuOpen}
+        onRequestClose={() => setCatSortMenuOpen(false)}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setCatSortMenuOpen(false)}>
+          <View style={{ flex: 1 }}>
+            <View style={[sortStyles.dropdown, {
+              position: 'absolute',
+              right: GRID_PADDING,
+              top: catSortMenuPos.y + 10,
+              width: 230,
+            }]}>
+              <View style={sortStyles.header}>
+                <Ionicons name="swap-vertical-outline" size={13} color={theme.primary} />
+                <Text style={sortStyles.headerTxt}>Ordenar por</Text>
+              </View>
+              <View style={sortStyles.sep} />
+              {[
+                { key: 'az',      label: 'A–Z',                  icon: 'arrow-up-outline' },
+                { key: 'za',      label: 'Z–A',                  icon: 'arrow-down-outline' },
+                { key: 'more',    label: 'Mais decks',            icon: 'layers-outline' },
+                { key: 'less',    label: 'Menos decks',           icon: 'layers-outline' },
+                { key: 'preset',  label: 'Padrão',        icon: 'albums-outline' },
+                { key: 'custom',  label: 'Personalizada',  icon: 'folder-outline' },
+              ].map((opt) => {
+                const isActive = catSortOrder === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[sortStyles.item, isActive && sortStyles.itemActive]}
+                    onPress={() => { setCatSortOrder(isActive ? null : opt.key); setCatSortMenuOpen(false); }}
+                  >
+                    <View style={[sortStyles.itemIconWrap, isActive && sortStyles.itemIconWrapActive]}>
+                      <Ionicons name={opt.icon} size={14} color={isActive ? theme.primary : theme.textMuted} />
+                    </View>
+                    <Text style={[sortStyles.itemTxt, isActive && sortStyles.itemTxtActive]} numberOfLines={1}>
+                      {opt.label}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={14} color={theme.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Menu de contexto (3 pontos) ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={contextMenu.visible}
+        onRequestClose={closeContextMenu}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={closeContextMenu}>
+          <View style={ctxStyles.overlay}>
+            {(() => {
+              const menuW = 180;
+              const menuH = 104;
+              let menuLeft = contextMenu.x - menuW + 16;
+              let menuTop = contextMenu.y - menuH - 10;
+              if (menuLeft < 8) menuLeft = 8;
+              if (menuLeft + menuW > width - 8) menuLeft = width - menuW - 8;
+              if (menuTop < 60) menuTop = contextMenu.y + 10;
+              return (
+                <View style={[ctxStyles.menu, { left: menuLeft, top: menuTop }]}>
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      const deck = contextMenu.deck;
+                      closeContextMenu();
+                      if (deck) setRenameModal({ visible: true, deck, text: deck.name || '' });
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Renomear</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      const deck = contextMenu.deck;
+                      closeContextMenu();
+                      if (!deck) return;
+                      setTimeout(() => {
+                        setAlertConfig({
+                          visible: true,
+                          title: 'Apagar Deck',
+                          message: `Apagar "${deck.name}"? Isso também apagará todas as matérias e flashcards dentro dele.`,
+                          buttons: [
+                            { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+                            { text: 'Apagar', style: 'destructive', onPress: async () => {
+                              const allData = await getAppData();
+                              await saveAppData(allData.filter(d => d.id !== deck.id));
+                              loadData();
+                              setAlertConfig(p => ({ ...p, visible: false }));
+                            }},
+                          ],
+                        });
+                      }, 50);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={theme.danger} />
+                    <Text style={[ctxStyles.itemText, { color: theme.danger }]}>Excluir</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Modal de Renomear Deck ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={renameModal.visible}
+        onRequestClose={() => setRenameModal(p => ({ ...p, visible: false }))}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setRenameModal(p => ({ ...p, visible: false }))}>
+          <View style={renameStyles.overlay}>
             <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Como quer estudar?</Text>
-                <TouchableOpacity style={styles.modalButton} onPress={() => startStudy(false)}>
-                  <Ionicons name="school-outline" size={22} color="#FFFFFF" />
-                  <Text style={styles.modalButtonText}>Estudar (SRS)</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.backgroundTertiary }]} onPress={() => startStudy(true)}>
-                  <Ionicons name="refresh-outline" size={22} color="#FFFFFF" />
-                  <Text style={styles.modalButtonText}>Revisão Geral</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: theme.backgroundTertiary, marginTop: 8 }]} onPress={() => setStudyModeModal({ visible: false, deck: null })}>
-                  <Text style={styles.modalButtonText}>Cancelar</Text>
-                </TouchableOpacity>
+              <View style={renameStyles.card}>
+                <View style={renameStyles.titleRow}>
+                  <Text style={renameStyles.title}>Renomear deck</Text>
+                  {renameModal.text.length > 0 && (
+                    <Text style={[renameStyles.charCount, renameModal.text.length >= 25 && renameStyles.charCountWarn]}>
+                      {renameModal.text.length}/30
+                    </Text>
+                  )}
+                </View>
+                <TextInput
+                  style={renameStyles.input}
+                  value={renameModal.text}
+                  onChangeText={t => setRenameModal(p => ({ ...p, text: t.slice(0, 30) }))}
+                  autoFocus
+                  selectTextOnFocus
+                  placeholderTextColor={theme.textMuted}
+                  placeholder="Nome do deck"
+                  maxLength={30}
+                />
+                <View style={renameStyles.actions}>
+                  <TouchableOpacity
+                    style={renameStyles.btnCancel}
+                    onPress={() => setRenameModal(p => ({ ...p, visible: false }))}
+                  >
+                    <Text style={renameStyles.btnCancelTxt}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[renameStyles.btnSave, !renameModal.text.trim() && renameStyles.btnSaveDisabled]}
+                    disabled={!renameModal.text.trim()}
+                    onPress={async () => {
+                      const newName = renameModal.text.trim();
+                      if (!newName || !renameModal.deck) return;
+                      const allData = await getAppData();
+                      const updated = allData.map(d =>
+                        d.id === renameModal.deck.id ? { ...d, name: newName } : d
+                      );
+                      await saveAppData(updated);
+                      setRenameModal({ visible: false, deck: null, text: '' });
+                      loadData();
+                    }}
+                  >
+                    <Text style={renameStyles.btnSaveTxt}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-      <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+
+
+
+      {/* ── Sort de Matérias ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={subjectSortMenuOpen}
+        onRequestClose={() => setSubjectSortMenuOpen(false)}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setSubjectSortMenuOpen(false)}>
+          <View style={{ flex: 1 }}>
+            <View style={[sortStyles.dropdown, {
+              position: 'absolute',
+              right: GRID_PADDING,
+              top: subjectSortMenuPos.y + 10,
+              width: 230,
+            }]}>
+              <View style={sortStyles.header}>
+                <Ionicons name="swap-vertical-outline" size={13} color={theme.primary} />
+                <Text style={sortStyles.headerTxt}>Ordenar por</Text>
+              </View>
+              <View style={sortStyles.sep} />
+              {SUBJECT_SORT_OPTIONS.map((opt) => {
+                const isActive = subjectSortOrder === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[sortStyles.item, isActive && sortStyles.itemActive]}
+                    onPress={() => { setSubjectSortOrder(isActive ? null : opt.key); setSubjectSortMenuOpen(false); }}
+                  >
+                    <View style={[sortStyles.itemIconWrap, isActive && sortStyles.itemIconWrapActive]}>
+                      <Ionicons name={opt.icon} size={14} color={isActive ? theme.primary : theme.textMuted} />
+                    </View>
+                    <Text style={[sortStyles.itemTxt, isActive && sortStyles.itemTxtActive]} numberOfLines={1}>
+                      {opt.label}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark" size={14} color={theme.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Menu de contexto de Matéria (3 pontos) ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={subjectContextMenu.visible}
+        onRequestClose={closeSubjectContextMenu}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={closeSubjectContextMenu}>
+          <View style={ctxStyles.overlay}>
+            {(() => {
+              const menuW = 200;
+              const menuH = 220;
+              let menuLeft = subjectContextMenu.x - menuW + 16;
+              let menuTop = subjectContextMenu.y - menuH - 10;
+              if (menuLeft < 8) menuLeft = 8;
+              if (menuLeft + menuW > width - 8) menuLeft = width - menuW - 8;
+              if (menuTop < 60) menuTop = subjectContextMenu.y + 10;
+              const item = subjectContextMenu.item;
+              const isReview = item?.subject?.reviewMode;
+              return (
+                <View style={[ctxStyles.menu, { left: menuLeft, top: menuTop }]}>
+                  <TouchableOpacity
+                    style={[ctxStyles.item, { paddingVertical: 14 }, isReview && { backgroundColor: 'rgba(93,214,44,0.06)' }]}
+                    onPress={async () => {
+                      closeSubjectContextMenu();
+                      if (!item) return;
+                      const newVal = !item.subject.reviewMode;
+                      const allData = await getAppData();
+                      await saveAppData(allData.map(d => {
+                        if (d.id !== item.deck.id) return d;
+                        return { ...d, subjects: d.subjects.map(s => s.id === item.subject.id ? { ...s, reviewMode: newVal } : s) };
+                      }));
+                      loadData();
+                    }}
+                  >
+                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: isReview ? theme.primary : 'rgba(93,214,44,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="repeat-outline" size={16} color={isReview ? '#0F0F0F' : theme.primary} />
+                    </View>
+                    <Text style={{ flex: 1, color: theme.primary, fontSize: 14, fontFamily: theme.fontFamily.uiSemiBold }}>{isReview ? 'Desativar Revisão' : 'Modo Revisão'}</Text>
+                    {isReview && <Ionicons name="checkmark-circle" size={16} color={theme.primary} />}
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      closeSubjectContextMenu();
+                      if (!item) return;
+                      navigation.navigate('ManageFlashcards', { deckId: item.deck.id, subjectId: item.subject.id, preloadedCards: [], subjectName: item.subject.name });
+                    }}
+                  >
+                    <Ionicons name="add-circle-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Criar card</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      closeSubjectContextMenu();
+                      if (!item) return;
+                      navigation.navigate('FlashcardHistory', { deckId: item.deck.id, subjectId: item.subject.id });
+                    }}
+                  >
+                    <Ionicons name="layers-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Gerenciar Cards</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      closeSubjectContextMenu();
+                      if (item) setRenameSubjectModal({ visible: true, item, text: item.subject.name || '' });
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Renomear</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      closeSubjectContextMenu();
+                      if (!item) return;
+                      setTimeout(() => {
+                        setAlertConfig({
+                          visible: true,
+                          title: 'Apagar Matéria',
+                          message: `Apagar "${item.subject.name}" e todos os seus flashcards?`,
+                          buttons: [
+                            { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+                            { text: 'Apagar', style: 'destructive', onPress: async () => {
+                              const allData = await getAppData();
+                              const updated = allData.map(d => {
+                                if (d.id !== item.deck.id) return d;
+                                return { ...d, subjects: (d.subjects || []).filter(s => s.id !== item.subject.id) };
+                              });
+                              await saveAppData(updated);
+                              loadData();
+                              setAlertConfig(p => ({ ...p, visible: false }));
+                            }},
+                          ],
+                        });
+                      }, 50);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={theme.danger} />
+                    <Text style={[ctxStyles.itemText, { color: theme.danger }]}>Excluir</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* ── Modal Renomear Matéria ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={renameSubjectModal.visible}
+        onRequestClose={() => setRenameSubjectModal(p => ({ ...p, visible: false }))}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setRenameSubjectModal(p => ({ ...p, visible: false }))}>
+          <View style={renameStyles.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={renameStyles.card}>
+                <View style={renameStyles.titleRow}>
+                  <Text style={renameStyles.title}>Renomear matéria</Text>
+                  {renameSubjectModal.text.length > 0 && (
+                    <Text style={[renameStyles.charCount, renameSubjectModal.text.length >= 20 && renameStyles.charCountWarn]}>
+                      {renameSubjectModal.text.length}/25
+                    </Text>
+                  )}
+                </View>
+                <TextInput
+                  style={renameStyles.input}
+                  value={renameSubjectModal.text}
+                  onChangeText={t => setRenameSubjectModal(p => ({ ...p, text: t.slice(0, 25) }))}
+                  autoFocus
+                  selectTextOnFocus
+                  placeholderTextColor={theme.textMuted}
+                  placeholder="Nome da matéria"
+                  maxLength={25}
+                />
+                <View style={renameStyles.actions}>
+                  <TouchableOpacity
+                    style={renameStyles.btnCancel}
+                    onPress={() => setRenameSubjectModal(p => ({ ...p, visible: false }))}
+                  >
+                    <Text style={renameStyles.btnCancelTxt}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[renameStyles.btnSave, !renameSubjectModal.text.trim() && renameStyles.btnSaveDisabled]}
+                    disabled={!renameSubjectModal.text.trim()}
+                    onPress={async () => {
+                      const newName = renameSubjectModal.text.trim();
+                      if (!newName || !renameSubjectModal.item) return;
+                      const { deck, subject } = renameSubjectModal.item;
+                      const allData = await getAppData();
+                      const updated = allData.map(d => {
+                        if (d.id !== deck.id) return d;
+                        return { ...d, subjects: (d.subjects || []).map(s => s.id === subject.id ? { ...s, name: newName } : s) };
+                      });
+                      await saveAppData(updated);
+                      setRenameSubjectModal({ visible: false, item: null, text: '' });
+                      loadData();
+                    }}
+                  >
+                    <Text style={renameStyles.btnSaveTxt}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <CustomBottomModal visible={isModalVisible} onClose={() => setModalVisible(false)} title="Opções do Deck">
+        <TouchableOpacity style={modalOpt.row} onPress={() => {
+          setModalVisible(false);
+          if (selectedDeck) setRenameModal({ visible: true, deck: selectedDeck, text: selectedDeck.name || '' });
+        }}>
+          <Ionicons name="create-outline" size={22} color={theme.textPrimary} />
+          <Text style={modalOpt.text}>Editar Nome</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={modalOpt.row} onPress={() => {
+          setModalVisible(false);
+          if (selectedDeck) navigation.navigate('ManageSubjects', { deckId: selectedDeck.id, deckName: selectedDeck.name });
+        }}>
+          <Ionicons name="list-outline" size={22} color={theme.textPrimary} />
+          <Text style={modalOpt.text}>Gerenciar Matérias</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={modalOpt.row} onPress={performDelete}>
+          <Ionicons name="trash-outline" size={22} color={theme.danger} />
+          <Text style={[modalOpt.text, { color: theme.danger }]}>Apagar Deck</Text>
+        </TouchableOpacity>
+      </CustomBottomModal>
+
+      {/* ── Menu de contexto das categorias ── */}
+      <Modal
+        transparent
+        animationType="fade"
+        visible={categoryContextMenu.visible}
+        onRequestClose={() => setCategoryContextMenu(p => ({ ...p, visible: false }))}
+        statusBarTranslucent
+      >
+        <TouchableWithoutFeedback onPress={() => setCategoryContextMenu(p => ({ ...p, visible: false }))}>
+          <View style={ctxStyles.overlay}>
+            {(() => {
+              const menuW = 180;
+              const menuH = 104;
+              let menuLeft = categoryContextMenu.x - menuW + 16;
+              let menuTop = categoryContextMenu.y - menuH - 10;
+              if (menuLeft < 8) menuLeft = 8;
+              if (menuLeft + menuW > width - 8) menuLeft = width - menuW - 8;
+              if (menuTop < 60) menuTop = categoryContextMenu.y + 10;
+              return (
+                <View style={[ctxStyles.menu, { left: menuLeft, top: menuTop }]}>
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      const item = categoryContextMenu.item;
+                      setCategoryContextMenu(p => ({ ...p, visible: false }));
+                      if (item) {
+                        setTimeout(() => {
+                          setEditCatModal({ visible: true, item });
+                        }, 50);
+                      }
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctxStyles.itemText}>Editar</Text>
+                  </TouchableOpacity>
+                  <View style={ctxStyles.sep} />
+                  <TouchableOpacity
+                    style={ctxStyles.item}
+                    onPress={() => {
+                      const item = categoryContextMenu.item;
+                      setCategoryContextMenu(p => ({ ...p, visible: false }));
+                      setTimeout(() => handleDeleteCategory(item), 50);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={theme.danger} />
+                    <Text style={[ctxStyles.itemText, { color: theme.danger }]}>Excluir</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <EditCategoryModal
+        visible={editCatModal.visible}
+        onDismiss={() => setEditCatModal({ visible: false, item: null })}
+        onSaved={() => { setEditCatModal({ visible: false, item: null }); refreshAfterCategoryEdit(); }}
+        categoryId={editCatModal.item?.category?.id}
+        categoryName={editCatModal.item?.category?.name}
+        presetCategoriesAvailable={CONCURSO_CATEGORIES.filter(c => c.id !== 'personalizados')}
+        customCategoriesAvailable={customCats}
+      />
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={() => setAlertConfig(p => ({ ...p, visible: false }))}
+      />
+    </View>
   );
 };
 
-
+// =================================================================
+// Estilos
 // =================================================================
 
+const hhStyles = StyleSheet.create({
+  wrapper: { backgroundColor: theme.background },
+  container: {
+    height: 54, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logoMark: {
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: theme.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  logoText: { color: theme.textPrimary, fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
+  multiTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '600', flex: 1, textAlign: 'center' },
+  iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  divider: { height: 1, backgroundColor: theme.backgroundSecondary },
+});
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+
+  searchBarWrapper: {
+    paddingHorizontal: GRID_PADDING, paddingTop: 10, paddingBottom: 8,
+  },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: theme.backgroundSecondary,
+    borderWidth: 1, borderColor: theme.backgroundTertiary,
+    borderRadius: 14, paddingHorizontal: 12, height: 46,
+  },
+  searchBarFocused: { borderColor: theme.primary },
+  searchInput: { flex: 1, color: theme.textPrimary, fontSize: theme.fontSize.body, paddingVertical: 0 },
+
+  // Skeleton
+  searchBarSkeleton: { height: 46, borderRadius: 14, backgroundColor: theme.backgroundSecondary },
+  featuredSkeleton: { height: 120, borderRadius: 16, backgroundColor: theme.backgroundSecondary },
+  gridRow: { flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP },
+  cardSkeleton: { flex: 1, height: 110, borderRadius: 14, backgroundColor: theme.backgroundSecondary },
+
+  mainContent: { paddingBottom: 16 },
+  firstAccessScroll: { flex: 1 },
+  firstAccessScrollContent: { paddingBottom: 32 },
+  searchContent: { paddingHorizontal: GRID_PADDING, paddingTop: 4, paddingBottom: 120 },
+
+  gridRow: { flexDirection: 'row', gap: GRID_GAP, marginBottom: GRID_GAP },
+
+  sectionLabel: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.bodyBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+
+  firstAccessContent: {
+    paddingHorizontal: GRID_PADDING,
+    paddingTop: 20,
+    gap: 12,
+  },
+  exampleCard: {
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: theme.primary + '40',
+    padding: 20,
+    gap: 6,
+  },
+  exampleCardLabel: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.primaryTransparent,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 4,
+  },
+  exampleCardLabelText: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 10,
+    letterSpacing: 1.5,
+  },
+  exampleCardTitle: {
+    color: theme.textPrimary,
+    fontFamily: theme.fontFamily.heading,
+    fontSize: 20,
+    lineHeight: 26,
+  },
+  exampleCardSub: {
+    color: theme.textSecondary,
+    fontFamily: theme.fontFamily.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  exampleCardBtn: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    backgroundColor: theme.primary,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  exampleCardBtnText: {
+    color: theme.background,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 13,
+  },
+  createFirstBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 15,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: theme.primary + '70',
+    backgroundColor: theme.primaryTransparent,
+  },
+  createFirstBtnIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createFirstBtnText: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 14,
+  },
+  lojaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.backgroundTertiary,
+    backgroundColor: theme.backgroundSecondary,
+  },
+  lojaBtnText: {
+    color: theme.textPrimary,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 14,
+  },
+
+  // Por onde começar (primeiro acesso)
+  stepsSection: {
+    marginTop: 4,
+  },
+  stepsSectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  stepsSectionLabel: {
+    color: theme.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 16,
+  },
+  stepsSectionDivider: {
+    flex: 1,
+    height: 2,
+    backgroundColor: theme.backgroundTertiary,
+  },
+  stepsList: {
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.backgroundTertiary,
+    overflow: 'hidden',
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.backgroundTertiary,
+  },
+  stepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  stepNumberText: {
+    color: theme.background,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 13,
+  },
+  stepTitle: {
+    color: theme.textPrimary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  stepSub: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.body,
+    fontSize: 12,
+  },
+
+  // Criar deck
+  createDeckWrapper: {
+    paddingHorizontal: GRID_PADDING,
+    paddingTop: 16,
+  },
+  createDeckBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: theme.primary + '60',
+    backgroundColor: 'rgba(93,214,44,0.08)',
+  },
+  createDeckIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: theme.primaryTransparent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createDeckBtnText: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 14,
+  },
+
+  // TabBar
+  tabBarWrapper: {
+    paddingHorizontal: GRID_PADDING,
+    paddingTop: 16,
+  },
+
+  // Conteúdo das abas
+  tabContent: {
+    paddingHorizontal: GRID_PADDING,
+    paddingTop: 16,
+  },
+
+  // Barra de seleção minimalista
+  selectBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: theme.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  selectBarCancel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingRight: 8,
+  },
+  selectBarCancelTxt: {
+    color: theme.textSecondary,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 13,
+  },
+  selectBarCount: {
+    flex: 1,
+    textAlign: 'center',
+    color: theme.primary,
+    fontFamily: theme.fontFamily.headingSemiBold,
+    fontSize: 13,
+  },
+  selectBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 8,
+  },
+  selectBarAction: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  selectBarDelete: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+  },
+
+  // Linha de controles (chips + ordenar)
+  // Filter chips (quando há meus + comprados)
+  filterChips: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 10,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: theme.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  filterChipActive: {
+    backgroundColor: theme.primaryTransparent,
+    borderColor: theme.primary + '60',
+  },
+  filterChipTxt: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 12,
+  },
+  filterChipTxtActive: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+  },
+
+  // Linha ordenar por
+  deckMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  deckMetaLine: {
+    height: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  deckMetaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  deckMetaBtnActive: {},
+  deckMetaBtnTxt: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 12,
+  },
+  deckMetaBtnTxtActive: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+  },
+  subSection: { marginBottom: 4 },
+  subSectionLabel: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    marginBottom: 10,
+  },
+
+  // Empty states
+  emptyTab: { alignItems: 'center', paddingTop: 40, gap: 10 },
+  emptyTabText: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.bodyMedium,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  emptyTabSub: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.body,
+    fontSize: 12,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  emptyTabAction: {
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: theme.primaryTransparent,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.primary + '40',
+  },
+  emptyTabActionText: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 13,
+  },
+
+  emptyState: { alignItems: 'center', paddingTop: 48, gap: 10 },
+  emptyStateText: { color: theme.textMuted, fontSize: theme.fontSize.body, textAlign: 'center' },
+
+  searchResultItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 12, gap: 12,
+    borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary,
+  },
+  searchResultIcon: {
+    width: 34, height: 34, borderRadius: 8,
+    backgroundColor: theme.primaryTransparent,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  searchResultLabel: { color: theme.textPrimary, fontSize: theme.fontSize.body, fontWeight: '500' },
+  searchResultSub: { color: theme.textMuted, fontSize: theme.fontSize.sm, marginTop: 1 },
+});
+
+// ── Featured card
+const fStyles = StyleSheet.create({
+  card: {
+    borderRadius: 16,
+    backgroundColor: theme.backgroundSecondary,
+    borderWidth: 1.5,
+    borderColor: theme.backgroundTertiary,
+    overflow: 'hidden',
+    minHeight: 128,
+  },
+  leftBorder: {
+    position: 'absolute',
+    left: 0, top: 0, bottom: 0,
+    width: 5,
+    zIndex: 1,
+  },
+  tint: { ...StyleSheet.absoluteFillObject },
+  body: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 18,
+    paddingBottom: 14,
+    paddingLeft: 22,
+    paddingRight: 18,
+    gap: 14,
+    flex: 1,
+  },
+  labelWrap: {
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 8,
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  title: {
+    color: theme.textPrimary,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    lineHeight: 26,
+    marginBottom: 5,
+  },
+  subtitle: {
+    color: theme.textSecondary,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 18,
+  },
+  playBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  bottomAccent: {
+    height: 4,
+    width: '100%',
+  },
+});
+
+// ── Recent deck card
+const rcStyles = StyleSheet.create({
+  card: {
+    width: CARD_WIDTH,
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.backgroundTertiary,
+    overflow: 'hidden',
+    marginBottom: GRID_GAP,
+    position: 'relative',
+  },
+  iconZone: {
+    height: 72,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-end',
+    padding: 10,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pctBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  info: {
+    padding: 10,
+    paddingTop: 8,
+    gap: 3,
+  },
+  name: {
+    color: theme.textPrimary,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  stats: {
+    color: theme.textMuted,
+    fontSize: theme.fontSize.xs,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: theme.backgroundTertiary,
+  },
+  progressFill: {
+    height: 4,
+  },
+});
+
+// ── Category pill (horizontal scroll)
+const cpStyles = StyleSheet.create({
+  card: {
+    width: 128,
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: theme.backgroundTertiary,
+    overflow: 'hidden',
+  },
+  header: {
+    height: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  blob1: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    bottom: -30,
+    right: -25,
+  },
+  blob2: {
+    position: 'absolute',
+    width: 65,
+    height: 65,
+    borderRadius: 33,
+    top: -20,
+    left: -15,
+  },
+  divider: {
+    height: 3,
+    width: '100%',
+  },
+  footer: {
+    padding: 12,
+    paddingTop: 10,
+    gap: 3,
+  },
+  name: {
+    color: theme.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  count: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  badge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    zIndex: 3,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fff',
+  },
+});
+
+// ── Mini cards (exemplo + continuar)
+const miniStyles = StyleSheet.create({
+  card: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 14, borderWidth: 1,
+    borderColor: theme.backgroundTertiary,
+    padding: 12, gap: 12,
+  },
+  continueCard: {
+    borderColor: theme.primary + '50',
+    backgroundColor: theme.primaryTransparent,
+  },
+  iconWrap: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  continueLabel: {
+    color: theme.primary, fontSize: 9,
+    fontWeight: '800', letterSpacing: 1.5, marginBottom: 2,
+  },
+  title: { color: theme.textPrimary, fontSize: 14, fontWeight: '700' },
+  sub: { color: theme.textMuted, fontSize: 11, marginTop: 2 },
+  actionBtn: {
+    backgroundColor: '#6366F1', borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  actionText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  dismissBtn: { padding: 4 },
+});
+
+// ── CategoryFolderCard — webP card
+const folderStyles = StyleSheet.create({
+  card: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+  },
+  textOverlay: {
+    position: 'absolute',
+    bottom: 16,
+    left: 14,
+    right: 14,
+  },
+  overlayTitle: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '300',
+    lineHeight: 16,
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  overlayCount: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: 2,
+  },
+});
+
+// ── Category grid (legado — não usado)
+const catGridStyles = StyleSheet.create({
+  grid: { flexDirection: 'row', gap: 12 },
+  column: { width: CARD_WIDTH, gap: 12 },
+  overlap: {},
+});
+
+// ── DeckCard (expandido)
+const cardStyles = StyleSheet.create({
+  card: {
+    width: CARD_WIDTH, minHeight: 120,
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 14, borderWidth: 1, borderColor: theme.backgroundTertiary,
+    padding: 12, paddingLeft: 18, paddingBottom: 15,
+    overflow: 'hidden', position: 'relative',
+  },
+  cardSelected: { borderColor: theme.primary, backgroundColor: theme.primaryTransparent },
+  leftAccent: { position: 'absolute', left: 0, top: 0, bottom: 3, width: 4, borderTopRightRadius: 2, borderBottomRightRadius: 2 },
+  checkmark: { position: 'absolute', top: 8, right: 8 },
+  exampleBadge: { alignSelf: 'flex-start', backgroundColor: theme.primaryTransparent, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 6 },
+  exampleBadgeText: { color: theme.primary, fontSize: theme.fontSize.xs, fontWeight: '600' },
+  name: { color: theme.textPrimary, fontSize: theme.fontSize.sm, fontWeight: '700', marginBottom: 8, flex: 1 },
+  category: { color: theme.primary, fontSize: theme.fontSize.xs, fontWeight: '500', marginBottom: 2 },
+  subjectCount: { color: theme.textMuted, fontSize: theme.fontSize.xs },
+  progressBarBg: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, backgroundColor: theme.backgroundTertiary },
+  progressBarFill: { height: 3, borderTopRightRadius: 2 },
+  createCard: {
+    width: CARD_WIDTH, minHeight: 120,
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 14, borderWidth: 1, borderColor: theme.backgroundTertiary,
+    borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  createIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primaryTransparent, alignItems: 'center', justifyContent: 'center' },
+  createCardText: { color: theme.textMuted, fontSize: theme.fontSize.sm, fontWeight: '500' },
+});
+
+const modalOpt = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 16 },
+  text: { color: theme.textPrimary, fontSize: theme.fontSize.base, fontWeight: '500' },
+});
+
+// ── Sort dropdown modal ──────────────────────
+const sortStyles = StyleSheet.create({
+  dropdown: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  headerTxt: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  sep: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginHorizontal: 0,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  itemActive: {
+    backgroundColor: 'rgba(93,214,44,0.06)',
+  },
+  itemIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  itemIconWrapActive: {
+    backgroundColor: theme.primaryTransparent,
+  },
+  itemTxt: {
+    flex: 1,
+    color: theme.textSecondary,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 14,
+  },
+  itemTxtActive: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiSemiBold,
+  },
+  resetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  resetTxt: {
+    color: theme.textMuted,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 12,
+  },
+  clearTxt: {
+    color: theme.primary,
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 12,
+  },
+});
+
+// ── Context menu (3 pontos) ──────────────────
+const ctxStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+  },
+  menu: {
+    position: 'absolute',
+    width: 180,
+    backgroundColor: '#2c2c2c',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 14,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  itemText: {
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 14,
+    color: theme.textPrimary,
+  },
+  sep: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+});
+
+const renameStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  card: {
+    width: '100%',
+    backgroundColor: '#1e1e1e',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  title: {
+    fontFamily: theme.fontFamily.headingSemiBold,
+    fontSize: 17,
+    color: theme.textPrimary,
+  },
+  input: {
+    backgroundColor: theme.backgroundTertiary,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 15,
+    color: theme.textPrimary,
+    marginBottom: 20,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  btnCancel: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+  },
+  btnCancelTxt: {
+    fontFamily: theme.fontFamily.uiMedium,
+    fontSize: 14,
+    color: theme.textSecondary,
+  },
+  btnSave: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+  },
+  btnSaveDisabled: {
+    opacity: 0.4,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  charCount: {
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.primaryDark,
+  },
+  charCountWarn: {
+    color: theme.primary,
+  },
+  btnSaveTxt: {
+    fontFamily: theme.fontFamily.uiSemiBold,
+    fontSize: 14,
+    color: '#0F0F0F',
+  },
+});
 
 export default DeckListScreen;

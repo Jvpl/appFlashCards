@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Button, Vibration } from 'react-native';
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Vibration, ToastAndroid } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, useAnimatedRef, scrollTo, useDerivedValue, interpolateColor, runOnJS } from 'react-native-reanimated';
+import { useGenericKeyboardHandler, KeyboardController, AndroidSoftInputModes, KeyboardProvider, KeyboardAvoidingView as KCKeyboardAvoidingView } from 'react-native-keyboard-controller';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { getAppData, saveAppData } from '../services/storage';
+import { getAppData, saveAppData, findStudyUnit, updateStudyUnit } from '../services/storage';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { HybridEditor } from '../components/editor/HybridEditor';
 import { MathToolbar } from '../components/editor/MathToolbar';
@@ -17,9 +20,13 @@ import { CollapsibleKeypad } from '../components/editor/CollapsibleKeypad';
 import { validateInput, getButtonStates } from '../utils/inputValidation';
 import styles from '../styles/globalStyles';
 import theme from '../styles/theme';
+import { Canvas, RoundedRect, BlurMask, Circle } from '@shopify/react-native-skia';
+import LottieView from 'lottie-react-native';
+const SaveCardButtonLottie = require('../assets/SaveCardButton.json');
+
 
 export const ManageFlashcardsScreen = ({ route, navigation }) => {
-  const { deckId, subjectId, preloadedCards, cardId } = route.params; // cardId opcional para modo edição
+  const { deckId, subjectId, preloadedCards, cardId, subjectName, isExample } = route.params; // cardId opcional para modo edição
   const insets = useSafeAreaInsets();
 
   const questionEditorRef = useRef(null);
@@ -31,10 +38,50 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
   const [activeEditor, setActiveEditor] = useState(null);
   const [isMathToolbarVisible, setMathToolbarVisible] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Nesta tela o SO não deve mover nada — o Animated.View controla tudo
+  useEffect(() => {
+    KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
+    return () => KeyboardController.setDefaultMode();
+  }, []);
+
+  const mathToolbarPad = useSharedValue(0);
+  const kbHeight = useSharedValue(0);
+  const activeEditorRef = useRef(null);
+  const answerContainerY = useSharedValue(0);
+  const animatedScrollRef = useAnimatedRef();
+  const isAnswerActive = useSharedValue(false);
+
+  useGenericKeyboardHandler({
+    onMove: (e) => {
+      'worklet';
+      kbHeight.value = e.height;
+      if (isAnswerActive.value && answerContainerY.value > 0) {
+        const targetScroll = answerContainerY.value - 40;
+        scrollTo(animatedScrollRef, 0, targetScroll * e.progress, false);
+      } else if (e.progress === 0) {
+        scrollTo(animatedScrollRef, 0, 0, false);
+      }
+    },
+    onEnd: (e) => {
+      'worklet';
+      kbHeight.value = e.height;
+      if (e.height > 0 && isAnswerActive.value && answerContainerY.value > 0) {
+        scrollTo(animatedScrollRef, 0, answerContainerY.value - 40, false);
+      } else if (e.height === 0) {
+        scrollTo(animatedScrollRef, 0, 0, false);
+      }
+    },
+  }, []);
+
+  const scrollBottomPadStyle = useAnimatedStyle(() => {
+    if (mathToolbarPad.value > 0) return { height: mathToolbarPad.value };
+    return { height: kbHeight.value > 0 ? kbHeight.value : 0 };
+  });
 
   // States para edição de fórmula
   const [editModalVisible, setEditModalVisible] = useState(false);
+
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
   const [currentMathId, setCurrentMathId] = useState(null);
   const [currentLatex, setCurrentLatex] = useState('');
@@ -45,6 +92,41 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const [questionCharCount, setQuestionCharCount] = useState(0);
   const [answerCharCount, setAnswerCharCount] = useState(0);
   const CHAR_LIMIT = 800;
+
+  // QoL: contador de cards da matéria
+  const [subjectCardCount, setSubjectCardCount] = useState(0);
+  const [cardIndexInSubject, setCardIndexInSubject] = useState(0);
+  // QoL: nome da matéria buscado dos dados (fallback ao param)
+  const [resolvedSubjectName, setResolvedSubjectName] = useState(subjectName || '');
+  const savedFeedbackTimer = useRef(null);
+  const savedFeedbackTimer2 = useRef(null);
+  const lottieRef = useRef(null);
+  const lottieOpacity = useSharedValue(0);
+  const lottieAnimStyle = useAnimatedStyle(() => ({ opacity: lottieOpacity.value }));
+  const saveBtnTextOpacity = useSharedValue(1);
+  const saveBtnTextStyle = useAnimatedStyle(() => ({ opacity: saveBtnTextOpacity.value }));
+  const [mainBtnWidth, setMainBtnWidth] = useState(260);
+  const [saveButtonSize, setSaveButtonSize] = useState({ width: 300, height: 54 });
+  // QoL: clear/undo por campo
+  const [questionUndoMode, setQuestionUndoMode] = useState(false);
+  const [answerUndoMode, setAnswerUndoMode] = useState(false);
+  const questionUndoTimer = useRef(null);
+  const answerUndoTimer = useRef(null);
+  const questionUndoSnapshot = useRef('');
+  const answerUndoSnapshot = useRef('');
+  // QoL: clipboard
+  const [clipboardText, setClipboardText] = useState('');
+  const [questionCopied, setQuestionCopied] = useState(false);
+  const [answerCopied, setAnswerCopied] = useState(false);
+  const [questionPasted, setQuestionPasted] = useState(false);
+  const [answerPasted, setAnswerPasted] = useState(false);
+  const [questionPasteCooldown, setQuestionPasteCooldown] = useState(false);
+  const [answerPasteCooldown, setAnswerPasteCooldown] = useState(false);
+  const questionCopiedTimer = useRef(null);
+  const answerCopiedTimer = useRef(null);
+  // Estados de formatação (bold/italic/mark) por campo
+  const [questionFormat, setQuestionFormat] = useState({ bold: false, italic: false, mark: false });
+  const [answerFormat, setAnswerFormat] = useState({ bold: false, italic: false, mark: false });
 
   // Estados para teclado colapsável do modal
   const [showLettersPanel, setShowLettersPanel] = useState(false);
@@ -71,6 +153,14 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   const shakeStyle2 = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeAnim2.value }]
   }));
+  const saveButtonAnim = useSharedValue(0);
+  const glowAnim = useSharedValue(0);
+  const skiaGlowBlur = useDerivedValue(() => glowAnim.value * 14);
+  const skiaGlowColor = useDerivedValue(() => `rgba(190,255,100,${glowAnim.value * 0.9})`);
+  const saveButtonAnimStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(saveButtonAnim.value, [0, 1], [theme.primary, theme.backgroundTertiary]),
+  }));
+
 
   // ========== HELPER FUNCTIONS (importados de shared) ==========
   // validateInput e getButtonStates agora vêm de src/utils/inputValidation.js
@@ -134,14 +224,12 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // Componente: Contador de caracteres do editor (texto livre)
   const EditorCharCounter = ({ count, max }) => {
     const percentage = (count / max) * 100;
-    const color = percentage >= 95 ? theme.danger : percentage >= 80 ? theme.warning : theme.textDisabled;
-
+    const color = percentage >= 95 ? theme.danger : percentage >= 80 ? theme.warning : theme.textSecondary;
+    const slash = percentage >= 95 ? theme.danger : percentage >= 80 ? theme.warning : theme.primary;
     return (
-      <View style={{ alignSelf: 'flex-end', marginTop: 3, backgroundColor: theme.backgroundSecondary, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: percentage >= 95 ? '#EF444440' : percentage >= 80 ? '#F59E0B30' : theme.backgroundTertiary }}>
-        <Text style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color, fontVariant: ['tabular-nums'] }}>
-          {count}/{max}
-        </Text>
-      </View>
+      <Text style={{ fontSize: 13, fontFamily: theme.fontFamily.uiSemiBold, color, fontVariant: ['tabular-nums'] }}>
+        {count}<Text style={{ color: slash, fontFamily: theme.fontFamily.uiMedium }}> / </Text>{max}
+      </Text>
     );
   };
 
@@ -184,7 +272,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           const allData = await getAppData();
           const deck = allData.find(d => d.id === deckId);
           if (deck) {
-            const subject = deck.subjects.find(s => s.id === subjectId);
+            const subject = findStudyUnit(deck, subjectId);
             if (subject) {
               const card = subject.flashcards.find(c => c.id === cardId);
               if (card) {
@@ -213,13 +301,66 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     }
   }, [isEditMode, cardId, deckId, subjectId, draftKey]);
 
+  // Busca nome da matéria e contador de cards
+  useEffect(() => {
+    const fetchSubjectInfo = async () => {
+      try {
+        const allData = await getAppData();
+        const deck = allData.find(d => d.id === deckId);
+        if (deck) {
+          const subject = findStudyUnit(deck, subjectId);
+          if (subject) {
+            if (!subjectName) setResolvedSubjectName(subject.name || '');
+            const flashcards = subject.flashcards || [];
+            setSubjectCardCount(flashcards.length);
+            if (isEditMode && cardId) {
+              const idx = flashcards.findIndex(c => c.id === cardId);
+              setCardIndexInSubject(idx >= 0 ? idx + 1 : 1);
+            }
+          }
+        }
+      } catch (_) { }
+    };
+    fetchSubjectInfo();
+  }, [deckId, subjectId]);
+
+  // Checa clipboard ao montar e ao focar na tela
+  useEffect(() => {
+    const checkClipboard = async () => {
+      try {
+        const hasString = await Clipboard.hasStringAsync();
+        if (hasString) {
+          const text = await Clipboard.getStringAsync();
+          setClipboardText(text || '');
+        } else {
+          setClipboardText('');
+        }
+      } catch (_) {
+        setClipboardText('');
+      }
+    };
+    checkClipboard();
+    // Recheca quando a tela recebe foco (usuário pode ter copiado algo)
+    const unsubscribe = navigation.addListener('focus', checkClipboard);
+    return unsubscribe;
+  }, [navigation]);
+
+  // Cleanup de timers ao desmontar a tela
+  useEffect(() => {
+    return () => {
+      clearTimeout(savedFeedbackTimer.current);
+      clearTimeout(savedFeedbackTimer2.current);
+      clearTimeout(questionUndoTimer.current);
+      clearTimeout(answerUndoTimer.current);
+    };
+  }, []);
+
   // Listener para detectar quando o teclado abre/fecha
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
-      (e) => {
+      () => {
         keyboardVisibleRef.current = true;
-        setKeyboardHeight(e.endCoordinates.height);
         mathToolbarRef.current?.forceClose();
         setMathToolbarVisible(false);
       }
@@ -228,13 +369,15 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       'keyboardDidHide',
       () => {
         keyboardVisibleRef.current = false;
-        setKeyboardHeight(0);
+        // Recheca clipboard quando teclado fecha (usuário pode ter copiado algo do editor)
+        Clipboard.hasStringAsync().then(has => {
+          if (has) Clipboard.getStringAsync().then(t => { if (t !== clipboardText) setClipboardText(t || ''); });
+          else if (clipboardText) setClipboardText('');
+        }).catch(() => { });
         if (pendingToolbarOpen.current) {
           // Transição teclado→toolbar: mantém posição do scroll (evita salto visual)
           pendingToolbarOpen.current = false;
           mathToolbarRef.current?.toggle();
-        } else {
-          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
         }
       }
     );
@@ -284,23 +427,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     };
   }, [navigation]);
 
-  // Scroll quando o TECLADO abre no input de baixo
-  useEffect(() => {
-    if (keyboardHeight > 0 && activeEditor === 'answer') {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 50);
-    }
-  }, [keyboardHeight, activeEditor]);
 
-  // Scroll quando o MATH TOOLBAR abre (apenas para o input "verso")
-  useEffect(() => {
-    if (isMathToolbarVisible && activeEditor === 'answer') {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 200); // Scroll rápido e responsivo
-    }
-  }, [isMathToolbarVisible, activeEditor]);
 
   const toggleMathToolbar = () => {
     if (!isMathToolbarVisible) {
@@ -312,9 +439,6 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
         Keyboard.dismiss();
       } else {
         mathToolbarRef.current?.toggle();
-        if (activeEditor === 'answer') {
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-        }
       }
     } else {
       Keyboard.dismiss();
@@ -326,6 +450,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
     Keyboard.dismiss();
     if (isMathToolbarVisible) mathToolbarRef.current?.forceClose();
     setActiveEditor(null);
+    activeEditorRef.current = null;
     questionEditorRef.current?.blur();
     answerEditorRef.current?.blur();
   };
@@ -444,75 +569,250 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
     setEditValue1(v1);
     setEditValue2(v2);
+    KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_PAN);
     setEditModalVisible(true);
   };
 
-  const handleSave = async () => {
-    // Pega o valor fresco direto do global drafts (já que o ref.getHtml() é assíncrono/null)
-    const key = draftKey;
-    const currentQuestionHtml = global.flashcardDrafts?.[key]?.question || "";
-    const currentAnswerHtml = global.flashcardDrafts?.[key]?.answer || "";
+  // Trim de HTML: remove espaços/quebras no início e fim do conteúdo do editor
+  const trimHtml = (html) => {
+    if (!html) return html;
+    return html
+      .replace(/^(\s|<br\s*\/?>|&nbsp;)+/i, '')
+      .replace(/(\s|<br\s*\/?>|&nbsp;)+$/i, '')
+      .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>');
+  };
 
-    // Validação Segura: Verifica se tem conteúdo real (ignorando tags vazias ou só espaços)
-    // Remove tags HTML básicas para checar se tem texto real
+  const validateAndGetContent = () => {
+    const key = draftKey;
+    const rawQ = global.flashcardDrafts?.[key]?.question || "";
+    const rawA = global.flashcardDrafts?.[key]?.answer || "";
+    const currentQuestionHtml = trimHtml(rawQ);
+    const currentAnswerHtml = trimHtml(rawA);
     const cleanQ = currentQuestionHtml.replace(/<[^>]*>/g, '').trim();
     const cleanA = currentAnswerHtml.replace(/<[^>]*>/g, '').trim();
-
-    // Verifica também se tem imagens ou fórmulas (que podem não ter texto puro)
     const hasMediaQ = currentQuestionHtml.includes('<img') || currentQuestionHtml.includes('math-atom');
     const hasMediaA = currentAnswerHtml.includes('<img') || currentAnswerHtml.includes('math-atom');
+    if ((!cleanQ && !hasMediaQ) || (!cleanA && !hasMediaA)) return null;
+    return { currentQuestionHtml, currentAnswerHtml };
+  };
 
-    if ((!cleanQ && !hasMediaQ) || (!cleanA && !hasMediaA)) {
-      setAlertConfig({
-        visible: true,
-        title: 'Atenção',
-        message: 'Por favor, preencha a pergunta e a resposta.',
-        buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-      });
-      return;
-    }
+  const persistSave = async (questionHtml, answerHtml) => {
     const allData = await getAppData();
-    const newData = allData.map(deck => {
-      if (deck.id === deckId) {
-        return {
-          ...deck,
-          subjects: deck.subjects.map(subject => {
-            if (subject.id === subjectId) {
-              if (isEditMode && cardId) {
-                // Modo edição: Atualiza card existente
-                return {
-                  ...subject,
-                  flashcards: subject.flashcards.map(card =>
-                    card.id === cardId
-                      ? { ...card, question: currentQuestionHtml, answer: currentAnswerHtml }
-                      : card
-                  ),
-                };
-              } else {
-                // Modo criação: Adiciona novo card
-                return {
-                  ...subject,
-                  flashcards: [
-                    ...subject.flashcards,
-                    {
-                      id: Date.now().toString(),
-                      question: currentQuestionHtml,
-                      answer: currentAnswerHtml,
-                      level: 0, points: 0, lastReview: null, nextReview: null,
-                    },
-                  ],
-                };
-              }
-            }
-            return subject;
-          })
-        };
+    const newData = updateStudyUnit(allData, deckId, subjectId, (cards) => {
+      if (isEditMode && cardId) {
+        return cards.map(card =>
+          card.id === cardId
+            ? { ...card, question: questionHtml, answer: answerHtml }
+            : card
+        );
       }
-      return deck;
+      return [
+        ...cards,
+        {
+          id: Date.now().toString(),
+          question: questionHtml,
+          answer: answerHtml,
+          level: 0, points: 0, lastReview: null, nextReview: null,
+          consecutiveCorrect: 0, reviewStreak: 0,
+        },
+      ];
     });
     await saveAppData(newData);
-    clearDraft(); // Limpa o rascunho ao salvar com sucesso
+    return newData;
+  };
+
+  const showEmptyAlert = () => setAlertConfig({
+    visible: true,
+    title: 'Atenção',
+    message: 'Por favor, preencha a pergunta e a resposta.',
+    buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+  });
+
+  const handleSave = async () => {
+    const content = validateAndGetContent();
+    if (!content) { showEmptyAlert(); return; }
+    await persistSave(content.currentQuestionHtml, content.currentAnswerHtml);
+    clearDraft();
     navigation.goBack();
+  };
+
+  const handleSaveAndContinue = async () => {
+    const content = validateAndGetContent();
+    if (!content) { showEmptyAlert(); return; }
+    const newData = await persistSave(content.currentQuestionHtml, content.currentAnswerHtml);
+    clearDraft();
+
+    // Atualiza contador
+    const updatedDeck = newData?.find(d => d.id === deckId);
+    const updatedSubject = updatedDeck ? findStudyUnit(updatedDeck, subjectId) : null;
+    if (updatedSubject) setSubjectCardCount(updatedSubject.flashcards?.length || 0);
+
+    // Lottie: esconde texto e toca animação imediatamente (antes de qualquer re-render)
+    clearTimeout(savedFeedbackTimer.current);
+    clearTimeout(savedFeedbackTimer2.current);
+    saveBtnTextOpacity.value = 0;
+    lottieOpacity.value = 1;
+    lottieRef.current?.play();
+    // frame 56 a 25fps = 2240ms — checkmark começa a desaparecer
+    savedFeedbackTimer.current = setTimeout(() => {
+      saveBtnTextOpacity.value = withTiming(1, { duration: 900 });
+    }, 2240);
+
+    // Retira foco e limpa os editores (após configurar Lottie)
+    Keyboard.dismiss();
+    setActiveEditor(null);
+    activeEditorRef.current = null;
+    questionEditorRef.current?.blur();
+    answerEditorRef.current?.blur();
+    questionEditorRef.current?.clear();
+    answerEditorRef.current?.clear();
+    setQuestionCharCount(0);
+    setAnswerCharCount(0);
+
+    // Reinicia o draft vazio para o próximo card
+    if (!global.flashcardDrafts) global.flashcardDrafts = {};
+    global.flashcardDrafts[draftKey] = { question: '', answer: '' };
+  };
+
+  const getFieldRefs = (field) => field === 'question'
+    ? { editorRef: questionEditorRef, undoSnapshot: questionUndoSnapshot, undoTimer: questionUndoTimer, setCharCount: setQuestionCharCount, setUndoMode: setQuestionUndoMode, setCopied: setQuestionCopied, copiedTimer: questionCopiedTimer, setPasted: setQuestionPasted, setPasteCooldown: setQuestionPasteCooldown }
+    : { editorRef: answerEditorRef, undoSnapshot: answerUndoSnapshot, undoTimer: answerUndoTimer, setCharCount: setAnswerCharCount, setUndoMode: setAnswerUndoMode, setCopied: setAnswerCopied, copiedTimer: answerCopiedTimer, setPasted: setAnswerPasted, setPasteCooldown: setAnswerPasteCooldown };
+
+  const handleClearField = (field) => {
+    if (!global.flashcardDrafts?.[draftKey]) return;
+    const { editorRef, undoSnapshot, undoTimer, setCharCount, setUndoMode } = getFieldRefs(field);
+    undoSnapshot.current = global.flashcardDrafts[draftKey][field] || '';
+    global.flashcardDrafts[draftKey][field] = '';
+    editorRef.current?.clear();
+    setCharCount(0);
+    setUndoMode(true);
+    clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => { setUndoMode(false); undoSnapshot.current = ''; }, 4000);
+  };
+
+  const handleUndoClear = (field) => {
+    if (!global.flashcardDrafts?.[draftKey]) return;
+    const { editorRef, undoSnapshot, undoTimer, setUndoMode } = getFieldRefs(field);
+    const snap = undoSnapshot.current;
+    global.flashcardDrafts[draftKey][field] = snap;
+    editorRef.current?.setContent(snap);
+    clearTimeout(undoTimer.current);
+    setUndoMode(false);
+    undoSnapshot.current = '';
+  };
+
+  const htmlToPlainWithLatex = (html) => {
+    // Encontra cada math-atom e pula todo o seu conteúdo (com spans aninhados do KaTeX)
+    let result = '';
+    let i = 0;
+    while (i < html.length) {
+      const mathStart = html.indexOf('<span', i);
+      if (mathStart === -1) { result += html.slice(i); break; }
+      // Verifica se este span é um math-atom com data-latex
+      const tagEnd = html.indexOf('>', mathStart);
+      if (tagEnd === -1) { result += html.slice(i); break; }
+      const tag = html.slice(mathStart, tagEnd + 1);
+      const latexMatch = tag.match(/data-latex="([^"]*)"/);
+      const isMathAtom = tag.includes('math-atom') && latexMatch;
+      if (!isMathAtom) {
+        result += html.slice(i, tagEnd + 1);
+        i = tagEnd + 1;
+        continue;
+      }
+      // É um math-atom — adiciona texto antes + $latex$ e pula até o </span> de fechamento correto
+      result += html.slice(i, mathStart) + '$' + latexMatch[1] + '$';
+      // Conta profundidade de spans para achar o fechamento correto
+      let depth = 1;
+      let j = tagEnd + 1;
+      while (j < html.length && depth > 0) {
+        if (html.startsWith('<span', j)) { depth++; j += 5; }
+        else if (html.startsWith('</span>', j)) { depth--; if (depth > 0) j += 7; else j += 7; }
+        else j++;
+      }
+      i = j;
+    }
+    // Remove tags restantes (sentinela etc)
+    result = result.replace(/<[^>]+>/g, '');
+    return result.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/ㅤ/g, '').trim();
+  };
+
+  const handleCopyField = async (field) => {
+    const content = global.flashcardDrafts?.[draftKey]?.[field] || '';
+    if (!content) return;
+    const plain = htmlToPlainWithLatex(content);
+    await Clipboard.setStringAsync(plain);
+    setClipboardText(plain);
+    const { setCopied, copiedTimer } = getFieldRefs(field);
+    setCopied(true);
+    clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  const pasteTimers = { question: null, answer: null };
+  const pasteCooldownTimers = { question: null, answer: null };
+  const handlePasteClipboard = (field) => {
+    if (!clipboardText) return;
+    const { editorRef, setPasted, setPasteCooldown } = getFieldRefs(field);
+    editorRef.current?.pasteText(clipboardText);
+    setPasted(true);
+    setPasteCooldown(true);
+    clearTimeout(pasteTimers[field]);
+    clearTimeout(pasteCooldownTimers[field]);
+    pasteTimers[field] = setTimeout(() => setPasted(false), 600);
+    pasteCooldownTimers[field] = setTimeout(() => setPasteCooldown(false), 800);
+  };
+
+  const FieldToolbar = ({ field, charCount, undoMode, copied, pasted, format }) => {
+    const fieldContent = global.flashcardDrafts?.[draftKey]?.[field] || '';
+    const fieldPlain = fieldContent.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+    const { editorRef } = getFieldRefs(field);
+    const hasContent = charCount > 0 || undoMode;
+    const pasteCooldown = field === 'question' ? questionPasteCooldown : answerPasteCooldown;
+    const canPaste = clipboardText.length > 0 && !pasteCooldown;
+
+    const iconColor = (active, activeColor, inactiveColor = theme.textMuted) => active ? activeColor : inactiveColor;
+    const opacity = (enabled) => enabled ? 1 : 0.3;
+
+    const sep = <View style={{ width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.1)', marginHorizontal: 4 }} />;
+
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 4 }}>
+        <View style={{ position: 'absolute', top: 0, left: 8, right: 8, height: 1, backgroundColor: 'rgba(255,255,255,0.07)' }} />
+        {/* Colar */}
+        <TouchableOpacity onPress={() => canPaste && handlePasteClipboard(field)} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: clipboardText.length > 0 ? 1 : 0.3, padding: 4 }}>
+          <Ionicons name="clipboard-outline" size={18} color={pasted ? theme.primary : theme.textSecondary} />
+        </TouchableOpacity>
+        {sep}
+        {/* Copiar */}
+        <TouchableOpacity onPress={() => charCount > 0 && handleCopyField(field)} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(charCount > 0), padding: 4 }}>
+          <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={18} color={copied ? theme.primary : theme.textSecondary} />
+        </TouchableOpacity>
+        {sep}
+        {/* Limpar / Desfazer */}
+        <TouchableOpacity onPress={() => hasContent && (undoMode ? handleUndoClear(field) : handleClearField(field))} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ opacity: opacity(hasContent), padding: 4 }}>
+          <Ionicons name={undoMode ? 'arrow-undo-outline' : 'trash-outline'} size={18} color={undoMode ? theme.warning : theme.danger} />
+        </TouchableOpacity>
+        {sep}
+        {/* Negrito */}
+        <TouchableOpacity onPress={() => editorRef.current?.toggleBold()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ padding: 4 }}>
+          <Text style={{ fontSize: 15, fontFamily: theme.fontFamily.uiBold, color: iconColor(format?.bold, theme.primary, theme.textSecondary), lineHeight: 18 }}>B</Text>
+        </TouchableOpacity>
+        {sep}
+        {/* Itálico */}
+        <TouchableOpacity onPress={() => editorRef.current?.toggleItalic()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ padding: 4 }}>
+          <Text style={{ fontSize: 15, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '700', color: iconColor(format?.italic, theme.primary, theme.textSecondary), lineHeight: 18 }}>I</Text>
+        </TouchableOpacity>
+        {sep}
+        {/* Marca-texto */}
+        <TouchableOpacity onPress={() => editorRef.current?.toggleMark()} hitSlop={{ top: 8, bottom: 8, left: 10, right: 10 }} style={{ padding: 4 }}>
+          <Ionicons name="brush-outline" size={18} color={iconColor(format?.mark, theme.primary, theme.textSecondary)} />
+        </TouchableOpacity>
+        {/* Contador direita */}
+        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+          <EditorCharCounter count={charCount} max={CHAR_LIMIT} />
+        </View>
+      </View>
+    );
   };
 
   return (
@@ -529,50 +829,66 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
           </View>
         </View>
       ) : (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
-          <ScrollView
-            ref={scrollViewRef}
+        <View style={{ flex: 1 }}>
+          <View style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: 'transparent', borderBottomWidth: 1, borderBottomColor: theme.backgroundTertiary }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, opacity: 0.75 }}>
+              <Ionicons name="folder" size={15} color={theme.primary} />
+              <Text style={{ fontSize: theme.fontSize.caption, fontFamily: theme.fontFamily.uiBold, color: theme.textPrimary, lineHeight: theme.fontSize.caption }} numberOfLines={1}>
+                {resolvedSubjectName || ''}
+              </Text>
+              <View style={{ width: 1.5, height: 16, backgroundColor: theme.primary }} />
+              <Ionicons name="layers" size={15} color={theme.primary} />
+              <Text style={{ fontSize: theme.fontSize.caption, fontFamily: theme.fontFamily.uiBold, color: theme.textPrimary, lineHeight: theme.fontSize.caption }}>
+                {isEditMode ? `card nº${cardIndexInSubject}` : `card nº${subjectCardCount + 1}`}
+              </Text>
+            </View>
+          </View>
+          <Animated.ScrollView
+            ref={(r) => { scrollViewRef.current = r; animatedScrollRef(r); }}
             style={styles.formContainerNoPadding}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContentContainer,
-              {
-                paddingTop: 8,
-                paddingBottom: keyboardHeight > 0
-                  ? Math.max(10, keyboardHeight - (insets.bottom > 30 ? 95 : 84))
-                  : isMathToolbarVisible
-                    ? (insets.bottom > 30 ? 234 : 277)
-                    : 10,
-                flexGrow: 1
-              }
+              { paddingTop: 8, paddingBottom: 0, flexGrow: 1 }
             ]}
-            scrollEnabled={keyboardHeight > 0 || isMathToolbarVisible}
+            scrollEnabled={true}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
             <View style={{ flex: 1 }}>
-              {/* Área clicável acima do primeiro input (Label) */}
+              {/* Área clicável acima da caixa de pergunta */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                <View style={{ marginBottom: 2, width: '100%' }}>
-                  <Text style={styles.formLabel}>Frente</Text>
+                <View style={{ height: 12 }} />
+              </TouchableWithoutFeedback>
+
+
+              {/* PERGUNTA */}
+              <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={{ marginBottom: 8, marginTop: 4, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 12, height: 12 }}>
+                      <Canvas style={{ position: 'absolute', top: -5, left: -7, width: 26, height: 26 }}>
+                        <Circle cx={13} cy={13} r={6} color={theme.primary}>
+                          <BlurMask blur={5} style="outer" respectCTM={false} />
+                        </Circle>
+                        <Circle cx={13} cy={13} r={6} color={theme.primary} />
+                      </Canvas>
+                    </View>
+                    <Text style={[styles.formLabel, { marginBottom: 0, marginTop: 0, fontFamily: theme.fontFamily.uiSemiBold, fontSize: theme.fontSize.body, letterSpacing: 0.8 }]}>PERGUNTA</Text>
+                  </View>
                 </View>
               </TouchableWithoutFeedback>
 
-              <View style={styles.inputGroup}>
+              <View style={[styles.inputGroup, { flex: 0 }]}>
                 <View
                   renderToHardwareTextureAndroid={true}
                   style={{
-                    borderWidth: 2,
-                    borderColor: activeEditor === 'question' ? '#4db6ac' : '#444',
-                    borderRadius: 8,
+                    borderWidth: .9,
+                    borderColor: activeEditor === 'question' ? theme.primary : 'rgba(255,255,255,0.1)',
+                    borderRadius: 14,
                     height: 200,
                     padding: 4,
-                    marginBottom: 0,
-                    backgroundColor: theme.backgroundSecondary,
+                    backgroundColor: '#202020',
                     overflow: 'hidden'
                   }}
                 >
@@ -581,33 +897,51 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       editorRef={questionEditorRef}
                       initialValue={global.flashcardDrafts?.[draftKey]?.question || ""}
                       onContentChange={(html) => updateDraft('question', html)}
-                      onFocusCallback={() => setActiveEditor('question')}
+                      onFocusCallback={() => { setActiveEditor('question'); activeEditorRef.current = 'question'; isAnswerActive.value = false; }}
                       onEditMath={handleEditMath}
                       onCharCount={(count) => setQuestionCharCount(count)}
+                      onFormatState={(bold, italic, mark) => setQuestionFormat({ bold, italic, mark })}
+                      onCutText={(text) => { setClipboardText(text); Clipboard.setStringAsync(text); }}
+                      onCopyText={(text) => { setClipboardText(text); }}
                       maxChars={CHAR_LIMIT}
                     />
                   </View>
+                  <FieldToolbar field="question" charCount={questionCharCount} undoMode={questionUndoMode} copied={questionCopied} pasted={questionPasted} format={questionFormat} />
                 </View>
-                <EditorCharCounter count={questionCharCount} max={CHAR_LIMIT} />
               </View>
 
+              {/* Área clicável entre caixas */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
-                <View style={{ marginBottom: 2, width: '100%', paddingTop: 6 }}>
-                  <Text style={styles.formLabel}>Verso</Text>
+                <View style={{ height: 28 }} />
+              </TouchableWithoutFeedback>
+
+              {/* RESPOSTA */}
+              <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={{ marginBottom: 8, marginTop: 0, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 12, height: 12 }}>
+                      <Canvas style={{ position: 'absolute', top: -5, left: -7, width: 26, height: 26 }}>
+                        <Circle cx={13} cy={13} r={6} color={theme.primary}>
+                          <BlurMask blur={5} style="outer" respectCTM={false} />
+                        </Circle>
+                        <Circle cx={13} cy={13} r={6} color={theme.primary} />
+                      </Canvas>
+                    </View>
+                    <Text style={[styles.formLabel, { marginBottom: 0, marginTop: 0, fontFamily: theme.fontFamily.uiSemiBold, fontSize: theme.fontSize.body, letterSpacing: 0.8 }]}>RESPOSTA</Text>
+                  </View>
                 </View>
               </TouchableWithoutFeedback>
 
-              <View style={styles.inputGroup}>
+              <View onLayout={(e) => { answerContainerY.value = e.nativeEvent.layout.y; }} style={[styles.inputGroup, { flex: 0 }]}>
                 <View
                   renderToHardwareTextureAndroid={true}
                   style={{
-                    borderWidth: 2,
-                    borderColor: activeEditor === 'answer' ? '#4db6ac' : '#444',
-                    borderRadius: 8,
+                    borderWidth: .9,
+                    borderColor: activeEditor === 'answer' ? theme.primary : 'rgba(255,255,255,0.1)',
+                    borderRadius: 14,
                     height: 200,
                     padding: 4,
-                    marginBottom: 0,
-                    backgroundColor: theme.backgroundSecondary,
+                    backgroundColor: '#202020',
                     overflow: 'hidden'
                   }}
                 >
@@ -618,58 +952,114 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       onContentChange={(html) => updateDraft('answer', html)}
                       onFocusCallback={() => {
                         setActiveEditor('answer');
-                        setTimeout(() => {
-                          scrollViewRef.current?.scrollToEnd({ animated: true });
-                        }, 150);
+                        activeEditorRef.current = 'answer';
+                        isAnswerActive.value = true;
                       }}
                       onEditMath={handleEditMath}
                       onCharCount={(count) => setAnswerCharCount(count)}
+                      onFormatState={(bold, italic, mark) => setAnswerFormat({ bold, italic, mark })}
+                      onCutText={(text) => { setClipboardText(text); Clipboard.setStringAsync(text); }}
+                      onCopyText={(text) => { setClipboardText(text); }}
                       maxChars={CHAR_LIMIT}
                     />
                   </View>
+                  <FieldToolbar field="answer" charCount={answerCharCount} undoMode={answerUndoMode} copied={answerCopied} pasted={answerPasted} format={answerFormat} />
                 </View>
-                <EditorCharCounter count={answerCharCount} max={CHAR_LIMIT} />
               </View>
+
 
               {/* Área extensiva clicável cobrindo o fundo e botões */}
               <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
                 <View style={[styles.bottomControlsContainer, { width: '100%', paddingTop: 5, paddingBottom: 10 + (insets.bottom > 10 ? insets.bottom : 0) }]}>
                   <TouchableOpacity
-                    style={[styles.fxButton, isMathToolbarVisible && styles.fxButtonActive]}
-                    onPress={(e) => { e.stopPropagation(); toggleMathToolbar(); }}
+                    style={{ backgroundColor: theme.backgroundTertiary, borderRadius: 12, width: 64, height: 54, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: isMathToolbarVisible ? theme.primary : 'transparent' }}
+                    activeOpacity={0.7}
+                    onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleMathToolbar(); }}
                   >
-                    <Text style={styles.fxButtonText}>f(x)</Text>
+                    <Text style={{ color: theme.textPrimary, fontSize: theme.fontSize.md, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false, textAlignVertical: 'center' }}>f(x)</Text>
                   </TouchableOpacity>
 
-                  <View style={styles.saveButtonContainer}>
-                    <TouchableOpacity
-                      style={{
-                        backgroundColor: theme.primary,
-                        borderRadius: 4,
-                        paddingVertical: 8,
-                        paddingHorizontal: 16,
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      onPress={(e) => { e.stopPropagation(); handleSave(); }}
-                    >
-                      <Text style={{ color: theme.textPrimary, fontWeight: theme.fontWeight.bold, fontSize: theme.fontSize.body }}>SALVAR FLASHCARD</Text>
-                    </TouchableOpacity>
+                  <View
+                    style={[styles.saveButtonContainer, { flexDirection: 'row', gap: 0 }]}
+                    onLayout={(e) => {
+                      const { width, height } = e.nativeEvent.layout;
+                      console.log('CONTAINER SIZE:', width, height);
+                      setSaveButtonSize({ width, height });
+                    }}
+                  >
+
+                    {/* Botão principal: salva e continua */}
+                    <View style={{ flex: 1, borderTopLeftRadius: 12, borderBottomLeftRadius: 12, borderTopRightRadius: isEditMode ? 12 : 0, borderBottomRightRadius: isEditMode ? 12 : 0, height: 54, overflow: 'hidden', backgroundColor: theme.primary }} onLayout={(e) => setMainBtnWidth(e.nativeEvent.layout.width)}>
+                      <TouchableOpacity
+                        style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                        activeOpacity={0.7}
+                        onPress={(e) => { if (lottieOpacity.value > 0) return; e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); isEditMode ? handleSave() : handleSaveAndContinue(); }}
+                      >
+                        <Animated.Text style={[{ color: '#000', fontFamily: theme.fontFamily.uiBold, fontSize: theme.fontSize.body }, saveBtnTextStyle]}>
+                          {isEditMode ? 'Salvar edição' : 'Salvar card'}
+                        </Animated.Text>
+                      </TouchableOpacity>
+                      <Animated.View style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, lottieAnimStyle]} pointerEvents="none">
+                        <LottieView
+                          ref={lottieRef}
+                          source={SaveCardButtonLottie}
+                          autoPlay={false}
+                          loop={false}
+                          onAnimationFinish={() => {
+                            lottieOpacity.value = 0;
+                          }}
+                          style={{
+                            width: mainBtnWidth,
+                            height: mainBtnWidth * (330 / 1000),
+                            top: -(mainBtnWidth * (330 / 1000) - 54) / 2,
+                            left: 0,
+                          }}
+                        />
+                      </Animated.View>
+                    </View>
+                    {/* Separador */}
+                    {!isEditMode && (
+                      <View style={{ width: 1, backgroundColor: 'rgba(0,0,0,0.2)' }} />
+                    )}
+                    {/* Botão seta: salva e sai (apenas no modo criação) */}
+                    {!isEditMode && (
+                      <TouchableOpacity
+                        style={{ width: 56, backgroundColor: theme.primary, borderTopRightRadius: 12, borderBottomRightRadius: 12, height: 54, alignItems: 'center', justifyContent: 'center' }}
+                        activeOpacity={0.7}
+                        onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleSave(); }}
+                      >
+                        <Ionicons name="chevron-forward" size={20} color="#000" />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               </TouchableWithoutFeedback>
+
+              {/* Área clicável abaixo dos botões */}
+              <TouchableWithoutFeedback onPress={handleDismissKeyboard}>
+                <View style={{ flex: 1 }} />
+              </TouchableWithoutFeedback>
+
+              <Animated.View style={scrollBottomPadStyle} />
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </Animated.ScrollView>
+        </View>
       )}
 
       <MathToolbar
         ref={mathToolbarRef}
         onInsert={handleInsertMath}
-        onOpen={() => setMathToolbarVisible(true)}
+        onOpen={() => {
+          setMathToolbarVisible(true);
+          const pad = insets.bottom > 30 ? 234 : 277;
+          mathToolbarPad.value = pad;
+          if (activeEditorRef.current === 'answer' && answerContainerY.value > 0) {
+            scrollViewRef.current?.scrollTo({ y: answerContainerY.value - 40, animated: true });
+          }
+        }}
         onClose={() => {
           setMathToolbarVisible(false);
-          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+          mathToolbarPad.value = 0;
         }}
         onOpenAdvancedMode={() => {
           mathToolbarRef.current?.forceClose();
@@ -683,18 +1073,21 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
       <Modal
         animationType="fade"
         transparent={true}
+        statusBarTranslucent={true}
         visible={editModalVisible}
         onRequestClose={() => {
+          KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
           setEditModalVisible(false);
           setShowLettersPanel(false);
           setShowSymbolsPanel(false);
         }}
       >
-        <View style={styles.modalOverlayFullscreen}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-            style={{ flex: 1 }}
-          >
+        <KeyboardProvider>
+        <KCKeyboardAvoidingView
+          behavior="padding"
+          keyboardVerticalOffset={12}
+          style={styles.modalOverlayFullscreen}
+        >
             <View style={styles.modalContentFullscreen}>
               {/* Header com título e ícone de ajuda */}
               <View style={styles.modalHeaderFullscreen}>
@@ -756,7 +1149,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                     placeholder="Digite o valor..."
                     placeholderTextColor="#666"
                     keyboardType="numeric"
-                    autoFocus={true}
+                    autoFocus={false}
                     autoComplete="off"
                     importantForAutofill="no"
                   />
@@ -916,12 +1309,13 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
 
                     const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
                     target?.updateFormula(currentMathId, newLatex);
+                    KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
                   }}
                 >
-                  <Text style={styles.modalButtonTextFullWidth}>Confirmar</Text>
+                  <Text style={[styles.modalButtonTextFullWidth, { color: theme.background }]}>Confirmar</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -932,17 +1326,18 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
                       const target = activeEditor === 'answer' ? answerEditorRef.current : questionEditorRef.current;
                       target?.deleteMath(currentMathId);
                     }
+                    KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
                     setEditModalVisible(false);
                     setShowLettersPanel(false);
                     setShowSymbolsPanel(false);
                   }}
                 >
-                  <Text style={styles.modalButtonTextFullWidth}>Cancelar</Text>
+                  <Text style={[styles.modalButtonTextFullWidth, { color: theme.textSecondary }]}>Cancelar</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </View>
+        </KCKeyboardAvoidingView>
+        </KeyboardProvider>
       </Modal>
       {/* ========== FIM DO MODAL ========== */}
 

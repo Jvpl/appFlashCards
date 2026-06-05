@@ -4,12 +4,15 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   ScrollView,
   StyleSheet,
   Platform,
   useWindowDimensions,
   Vibration,
 } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, Easing } from 'react-native-reanimated';
+import { useGenericKeyboardHandler, KeyboardController, AndroidSoftInputModes } from 'react-native-keyboard-controller';
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { previewHtml } from './editorTemplates';
@@ -227,8 +230,42 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
     setCursorPos(pos);
   }, []);
 
-  // Cursor colorido teal inserido na posição atual para indicar onde está a edição
-  const CURSOR = '\\mathclose{\\color{#4FD1C5}|}';
+  const kbHeight = useSharedValue(0);
+  useGenericKeyboardHandler({
+    onMove: (e) => { 'worklet'; kbHeight.value = e.height; },
+    onEnd: (e) => { 'worklet'; kbHeight.value = e.height; },
+  }, []);
+  const keyboardPaddingStyle = useAnimatedStyle(() => ({
+    paddingBottom: kbHeight.value,
+  }));
+
+  // Animação do overlay e sheet
+  const overlayOpacity = useSharedValue(0);
+  const translateY = useSharedValue(800);
+
+  const animatedOverlayStyle = useAnimatedStyle(() => ({ opacity: overlayOpacity.value }));
+  const animatedSheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+
+  useEffect(() => {
+    if (visible) {
+      translateY.value = 800;
+      overlayOpacity.value = 0;
+      setTimeout(() => {
+        translateY.value = withTiming(0, { duration: 300, easing: Easing.out(Easing.cubic) });
+        overlayOpacity.value = withTiming(0.6, { duration: 250 });
+      }, 16);
+    }
+  }, [visible]);
+
+  const closeWithAnimation = useCallback(() => {
+    translateY.value = withTiming(800, { duration: 260, easing: Easing.in(Easing.cubic) });
+    overlayOpacity.value = withTiming(0, { duration: 220 }, () => {
+      runOnJS(onCancel)();
+    });
+  }, [onCancel]);
+
+  // Cursor verde musgo inserido na posição atual para indicar onde está a edição
+  const CURSOR = '\\mathclose{\\color{#4A7C2F}|}';
 
   const updatePreview = useCallback((f, pos) => {
     if (!wvRef.current || !readyRef.current) return;
@@ -285,6 +322,16 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
   useEffect(() => {
     if (ready) updatePreview(formula, cursorPos);
   }, [formula, cursorPos, ready, updatePreview]);
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      if (visible) {
+        KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
+      } else {
+        KeyboardController.setDefaultMode();
+      }
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -936,9 +983,14 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
   const canConfirm = formula.trim().length > 0;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-      <View style={s.overlay}>
-        <View style={[s.sheet, { maxHeight: SCREEN_H * 0.98, paddingBottom: Math.max(insets.bottom + 10, Platform.OS === 'ios' ? 20 : 14) }]}>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={closeWithAnimation}>
+      {/* Overlay animado — fechar ao tocar */}
+      <TouchableWithoutFeedback onPress={closeWithAnimation}>
+        <Animated.View style={[StyleSheet.absoluteFill, s.overlay, animatedOverlayStyle]} />
+      </TouchableWithoutFeedback>
+
+      <Animated.View style={[s.sheetWrapper, { maxHeight: SCREEN_H * 0.98 }, animatedSheetStyle]}>
+        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom + 10, Platform.OS === 'ios' ? 20 : 14) }]}>
 
           {/* ── Cabeçalho ── */}
           <View style={s.header}>
@@ -1107,21 +1159,23 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
           </ScrollView>
 
           {/* ── Confirmar / Cancelar ── */}
-          <View style={s.actions}>
-            <TouchableOpacity
-              onPress={() => { tap(); handleConfirm(); }}
-              style={[s.btnConfirm, !canConfirm && s.btnDisabled]}
-              disabled={!canConfirm}
-            >
-              <Text style={s.btnConfirmTxt}>Confirmar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => { tap(); onCancel(); }} style={s.btnCancel}>
-              <Text style={s.btnCancelTxt}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
+          <Animated.View style={keyboardPaddingStyle}>
+            <View style={s.actions}>
+              <TouchableOpacity
+                onPress={() => { tap(); handleConfirm(); }}
+                style={[s.btnConfirm, !canConfirm && s.btnDisabled]}
+                disabled={!canConfirm}
+              >
+                <Text style={s.btnConfirmTxt}>Confirmar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { tap(); closeWithAnimation(); }} style={s.btnCancel}>
+                <Text style={s.btnCancelTxt}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
 
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 };
@@ -1129,14 +1183,27 @@ export const FormulaBuilderModal = ({ visible, onConfirm, onCancel, initialFormu
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.80)',
-    justifyContent: 'flex-end',
+    backgroundColor: '#000',
+  },
+  sheetWrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   sheet: {
-    backgroundColor: theme.backgroundEditor,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    backgroundColor: '#141414',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
     paddingHorizontal: 14,
     paddingTop: 14,
     // paddingBottom é definido inline via useSafeAreaInsets (insets.bottom)
@@ -1172,46 +1239,49 @@ const s = StyleSheet.create({
   },
   // Preview — altura dinâmica via onMessage (previewH state)
   previewBox: {
-    backgroundColor: theme.backgroundEditorPreview,
-    borderRadius: 12,
+    backgroundColor: '#0F0F0F',
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 10,
-    borderWidth: 1,
-    borderColor: theme.backgroundSecondary,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   wv: { flex: 1, backgroundColor: 'transparent' },
   scroll: { flexShrink: 1 },
   // Blocos
   sectionLabel: {
-    color: theme.backgroundTertiary,
+    color: theme.textMuted,
     fontSize: theme.fontSize.xs,
     fontWeight: theme.fontWeight.bold,
     letterSpacing: 1.2,
     marginBottom: 5,
   },
-  structRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 10 },
+  structRow: { flexDirection: 'row', flexWrap: 'nowrap', gap: 5, marginBottom: 10 },
   structBtn: {
-    backgroundColor: theme.backgroundEditorKey,
-    borderRadius: 8,
-    paddingHorizontal: 14,
+    flex: 1,
+    backgroundColor: 'transparent',
+    borderRadius: 10,
+    paddingHorizontal: 4,
     paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: theme.borderEditor,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  structTxt: { color: theme.textSecondary, fontSize: theme.fontSize.bodyLg, fontWeight: theme.fontWeight.semibold },
+  structTxt: { color: theme.textSecondary, fontSize: theme.fontSize.body, fontWeight: theme.fontWeight.semibold },
   // Abas
   tabRow: { flexDirection: 'row', gap: 5, marginBottom: 8 },
   tab: {
     flex: 1,
     paddingVertical: 7,
     borderRadius: 8,
-    backgroundColor: theme.backgroundEditorKey,
+    backgroundColor: theme.backgroundTertiary,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: theme.borderEditor,
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   tabActive: { backgroundColor: theme.primaryTransparent15, borderColor: theme.primary },
-  tabTxt: { color: theme.textDisabled, fontSize: theme.fontSize.caption, fontWeight: theme.fontWeight.semibold },
+  tabTxt: { color: theme.textMuted, fontSize: theme.fontSize.caption, fontWeight: theme.fontWeight.semibold },
   tabTxtActive: { color: theme.primary },
   // Grade unificada — num, abc e sym usam o mesmo layout de linhas
   grid: { gap: 5, marginBottom: 8 },
@@ -1222,12 +1292,12 @@ const s = StyleSheet.create({
   // Todas as linhas têm o mesmo tamanho de tecla independente da quantidade
   qwertyKey: {
     height: 46,
-    backgroundColor: theme.backgroundEditorKey,
+    backgroundColor: 'transparent',
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme.borderEditor,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   // Letra maiúscula no canto superior direito — indica função de long-press
   qwertySecondary: {
@@ -1242,36 +1312,36 @@ const s = StyleSheet.create({
   keyBtn: {
     flex: 1,
     height: 46,
-    backgroundColor: theme.backgroundEditorKey,
+    backgroundColor: 'transparent',
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme.borderEditor,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   keyTxt: { color: theme.textSecondary, fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.semibold },
   // Tecla compacta para ^ e _ na última linha do num (flex menor → 0 igual ao padrão de 5 botões)
   keyBtnSm: {
     flex: 0.5,
     height: 46,
-    backgroundColor: theme.backgroundEditorKey,
+    backgroundColor: 'transparent',
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme.borderEditor,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   // Tecla compacta do painel de símbolos (5 linhas → height menor para igualar altura dos outros painéis)
   // Cálculo: 4 linhas × 46px + 3 gaps × 5px = 199px → 5 linhas × 36px + 4 gaps × 5px = 200px ≈ igual
   symKeyBtn: {
     flex: 1,
     height: 36,
-    backgroundColor: theme.backgroundEditorKey,
+    backgroundColor: 'transparent',
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme.borderEditor,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   symTxt: { color: theme.textSecondary, fontSize: theme.fontSize.base },
   // Navegação (abaixo do teclado)
@@ -1284,19 +1354,19 @@ const s = StyleSheet.create({
   navBtn: {
     flex: 1,
     height: 44,
-    backgroundColor: theme.backgroundEditorKey,
+    backgroundColor: 'transparent',
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme.borderEditor,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   navHL: { backgroundColor: theme.primaryTransparent15, borderColor: theme.primary },
   navDanger: { backgroundColor: theme.dangerKeyBg, borderColor: theme.dangerKeyBorder },
   navTxt: { color: theme.textNav, fontSize: theme.fontSize.caption, fontWeight: theme.fontWeight.semibold },
   navHLTxt: { color: theme.primary },
   navHint: {
-    color: theme.backgroundTertiary,
+    color: theme.textMuted,
     fontSize: theme.fontSize.xs,
     textAlign: 'center',
     marginBottom: 8,
@@ -1305,17 +1375,19 @@ const s = StyleSheet.create({
   actions: { gap: 8, marginTop: 6 },
   btnConfirm: {
     backgroundColor: theme.primary,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
   },
   btnDisabled: { opacity: 0.45 },
-  btnConfirmTxt: { color: theme.background, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
+  btnConfirmTxt: { color: '#0F0F0F', fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
   btnCancel: {
-    backgroundColor: theme.backgroundEditorKey,
-    borderRadius: 12,
+    backgroundColor: 'transparent',
+    borderRadius: 14,
     paddingVertical: 12,
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  btnCancelTxt: { color: theme.textMuted, fontSize: theme.fontSize.bodyLg, fontWeight: theme.fontWeight.semibold },
+  btnCancelTxt: { color: theme.textSecondary, fontSize: theme.fontSize.bodyLg, fontWeight: theme.fontWeight.semibold },
 });

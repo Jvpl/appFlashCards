@@ -2,28 +2,56 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initialData } from '../data/mockData';
 
 export const STORAGE_KEY = '@FlashcardsApp:data';
+const DATA_VERSION_KEY = '@FlashcardsApp:dataVersion';
+const CURRENT_DATA_VERSION = 'v5';
+
+let _memoryCache = null;
 
 export const getAppData = async () => {
+  if (_memoryCache) return _memoryCache;
   try {
     const jsonValue = await AsyncStorage.getItem(STORAGE_KEY);
-    
-    if (jsonValue !== null) {
-      const data = JSON.parse(jsonValue);
 
-      // Migração de dados: garante que todos os cards tenham os campos necessários
+    if (jsonValue !== null) {
+      let data = JSON.parse(jsonValue);
+
+      // Migração: remove decks antigos pré-carregados, mantém só user-created + exemplo
+      const version = await AsyncStorage.getItem(DATA_VERSION_KEY);
+      if (version !== CURRENT_DATA_VERSION) {
+        data = data.filter(deck =>
+          deck.isUserCreated === true || deck.id === 'deck_exemplo'
+        );
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+      }
+
+      // Deck exemplo sempre vem do mockData (níveis fixos, nunca persistidos)
+      const exampleFromMock = initialData.find(d => d.id === 'deck_exemplo');
+      data = data.filter(d => d.id !== 'deck_exemplo');
+      if (exampleFromMock) data.unshift({ ...exampleFromMock });
+
+      // Migração de campos dos cards (existente)
+      const migrateCards = (cards) => {
+        cards.forEach(card => {
+          if (card.level === undefined) card.level = 0;
+          if (card.points === undefined) card.points = 0;
+          if (card.consecutiveCorrect === undefined) card.consecutiveCorrect = 0;
+          if (card.reviewStreak === undefined) card.reviewStreak = 0;
+        });
+      };
       data.forEach(deck => {
         deck.subjects.forEach(subject => {
-          subject.flashcards.forEach(card => {
-            if (card.level === undefined) card.level = 0;
-            if (card.points === undefined) card.points = 0;
-            if (card.consecutiveCorrect === undefined) card.consecutiveCorrect = 0;
-            if (card.reviewStreak === undefined) card.reviewStreak = 0;
-          });
+          migrateCards(subject.flashcards || []);
+          (subject.topics || []).forEach(topic => migrateCards(topic.flashcards || []));
         });
       });
+      _memoryCache = data;
       return data;
     }
-    await saveAppData(initialData); // Salva dados iniciais se não houver
+
+    await saveAppData(initialData);
+    await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+    _memoryCache = initialData;
     return initialData;
   } catch (e) { console.error("Failed to fetch data", e); return initialData; }
 };
@@ -32,7 +60,10 @@ export const getAppData = async () => {
 
 export const saveAppData = async (value) => {
   try {
-    const jsonValue = JSON.stringify(value);
+    _memoryCache = value;
+    // Nunca persiste o deck exemplo — seus níveis são fixos no mockData
+    const toSave = value.filter(d => d.id !== 'deck_exemplo');
+    const jsonValue = JSON.stringify(toSave);
     await AsyncStorage.setItem(STORAGE_KEY, jsonValue);
   } catch (e) { console.error("Failed to save data", e); }
 };
@@ -115,6 +146,302 @@ export const removePurchasedDeck = async (deckId) => {
 };
 
 
+// ============================================
+// Ordem dos Decks — ordenação por último acesso
+// ============================================
+
+const DECK_ORDER_KEY = '@FlashcardsApp:deckOrder';
+
+export const getDeckOrder = async () => {
+  try {
+    const json = await AsyncStorage.getItem(DECK_ORDER_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+export const updateDeckOrder = async (deckId) => {
+  try {
+    const order = await getDeckOrder();
+    const updated = [deckId, ...order.filter(id => id !== deckId)];
+    await AsyncStorage.setItem(DECK_ORDER_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Failed to update deck order:', e);
+  }
+};
+
+// ============================================
+// Recentes — Decks acessados recentemente
+// ============================================
+
+const RECENT_DECKS_KEY = '@recent_decks';
+
+export const saveRecentDeck = async (deckId) => {
+  try {
+    const json = await AsyncStorage.getItem(RECENT_DECKS_KEY);
+    let recents = json ? JSON.parse(json) : [];
+    recents = [deckId, ...recents.filter(id => id !== deckId)].slice(0, 7);
+    await AsyncStorage.setItem(RECENT_DECKS_KEY, JSON.stringify(recents));
+  } catch (e) {
+    console.warn('Failed to save recent deck:', e);
+  }
+};
+
+export const getRecentDeckIds = async () => {
+  try {
+    const json = await AsyncStorage.getItem(RECENT_DECKS_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+// ============================================
+// Continuar Estudo — última matéria estudada
+// ============================================
+
+const CONTINUE_STUDY_KEY = '@continue_study';
+
+export const saveContinueStudy = async (data) => {
+  try {
+    await AsyncStorage.setItem(CONTINUE_STUDY_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn('Failed to save continue study:', e);
+  }
+};
+
+export const getContinueStudy = async () => {
+  try {
+    const json = await AsyncStorage.getItem(CONTINUE_STUDY_KEY);
+    return json ? JSON.parse(json) : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const clearContinueStudy = async () => {
+  try {
+    await AsyncStorage.removeItem(CONTINUE_STUDY_KEY);
+  } catch (e) {
+    console.warn('Failed to clear continue study:', e);
+  }
+};
+
+// ============================================
+// Used Categories — categorias que já tiveram decks
+// ============================================
+
+const USED_CATEGORIES_KEY = '@used_category_ids';
+
+export const getUsedCategoryIds = async () => {
+  try {
+    const json = await AsyncStorage.getItem(USED_CATEGORIES_KEY);
+    return json ? new Set(JSON.parse(json)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+export const saveUsedCategoryIds = async (ids) => {
+  try {
+    await AsyncStorage.setItem(USED_CATEGORIES_KEY, JSON.stringify([...ids]));
+  } catch (e) {
+    console.warn('Failed to save used category ids:', e);
+  }
+};
+
+export const replaceUsedCategoryId = async (oldId, newId) => {
+  try {
+    const json = await AsyncStorage.getItem(USED_CATEGORIES_KEY);
+    const arr = json ? JSON.parse(json) : [];
+    const idx = arr.indexOf(oldId);
+    if (idx !== -1) {
+      arr[idx] = newId;
+    } else if (!arr.includes(newId)) {
+      arr.push(newId);
+    }
+    await AsyncStorage.setItem(USED_CATEGORIES_KEY, JSON.stringify(arr));
+  } catch (e) {
+    console.warn('Failed to replace used category id:', e);
+  }
+};
+
+// ============================================
+// Histórico de Estudo
+// ============================================
+
+const STUDY_HISTORY_KEY = '@FlashcardsApp:studyHistory';
+
+export const getStudyHistory = async () => {
+  try {
+    const json = await AsyncStorage.getItem(STUDY_HISTORY_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch (e) {
+    console.error('Failed to fetch study history', e);
+    return [];
+  }
+};
+
+export const hasStudiedToday = async () => {
+  try {
+    const history = await getStudyHistory();
+    const today = new Date().toISOString().split('T')[0];
+    return history.some(s => s.date === today);
+  } catch (e) {
+    return false;
+  }
+};
+
+export const saveStudySession = async (session) => {
+  try {
+    if (!session.count || session.count === 0) return;
+    const history = await getStudyHistory();
+    const today = new Date().toISOString().split('T')[0];
+    // Uma entrada por matéria por dia — acumula se rever a mesma matéria
+    const existingIdx = history.findIndex(s => s.date === today && s.deckId === session.deckId && s.subjectName === session.subjectName);
+    if (existingIdx >= 0) {
+      history[existingIdx] = {
+        ...history[existingIdx],
+        acertos: (session.acertos || 0),
+        quases: (session.quases || 0),
+        erros: (session.erros || 0),
+        count: (session.count || 0),
+        lastSessionAt: Date.now(),
+      };
+    } else {
+      history.push({ ...session, date: today, timestamp: Date.now(), lastSessionAt: Date.now() });
+    }
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const trimmed = history.filter(s => s.timestamp >= cutoff);
+    await AsyncStorage.setItem(STUDY_HISTORY_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    console.error('Failed to save study session', e);
+  }
+};
+
+
+// ============================================
+// Performance Data — dados do pie chart por matéria (substitui, não acumula)
+// ============================================
+
+const PERFORMANCE_KEY = '@FlashcardsApp:performanceData';
+
+export const getPerformanceData = async () => {
+  try {
+    const json = await AsyncStorage.getItem(PERFORMANCE_KEY);
+    return json ? JSON.parse(json) : {};
+  } catch (e) {
+    return {};
+  }
+};
+
+export const savePerformanceData = async (subjectId, data) => {
+  try {
+    const all = await getPerformanceData();
+    const existing = all[subjectId];
+    all[subjectId] = {
+      anterior: existing ? existing.atual : null,
+      atual: { ...data, updatedAt: Date.now() },
+    };
+    await AsyncStorage.setItem(PERFORMANCE_KEY, JSON.stringify(all));
+  } catch (e) {
+    console.error('Failed to save performance data', e);
+  }
+};
+
+// ============================================
+// Helpers para hierarquia: Deck → Matéria → Assunto → Cards
+// ============================================
+
+export const findStudyUnit = (deck, unitId) => {
+  for (const s of (deck.subjects || [])) {
+    if (s.id === unitId) return s;
+    for (const t of (s.topics || [])) {
+      if (t.id === unitId) return t;
+    }
+  }
+  return null;
+};
+
+export const getAllCards = (unit) => {
+  if (unit.topics?.length > 0) return unit.topics.flatMap(t => t.flashcards || []);
+  return unit.flashcards || [];
+};
+
+export const updateStudyUnit = (allData, deckId, unitId, updateFn) => {
+  return allData.map(deck => {
+    if (deck.id !== deckId) return deck;
+    return {
+      ...deck,
+      subjects: deck.subjects.map(subject => {
+        if (subject.id === unitId) {
+          return { ...subject, flashcards: updateFn(subject.flashcards || []) };
+        }
+        if (subject.topics) {
+          const topicIdx = subject.topics.findIndex(t => t.id === unitId);
+          if (topicIdx >= 0) {
+            return {
+              ...subject,
+              topics: subject.topics.map((t, i) =>
+                i !== topicIdx ? t : { ...t, flashcards: updateFn(t.flashcards || []) }
+              ),
+            };
+          }
+        }
+        return subject;
+      }),
+    };
+  });
+};
+
+const DAILY_GOAL_KEY = '@FlashcardsApp:dailyGoal';
+const CARDS_AVAILABILITY_KEY = '@FlashcardsApp:cardsAvailability';
+
+export const getDailyGoalStatus = async () => {
+  try {
+    const val = await AsyncStorage.getItem(DAILY_GOAL_KEY);
+    return val ? JSON.parse(val) : null;
+  } catch { return null; }
+};
+
+export const saveDailyGoalReached = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    await AsyncStorage.setItem(DAILY_GOAL_KEY, JSON.stringify({ date: today }));
+  } catch (e) { console.error(e); }
+};
+
+export const isDailyGoalReachedToday = async () => {
+  const status = await getDailyGoalStatus();
+  if (!status) return false;
+  const today = new Date().toISOString().split('T')[0];
+  return status.date === today;
+};
+
+// Registra se havia cards disponíveis no dia (threshold: antes das 21:00)
+export const recordCardsAvailability = async (hasCards) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const raw = await AsyncStorage.getItem(CARDS_AVAILABILITY_KEY);
+    const log = raw ? JSON.parse(raw) : {};
+    log[today] = hasCards;
+    // Mantém só os últimos 7 dias
+    const keys = Object.keys(log).sort();
+    if (keys.length > 7) {
+      keys.slice(0, keys.length - 7).forEach(k => delete log[k]);
+    }
+    await AsyncStorage.setItem(CARDS_AVAILABILITY_KEY, JSON.stringify(log));
+  } catch (e) { console.error(e); }
+};
+
+export const getCardsAvailabilityLog = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(CARDS_AVAILABILITY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+};
+
 export default {
   STORAGE_KEY,
   getAppData,
@@ -122,5 +449,20 @@ export default {
   getPurchasedDecks,
   savePurchasedDeck,
   getDeckCache,
-  removePurchasedDeck
+  removePurchasedDeck,
+  saveRecentDeck,
+  getRecentDeckIds,
+  saveContinueStudy,
+  getContinueStudy,
+  clearContinueStudy,
+  getStudyHistory,
+  saveStudySession,
+  hasStudiedToday,
+  getPerformanceData,
+  savePerformanceData,
+  getDailyGoalStatus,
+  saveDailyGoalReached,
+  isDailyGoalReachedToday,
+  recordCardsAvailability,
+  getCardsAvailabilityLog,
 };

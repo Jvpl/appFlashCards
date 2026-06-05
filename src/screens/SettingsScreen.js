@@ -1,329 +1,262 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Switch } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAppData, saveAppData } from '../services/storage';
-import { initialData } from '../data/mockData';
 import { CustomAlert } from '../components/ui/CustomAlert';
-import styles from '../styles/globalStyles';
 import theme from '../styles/theme';
 
 export const SettingsScreen = () => {
-  const [allowDefaultDeckEditing, setAllowDefaultDeckEditing] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
+  const insets = useSafeAreaInsets();
+  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [], toggle: null });
 
-  // Load settings on mount
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const value = await AsyncStorage.getItem('allowDefaultDeckEditing');
-        setAllowDefaultDeckEditing(value === 'true');
-      } catch (error) {
-        console.error('Error loading settings:', error);
-      }
+  const closeAlert = () => setAlertConfig(prev => ({ ...prev, visible: false }));
+
+  const confirm = (title, message, onConfirm, confirmLabel = 'Confirmar') => {
+    setAlertConfig({
+      visible: true, title, message,
+      buttons: [
+        { text: 'Cancelar', style: 'cancel', onPress: closeAlert },
+        { text: confirmLabel, style: 'destructive', onPress: onConfirm },
+      ],
+    });
+  };
+
+  const success = (message) => setAlertConfig({
+    visible: true, title: 'Pronto!', message,
+    buttons: [{ text: 'OK', onPress: closeAlert }],
+  });
+
+  const resetCards = (filterFn) => async () => {
+    const data = await getAppData();
+    data.forEach(deck => deck.subjects.forEach(sub => {
+      const cards = sub.topics?.length > 0
+        ? sub.topics.flatMap(t => t.flashcards || [])
+        : (sub.flashcards || []);
+      cards.forEach(card => {
+        if (filterFn(card, deck)) {
+          card.level = 0; card.points = 0;
+          card.lastReview = null; card.nextReview = null;
+          card.consecutiveCorrect = 0;
+        }
+      });
+    }));
+    await saveAppData(data);
+    closeAlert();
+    success('Progresso resetado com sucesso.');
+  };
+
+  const handleResetAll = () => confirm(
+    'Resetar tudo?',
+    'Zera o progresso de todos os flashcards, incluindo comprados e criados por você. Ação irreversível.',
+    resetCards(() => true), 'Resetar'
+  );
+
+  const handleResetPurchased = () => confirm(
+    'Resetar flashcards comprados?',
+    'Zera o progresso apenas dos decks comprados. Seu conteúdo criado não é afetado.',
+    resetCards((_, deck) => deck.isPurchased && !deck.isUserCreated), 'Resetar'
+  );
+
+  const handleResetUserCreated = () => confirm(
+    'Resetar flashcards criados?',
+    'Zera o progresso apenas dos flashcards que você criou. Decks comprados não são afetados.',
+    resetCards((card) => card.isUserCreated), 'Resetar'
+  );
+
+  const handleRestoreUserDecks = () => confirm(
+    'Restaurar seus decks?',
+    'Restaura os decks criados por você que foram apagados. Matérias e flashcards existentes não são alterados.',
+    async () => {
+      closeAlert();
+      success('Funcionalidade disponível em breve.');
+    }, 'Restaurar'
+  );
+
+  const handleRestorePurchasedDecks = () => confirm(
+    'Restaurar decks comprados?',
+    'Restaura os decks comprados que foram removidos do app.',
+    async () => {
+      closeAlert();
+      success('Funcionalidade disponível em breve.');
+    }, 'Restaurar'
+  );
+
+  const handleDelete = (type) => {
+    const config = {
+      decks: {
+        title: 'Apagar tudo que criei?',
+        message: 'Remove permanentemente todos os decks, matérias e flashcards criados por você. Ação irreversível.',
+        fn: async () => {
+          const data = await getAppData();
+          const kept = data.filter(d => !d.isUserCreated);
+          await saveAppData(kept);
+        },
+        extraButton: {
+          label: 'Apagar + comprados',
+          fn: async () => {
+            const data = await getAppData();
+            const kept = data.filter(d => !d.isUserCreated && !d.isPurchased);
+            await saveAppData(kept);
+          },
+        },
+      },
+      subjects: {
+        title: 'Apagar matérias e flashcards?',
+        message: 'Remove permanentemente todas as matérias e flashcards criados por você. Seus decks criados são mantidos (vazios).',
+        fn: async () => {
+          const data = await getAppData();
+          data.forEach(deck => { if (deck.isUserCreated) deck.subjects = []; });
+          await saveAppData(data);
+        },
+      },
+      flashcards: {
+        title: 'Apagar somente flashcards?',
+        message: 'Remove permanentemente todos os flashcards criados por você. Suas matérias são mantidas (vazias).',
+        fn: async () => {
+          const data = await getAppData();
+          data.forEach(deck => deck.subjects.forEach(sub => {
+            sub.flashcards = (sub.flashcards || []).filter(c => !c.isUserCreated);
+            (sub.topics || []).forEach(t => { t.flashcards = (t.flashcards || []).filter(c => !c.isUserCreated); });
+          }));
+          await saveAppData(data);
+        },
+      },
     };
-    loadSettings();
-  }, []);
-
-  const toggleDefaultDeckEditing = async (value) => {
-    try {
-      await AsyncStorage.setItem('allowDefaultDeckEditing', value.toString());
-      setAllowDefaultDeckEditing(value);
-    } catch (error) {
-      console.error('Error saving setting:', error);
-    }
-  };
-
-  const handleRestoreOnlyDecks = () => {
+    const { title, message, fn, extraButton } = config[type];
+    const buttons = [
+      { text: 'Cancelar', style: 'cancel', onPress: closeAlert },
+      {
+        text: 'Apagar', style: 'destructive', _useToggle: !!extraButton,
+        onPress: extraButton
+          ? async (includeExtra) => { await (includeExtra ? extraButton.fn : fn)(); closeAlert(); success('Conteúdo apagado.'); }
+          : async () => { await fn(); closeAlert(); success('Conteúdo apagado.'); },
+      },
+    ];
     setAlertConfig({
-      visible: true,
-      title: "Restaurar Só Decks",
-      message: "Esta função restaura apenas os decks padrão que foram apagados. As matérias e flashcards existentes não serão alterados. Deseja continuar?",
-      buttons: [
-        { text: "Cancelar", style: "cancel", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) },
-        {
-          text: "Restaurar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const currentData = await getAppData();
-              // Filter out user decks
-              const userDecks = currentData.filter(deck => !DEFAULT_DECK_IDS.includes(deck.id));
-              
-              // Find which default decks are missing
-              const existingDefaultIds = currentData
-                .filter(deck => DEFAULT_DECK_IDS.includes(deck.id))
-                .map(deck => deck.id);
-              
-              // Get only the missing default decks from initialData, but with EMPTY subjects
-              const missingDecks = initialData
-                .filter(deck => !existingDefaultIds.includes(deck.id))
-                .map(deck => ({ ...deck, subjects: [] }));
-              
-              if (missingDecks.length === 0) {
-                setAlertConfig({
-                    visible: true,
-                    title: "Informação",
-                    message: "Todos os decks padrão já existem.",
-                    buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-                });
-                return;
-              }
-              
-              // Combine existing data with missing decks
-              const restoredData = [...currentData, ...missingDecks];
-              await saveAppData(restoredData);
-              setAlertConfig({
-                visible: true,
-                title: "Sucesso!",
-                message: `${missingDecks.length} deck(s) padrão foram restaurados.`,
-                buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-              });
-            } catch (error) {
-              console.error('Error restoring decks:', error);
-              setAlertConfig({
-                visible: true,
-                title: "Erro",
-                message: "Não foi possível restaurar os decks.",
-                buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-              });
-            }
-          }
-        }
-      ]
-    });
-  };
-
-  const handleRestoreDecksAndSubjects = () => {
-    setAlertConfig({
-      visible: true,
-      title: "Restaurar Decks e Matérias",
-      message: "Esta ação irá restaurar COMPLETAMENTE os 6 decks originais do app. Qualquer matéria ou flashcard adicionado a eles será perdido. Seus decks personalizados serão mantidos. Deseja continuar?",
-      buttons: [
-        { text: "Cancelar", style: "cancel", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) },
-        {
-          text: "Restaurar Tudo",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const currentData = await getAppData();
-              // Keep only user decks
-              const userDecks = currentData.filter(deck => !DEFAULT_DECK_IDS.includes(deck.id));
-              // Add fresh copy of all original decks
-              const restoredData = [...initialData, ...userDecks];
-              await saveAppData(restoredData);
-              setAlertConfig({
-                visible: true,
-                title: "Sucesso!",
-                message: "Os decks originais foram completamente restaurados.",
-                buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-              });
-            } catch (error) {
-              console.error('Error restoring decks and subjects:', error);
-              setAlertConfig({
-                visible: true,
-                title: "Erro",
-                message: "Não foi possível restaurar os decks.",
-                buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-              });
-            }
-          }
-        }
-      ]
-    });
-  };
-
-  const handleResetProgress = (type) => {
-    let title = "Resetar Progresso";
-    let message = "";
-    let filterFunc;
-
-    if (type === 'all') {
-      message = "Isso irá zerar o progresso de TODOS os flashcards (do app e criados por você). Deseja continuar?";
-      filterFunc = () => true;
-    } else if (type === 'app') {
-      message = "Isso irá zerar o progresso apenas dos flashcards originais do aplicativo. Seu conteúdo não será afetado. Deseja continuar?";
-      filterFunc = card => !card.isUserCreated;
-    } else { // user
-      message = "Isso irá zerar o progresso apenas dos flashcards criados por você. O conteúdo do app não será afetado. Deseja continuar?";
-      filterFunc = card => card.isUserCreated;
-    }
-
-    setAlertConfig({
-        visible: true,
-        title: title,
-        message: message,
-        buttons: [
-            { text: "Cancelar", style: "cancel", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) },
-            { 
-                text: "Confirmar", 
-                style: "destructive", 
-                onPress: async () => {
-                   const data = await getAppData();
-                   data.forEach(deck => {
-                     deck.subjects.forEach(subject => {
-                       subject.flashcards.forEach(card => {
-                         if (filterFunc(card)) {
-                           card.level = 0;
-                           card.points = 0;
-                           card.lastReview = null;
-                           card.nextReview = null;
-                         }
-                       });
-                     });
-                   });
-                   await saveAppData(data);
-                   setAlertConfig({
-                       visible: true,
-                       title: "Sucesso!",
-                       message: "O progresso foi resetado.",
-                       buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-                   });
-                }
-            }
-        ]
-    });
-  };
-
-  const handleDeleteContent = async (type) => {
-    let title = "Apagar Conteúdo";
-    let message = "";
-    let onConfirm;
-
-    if (type === 'flashcards') {
-      message = "Isso irá apagar permanentemente TODOS os flashcards que você criou em TODAS as matérias. Suas matérias criadas serão mantidas (vazias). Deseja continuar?";
-      onConfirm = async () => {
-        const data = await getAppData();
-        data.forEach(deck => {
-          deck.subjects.forEach(subject => {
-            subject.flashcards = subject.flashcards.filter(card => !card.isUserCreated);
-          });
-        });
-        await saveAppData(data);
-        setAlertConfig({
-            visible: true,
-            title: "Sucesso!",
-            message: "Seus flashcards foram apagados.",
-            buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-        });
-      };
-    } else { // all
-      message = "Isso irá apagar permanentemente TODAS as matérias e flashcards que você criou. Esta ação não pode ser desfeita. Deseja continuar?";
-      onConfirm = async () => {
-        const data = await getAppData();
-        data.forEach(deck => {
-          deck.subjects = deck.subjects.filter(subject => !subject.isUserCreated);
-        });
-        await saveAppData(data);
-        setAlertConfig({
-            visible: true,
-            title: "Sucesso!",
-            message: "Todo o seu conteúdo foi apagado.",
-            buttons: [{ text: "OK", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
-        });
-      };
-    }
-    
-    setAlertConfig({
-        visible: true,
-        title: title,
-        message: message,
-        buttons: [
-            { text: "Cancelar", style: "cancel", onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) },
-            { 
-                text: "Confirmar", 
-                style: "destructive", 
-                onPress: onConfirm 
-            }
-        ]
+      visible: true, title, message, buttons,
+      toggle: extraButton ? { label: extraButton.label } : null,
     });
   };
 
   return (
-    <ScrollView style={styles.baseContainer}>
-      <View style={styles.settingsSection}>
-        <Text style={styles.settingsSectionTitle}>Configurações Avançadas</Text>
-        <View style={styles.settingsButton}>
-          <Ionicons name="shield-outline" size={24} color={theme.warning} />
-          <View style={styles.settingsButtonTextContainer}>
-            <Text style={styles.settingsButtonTitle}>Permitir edição de decks padrão</Text>
-            <Text style={styles.settingsButtonSubtitle}>Habilita editar e apagar os decks originais do app.</Text>
-          </View>
-          <TouchableOpacity 
-            onPress={() => toggleDefaultDeckEditing(!allowDefaultDeckEditing)}
-            style={[styles.switchContainer, allowDefaultDeckEditing && styles.switchActive]}
-          >
-            <View style={[styles.switchThumb, allowDefaultDeckEditing && styles.switchThumbActive]} />
-          </TouchableOpacity>
-        </View>
+    <ScrollView
+      style={s.root}
+      contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 32 }]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ── Resetar progresso ── */}
+      <Text style={s.sectionTitle}>Resetar progresso</Text>
+      <View style={s.group}>
+        <Row icon="bag-outline" label="Resetar flashcards comprados" sub="Zera apenas os decks que você adquiriu" onPress={handleResetPurchased} />
+        <Div />
+        <Row icon="person-outline" label="Resetar flashcards criados" sub="Zera apenas os flashcards que você criou" onPress={handleResetUserCreated} />
       </View>
 
-      <View style={styles.settingsSection}>
-        <Text style={styles.settingsSectionTitle}>Resetar Progresso</Text>
-        <TouchableOpacity style={styles.settingsButton} onPress={() => handleResetProgress('all')}>
-          <Ionicons name="refresh-circle-outline" size={24} color={theme.info} />
-          <View style={styles.settingsButtonTextContainer}>
-            <Text style={styles.settingsButtonTitle}>Resetar Tudo</Text>
-            <Text style={styles.settingsButtonSubtitle}>Zera o progresso de todos os flashcards.</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingsButton} onPress={() => handleResetProgress('app')}>
-          <Ionicons name="refresh-outline" size={24} color={theme.info} />
-          <View style={styles.settingsButtonTextContainer}>
-            <Text style={styles.settingsButtonTitle}>Resetar Conteúdo do App</Text>
-            <Text style={styles.settingsButtonSubtitle}>Zera o progresso dos flashcards originais.</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingsButton} onPress={() => handleResetProgress('user')}>
-          <Ionicons name="person-outline" size={24} color={theme.info} />
-          <View style={styles.settingsButtonTextContainer}>
-            <Text style={styles.settingsButtonTitle}>Resetar Meu Conteúdo</Text>
-            <Text style={styles.settingsButtonSubtitle}>Zera o progresso dos flashcards que você criou.</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingsButton} onPress={handleRestoreOnlyDecks}>
-          <Ionicons name="download-outline" size={24} color={theme.download} />
-          <View style={styles.settingsButtonTextContainer}>
-            <Text style={styles.settingsButtonTitle}>Restaurar Só Decks</Text>
-            <Text style={styles.settingsButtonSubtitle}>Restaura apenas decks padrão apagados.</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingsButton} onPress={handleRestoreDecksAndSubjects}>
-          <Ionicons name="refresh-circle-outline" size={24} color={theme.download} />
-          <View style={styles.settingsButtonTextContainer}>
-            <Text style={styles.settingsButtonTitle}>Restaurar Decks e Matérias</Text>
-            <Text style={styles.settingsButtonSubtitle}>Restauração completa dos decks originais.</Text>
-          </View>
-        </TouchableOpacity>
+      {/* ── Restaurar ── */}
+      <Text style={s.sectionTitle}>Restaurar</Text>
+      <View style={s.group}>
+        <Row icon="person-outline" label="Restaurar meus decks" sub="Restaura decks criados por você que foram apagados" onPress={handleRestoreUserDecks} />
+        <Div />
+        <Row icon="bag-outline" label="Restaurar decks comprados" sub="Restaura decks adquiridos que foram removidos" onPress={handleRestorePurchasedDecks} />
       </View>
 
-      <View style={styles.settingsSection}>
-        <Text style={styles.settingsSectionTitle}>Apagar Conteúdo Criado</Text>
-        <TouchableOpacity style={[styles.settingsButton, styles.dangerButton]} onPress={() => handleDeleteContent('flashcards')}>
-          <Ionicons name="document-text-outline" size={24} color={theme.danger} />
-          <View style={styles.settingsButtonTextContainer}>
-            <Text style={styles.settingsButtonTitle}>Apagar Meus Flashcards</Text>
-            <Text style={styles.settingsButtonSubtitle}>Remove todos os flashcards criados por você.</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.settingsButton, styles.dangerButton]} onPress={() => handleDeleteContent('all')}>
-          <Ionicons name="trash-outline" size={24} color={theme.danger} />
-          <View style={styles.settingsButtonTextContainer}>
-            <Text style={styles.settingsButtonTitle}>Apagar Tudo que Criei</Text>
-            <Text style={styles.settingsButtonSubtitle}>Remove suas matérias e flashcards.</Text>
-          </View>
-        </TouchableOpacity>
+      {/* ── Apagar conteúdo ── */}
+      <Text style={s.sectionTitle}>Apagar conteúdo</Text>
+      <View style={s.group}>
+        <Row icon="trash-outline" label="Apagar tudo que criei" sub="Remove decks, matérias e flashcards criados por você" onPress={() => handleDelete('decks')} danger />
+        <Div danger />
+        <Row icon="layers-outline" label="Apagar matérias e flashcards" sub="Mantém seus decks, remove o conteúdo interno" onPress={() => handleDelete('subjects')} danger />
+        <Div danger />
+        <Row icon="document-text-outline" label="Apagar somente flashcards" sub="Mantém suas matérias, remove apenas os cards" onPress={() => handleDelete('flashcards')} danger />
       </View>
-      <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={closeAlert}
+        toggle={alertConfig.toggle}
+      />
     </ScrollView>
   );
 };
 
+const Row = ({ icon, label, sub, onPress, danger }) => (
+  <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.7}>
+    <View style={[s.iconBox, { backgroundColor: danger ? 'rgba(248,81,73,0.10)' : 'rgba(93,214,44,0.10)' }]}>
+      <Ionicons name={icon} size={20} color={danger ? theme.danger : theme.primary} />
+    </View>
+    <View style={s.rowText}>
+      <Text style={[s.rowLabel, danger && { color: theme.danger }]}>{label}</Text>
+      <Text style={s.rowSub}>{sub}</Text>
+    </View>
+    <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+  </TouchableOpacity>
+);
 
-// =================================================================
-// STYLES
-// Folha de estilos unificada para todos os componentes.
-// =================================================================
+const Div = ({ danger }) => (
+  <View style={[s.divider, danger && { backgroundColor: 'rgba(248,81,73,0.12)' }]} />
+);
 
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.background },
+  content: { paddingHorizontal: 16, paddingTop: 8 },
+
+  sectionTitle: {
+    color: theme.textMuted,
+    fontSize: 11,
+    fontFamily: theme.fontFamily.uiBold,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 24,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+
+  group: {
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.backgroundTertiary,
+    overflow: 'hidden',
+  },
+
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: theme.backgroundTertiary,
+    marginLeft: 14 + 36 + 12,
+  },
+
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rowText: { flex: 1 },
+  rowLabel: {
+    color: theme.textPrimary,
+    fontSize: 14,
+    fontFamily: theme.fontFamily.uiBold,
+  },
+  rowSub: {
+    color: theme.textMuted,
+    fontSize: 12,
+    fontFamily: theme.fontFamily.ui,
+    marginTop: 2,
+  },
+});
 
 export default SettingsScreen;

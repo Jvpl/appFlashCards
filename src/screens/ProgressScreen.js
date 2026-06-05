@@ -1,188 +1,1752 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import {
+  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Pressable, StyleSheet, useWindowDimensions,
+} from 'react-native';
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Easing, runOnJS } from 'react-native-reanimated';
+import Svg, { Circle, Path as SvgPath, Polygon as SvgPolygon, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import { SvgXml } from 'react-native-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getAppData } from '../services/storage';
-import { LEVEL_CONFIG } from '../services/srs';
-import styles from '../styles/globalStyles';
+import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAppData, getStudyHistory, getPerformanceData, getCardsAvailabilityLog } from '../services/storage';
+
+const FIRST_USE_KEY = '@FlashcardsApp:firstUseDate';
 import theme from '../styles/theme';
 
-export const ProgressScreen = () => {
-  const navigation = useNavigation();
-  // Ref para o ScrollView principal
-  const scrollViewRef = useRef(null);
-  // Refs para cada item da lista (para rolagem automática)
-  const deckRefs = useRef({});
-  const contentRef = useRef(null);
+const ICON_ACERTO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40.64 30.13"><path fill="#6fb631" d="M39.54,.95c-1.41-1.32-3.62-1.25-4.95,.16L15.13,21.84,5.73,14.08c-1.49-1.23-3.7-1.02-4.93,.47-1.23,1.49-1.02,3.7,.47,4.93l11.93,9.86c.65,.54,1.44,.8,2.23,.8,.94,0,1.87-.37,2.55-1.1L39.7,5.89c1.32-1.41,1.25-3.62-.16-4.95Z"/></svg>`;
+const ICON_QUASE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40.65 30.13"><path fill="#1cabcd" d="M5.32,10.13l5.75-2.55c2.27-1.01,5.39-.68,7.42,.77,2.45,1.75,5.52,2.67,8.57,2.67,1.99,0,3.97-.39,5.76-1.18l5.75-2.55c1.77-.78,2.56-2.85,1.78-4.62-.78-1.77-2.85-2.57-4.62-1.78l-5.75,2.55c-2.27,1.01-5.39,.68-7.42-.77C18.52-.23,12.76-.83,8.23,1.18L2.48,3.73C.72,4.51-.08,6.58,.7,8.35s2.85,2.56,4.62,1.78Z"/><path fill="#1cabcd" d="M35.33,20l-5.75,2.55c-2.27,1.01-5.39,.68-7.42-.77-4.04-2.9-9.8-3.49-14.33-1.49l-5.75,2.55c-1.77,.78-2.57,2.85-1.78,4.62,.78,1.77,2.85,2.56,4.62,1.78l5.75-2.55c2.27-1,5.39-.68,7.42,.77,2.45,1.75,5.52,2.67,8.57,2.67,1.99,0,3.97-.39,5.76-1.18l5.75-2.55c1.77-.78,2.57-2.85,1.78-4.62-.78-1.77-2.85-2.57-4.62-1.78Z"/></svg>`;
+const ICON_ERRO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38.75 38.75"><path fill="#e94542" d="M24.32,19.37l13.4-13.4c1.37-1.37,1.37-3.58,0-4.95-1.37-1.37-3.58-1.37-4.95,0l-13.4,13.4L5.97,1.03C4.61-.34,2.39-.34,1.03,1.03-.34,2.39-.34,4.61,1.03,5.97l13.4,13.4L1.03,32.77c-1.37,1.37-1.37,3.58,0,4.95,.68,.68,1.58,1.03,2.47,1.03s1.79-.34,2.47-1.03l13.4-13.4,13.4,13.4c.68,.68,1.58,1.03,2.47,1.03s1.79-.34,2.47-1.03c1.37-1.37,1.37-3.58,0-4.95l-13.4-13.4Z"/></svg>`;
 
-  const [stats, setStats] = useState({ total: 0, learned: 0 });
-  const [progressData, setProgressData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('inProgress'); // 'inProgress' or 'completed'
-  
-  const [expandedInProgress, setExpandedInProgress] = useState(null);
-  const [expandedCompleted, setExpandedCompleted] = useState(null);
-  
-  const isFocused = useIsFocused();
-  const insets = useSafeAreaInsets(); // Hook para safe area
+// ── SVG do card de streak (background shape) ─────────────────────
+const CARD_STREAK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 993.13 603.71">
+  <rect fill="#2a2a2a" x="521.52" y="0" width="471.61" height="105.12" rx="52.51" ry="52.51"/>
+  <path fill="#2a2a2a" d="M930.13,119.29h-358.69c-26.43,0-49.83-17.06-57.93-42.21l-11.16-34.67C494.26,17.25,470.86,.19,444.43,.19H62.13C27.82,.19,0,28.01,0,62.32v479.26c0,34.31,27.82,62.13,62.13,62.13H930.13c34.31,0,62.13-27.82,62.13-62.13V181.42c0-34.31-27.82-62.13-62.13-62.13ZM18.52,60.24c0-22.85,18.52-41.37,41.37-41.37H447.34c22.85,0,41.37,18.52,41.37,41.37v199.23c0,22.85-18.52,41.37-41.37,41.37H59.89c-22.85,0-41.37-18.52-41.37-41.37V60.24Z"/>
+  <rect fill="#2a2a2a" x="8" y="8" width="492" height="304" rx="41.37" ry="41.37"/>
+  <rect fill="#444" x="9.68" y="358.49" width="972.9" height="1.22"/>
+  <rect fill="#5e5e5e" x="25.13" y="241.35" width="456.97" height="1.23"/>
+</svg>`;
 
-  useEffect(() => {
-    const loadStats = async () => {
-      setLoading(true);
-      const data = await getAppData();
-      let totalMaxLevel = 0;
-      let currentLevelSum = 0;
-      
-      const structuredData = data.map(deck => {
-        const subjectsWithProgress = deck.subjects.map(subject => {
-          const totalLevels = subject.flashcards.length * 5;
-          const currentLevels = subject.flashcards.reduce((sum, card) => sum + (card.level || 0), 0);
-          totalMaxLevel += totalLevels;
-          currentLevelSum += currentLevels;
-          return {
-            ...subject,
-            progress: totalLevels > 0 ? Math.round((currentLevels / totalLevels) * 100) : 0,
-          };
-        });
 
-        return {
-          ...deck,
-          subjects: subjectsWithProgress,
-        };
-      });
+// ── Rings de nível ───────────────────────────────────────────────
+const RING_GRADIENTS = [
+  ['#2A2F3A', '#3D4451'],
+  ['#0D2B1E', '#2D6A4F'],
+  ['#1B4332', '#40916C'],
+  ['#2D6A4F', '#52B788'],
+  ['#40916C', '#74C69D'],
+  ['#2D9E00', '#5DD62C'],
+];
+const RING_FILL = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
 
-      setStats({ total: totalMaxLevel, learned: currentLevelSum });
-      setProgressData(structuredData);
-      setLoading(false);
-    };
-
-    if (isFocused) {
-      loadStats();
-    }
-  }, [isFocused]);
-
-  if (loading) return <View style={styles.centered}><ActivityIndicator size="large" color={theme.backgroundTertiary} /></View>;
-
-  const overallProgress = stats.total > 0 ? Math.round((stats.learned / stats.total) * 100) : 0;
-  
-  const renderList = (isCompletedList) => {
-    const expandedId = isCompletedList ? expandedCompleted : expandedInProgress;
-    const setExpandedId = isCompletedList ? setExpandedCompleted : setExpandedInProgress;
-
-    const handleToggle = (deckId) => {
-      const isExpanding = expandedId !== deckId;
-      setExpandedId(prevId => (prevId === deckId ? null : deckId));
-
-      if (isExpanding) {
-        // Aguarda a renderização da lista expandida e rola até ela
-        setTimeout(() => {
-          const element = deckRefs.current[deckId];
-          const scrollView = scrollViewRef.current;
-          
-          if (element && scrollView && contentRef.current) {
-            // Tenta medir a posição do elemento
-            element.measure((x, y, width, height, pageX, pageY) => {
-              if (pageY !== undefined) {
-                // Rola para mostrar o item expandido
-                // Usa um offset para garantir que o item fique visível
-                const scrollOffset = Math.max(0, pageY - 100);
-                scrollView.scrollTo({ y: scrollOffset, animated: true });
-              }
-            });
-          }
-        }, 150); // Delay otimizado para responsividade
-      }
-    };
-
-    const filteredData = progressData.map(deck => {
-      const filteredSubjects = deck.subjects
-        .filter(subject => (isCompletedList ? subject.progress === 100 : subject.progress < 100))
-        .sort((a, b) => b.progress - a.progress);
-
-      return { ...deck, subjects: filteredSubjects };
-    }).filter(deck => deck.subjects.length > 0);
-
-    if (filteredData.length === 0) {
-      return <Text style={styles.noItemsText}>{isCompletedList ? "Nenhuma matéria concluída ainda." : "Nenhuma matéria em andamento."}</Text>
-    }
-
-    return filteredData.map(deck => (
-      <View 
-        key={deck.id} 
-        style={styles.deckGroup}
-        ref={el => deckRefs.current[deck.id] = el} // Captura a referência deste item
-        renderToHardwareTextureAndroid={true} // Otimização para animação
-      >
-        <TouchableOpacity style={styles.deckHeader} onPress={() => handleToggle(deck.id)}>
-          <Text style={styles.deckGroupTitle}>{deck.name}</Text>
-          <Ionicons name={expandedId === deck.id ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
-        </TouchableOpacity>
-        {expandedId === deck.id && (
-          <View>
-            {deck.subjects.map((subject, index) => (
-               <View key={subject.id}>
-                 {/* Agora o item é clicável e navega para os flashcards */}
-                <TouchableOpacity 
-                    style={styles.progressSubjectContainer}
-                    onPress={() => navigation.navigate('Início', {
-                        screen: 'HomeDrawer',
-                        params: {
-                            screen: 'Flashcard',
-                            params: { deckId: deck.id, subjectId: subject.id, subjectName: subject.name }
-                        }
-                    })}
-                >
-                  <View style={styles.itemTextContainer}>
-                    <Text style={styles.itemTitle}>{subject.name}</Text>
-                  </View>
-                  <View style={[styles.progressContainer, { borderColor: subject.progress === 100 ? theme.success : theme.primary }]}>
-                      <Text style={styles.progressText}>{subject.progress}%</Text>
-                  </View>
-                </TouchableOpacity>
-                {index < deck.subjects.length - 1 && <View style={styles.divider} />}
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
-    ));
-  }
-
+const LevelRing = ({ level, size = 52 }) => {
+  const lvl = Math.min(Math.max(level || 0, 0), 5);
+  const [gradStart, gradEnd] = RING_GRADIENTS[lvl];
+  const fill = RING_FILL[lvl];
+  const cx = size / 2;
+  const strokeW = size * 0.08;
+  const r = cx - strokeW;
+  const circ = 2 * Math.PI * r;
+  const gradId = `pg${lvl}_${size}`;
   return (
-    <ScrollView 
-        style={styles.baseContainer} 
-        contentContainerStyle={{ paddingBottom: insets.bottom }}
-        ref={scrollViewRef}
-    >
-      <View ref={contentRef}>
-        {/* Adicionado paddingSuperior para respeitar o Header/Statusbar */}
-        <View style={[styles.progressHeader, { paddingTop: insets.top + 20 }]}>
-          <Text style={styles.progressTitle}>Progresso Geral</Text>
-          <Text style={styles.progressValue}>{overallProgress}%</Text>
-          <Text style={styles.progressSubtitle}>Acompanhe sua maestria</Text>
-        </View>
-
-        <View style={styles.toggleContainer}>
-          <TouchableOpacity 
-              style={[styles.toggleButton, viewMode === 'inProgress' && styles.toggleButtonActive]} 
-              onPress={() => setViewMode('inProgress')}>
-            <Text style={[styles.toggleButtonText, viewMode === 'inProgress' && styles.toggleButtonTextActive]}>Em Andamento</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-              style={[styles.toggleButton, viewMode === 'completed' && styles.toggleButtonActive]} 
-              onPress={() => setViewMode('completed')}>
-            <Text style={[styles.toggleButtonText, viewMode === 'completed' && styles.toggleButtonTextActive]}>Concluídos</Text>
-          </TouchableOpacity>
-        </View>
-
-        {viewMode === 'inProgress' ? renderList(false) : renderList(true)}
-      </View>
-    </ScrollView>
+    <Svg width={size} height={size}>
+      <Circle cx={cx} cy={cx} r={r} stroke="rgba(255,255,255,0.1)" strokeWidth={strokeW} fill="none" />
+      {fill > 0 && (
+        <Defs>
+          <LinearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={gradStart} stopOpacity="1" />
+            <Stop offset="1" stopColor={gradEnd} stopOpacity="1" />
+          </LinearGradient>
+        </Defs>
+      )}
+      {fill > 0 && (
+        <Circle
+          cx={cx} cy={cx} r={r}
+          stroke={`url(#${gradId})`} strokeWidth={strokeW} fill="none"
+          strokeDasharray={`${circ * fill} ${circ * (1 - fill)}`}
+          strokeLinecap="round" transform={`rotate(-90 ${cx} ${cx})`}
+        />
+      )}
+      <SvgText x={cx} y={cx + size * 0.13} textAnchor="middle" fill="#F8F8F8" fontSize={size * 0.35} fontWeight="700">{lvl}</SvgText>
+    </Svg>
   );
 };
 
-// =================================================================
+const LEVEL_NAMES = ['Marco Zero', 'Aprendiz', 'Em Progresso', 'Consolidando', 'Confiante', 'Dominado'];
 
+// ── Dias da semana (Seg → Dom) ───────────────────────────────────
+const WEEK_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+// Retorna o ISO date (YYYY-MM-DD) de cada dia da semana atual (Seg=0 ... Dom=6)
+const getWeekDates = (weekOffset = 0) => {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const distFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  return WEEK_DAYS.map((label, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - distFromMon + i - weekOffset * 7);
+    const dateStr = d.toISOString().split('T')[0];
+    return { label, date: dateStr, isFuture: weekOffset === 0 && i > distFromMon, isToday: weekOffset === 0 && i === distFromMon };
+  });
+};
+
+// ── Cálculo dos 3 pilares de confiança ───────────────────────────
+// performanceData: { subjectId: { anterior: {...}, atual: {...} } }
+// progressData: decks com subjects/flashcards (qtd + nível médio)
+// weekDaysStudied: dias estudados na semana atual (0-7)
+const calcDesempenho = (performanceData, progressData, weekDaysStudied = 0) => {
+  if (!performanceData || Object.keys(performanceData).length === 0)
+    return { pAcerto: 0, pQuase: 0, pErro: 0, confiancaGlobal: 0 };
+
+  // Mapa de cards por matéria (qtd + nível médio)
+  const subjectMeta = {};
+  for (const deck of (progressData || []).filter(d => !d.isExample)) {
+    for (const sub of (deck.subjects || [])) {
+      const topics = sub.topics || [];
+      const cards = topics.length > 0
+        ? topics.flatMap(t => t.flashcards || [])
+        : (sub.flashcards || []);
+      const qtd = cards.length;
+      const nivelMedio = qtd > 0
+        ? cards.reduce((s, c) => s + (c.level || 0), 0) / qtd
+        : 0;
+      subjectMeta[sub.id] = { qtd, nivelMedio };
+    }
+  }
+
+  const weekBonus = (weekDaysStudied / 7) * 0.15;
+
+  let totalWeight = 0;
+  let wAcerto = 0, wQuase = 0, wErro = 0;
+
+  for (const [subjectId, entry] of Object.entries(performanceData)) {
+    if (subjectId === 'all') continue;
+
+    const atual = entry.atual || entry; // compatibilidade com formato antigo
+    const anterior = entry.anterior || null;
+
+    const totalAtual = (atual.acertos || 0) + (atual.quases || 0) + (atual.erros || 0);
+    if (totalAtual === 0) continue;
+
+    const { qtd = 1, nivelMedio = 0 } = subjectMeta[subjectId] || {};
+
+    // Proporções da sessão atual
+    let pAcerto = atual.acertos / totalAtual;
+    let pQuase = atual.quases / totalAtual;
+    let pErro = atual.erros / totalAtual;
+
+    // Tendência: compara atual vs anterior, ajusta proporções suavemente
+    if (anterior) {
+      const totalAnt = (anterior.acertos || 0) + (anterior.quases || 0) + (anterior.erros || 0);
+      if (totalAnt > 0) {
+        const pAcertoAnt = anterior.acertos / totalAnt;
+        const pErroAnt = anterior.erros / totalAnt;
+        // Diferença normalizada: quanto mudou em relação ao anterior
+        const deltaAcerto = pAcerto - pAcertoAnt; // positivo = melhorou, negativo = piorou
+        const deltaErro = pErro - pErroAnt;
+        // Aplica 30% de influência da tendência sobre as proporções atuais
+        pAcerto = Math.max(0, Math.min(1, pAcerto + deltaAcerto * 0.3));
+        pErro = Math.max(0, Math.min(1, pErro + deltaErro * 0.3));
+        pQuase = Math.max(0, 1 - pAcerto - pErro);
+      }
+    }
+
+    // Pilar 1 — consistência: proporção de cards estudados vs total da matéria
+    const propEstudada = Math.min(1, totalAtual / Math.max(qtd, 1));
+    const propUpgraded = Math.min(1, (atual.levelUps || 0) / Math.max(totalAtual, 1));
+    const consistencia = (Math.log1p(propEstudada * 4) / Math.log1p(4)) * (1 + propUpgraded * 0.2);
+
+    // Pilar 3 — quantidade: matéria maior = mais peso. Referência: ~100 cards = peso pleno
+    const pesoQtd = Math.pow(Math.log1p(qtd) / Math.log1p(100), 2);
+
+    // Pilar 2 — credibilidade (contínua, sem thresholds)
+    const perfeicao = pAcerto >= 1 && pQuase === 0 && pErro === 0;
+    let credibilidade;
+    if (!perfeicao) {
+      credibilidade = 1;
+    } else {
+      const aceitacaoNivel = nivelMedio / 5;
+      const ceticismoQtd = Math.log1p(totalAtual) / Math.log1p(totalAtual + 10);
+      credibilidade = aceitacaoNivel * (1 - ceticismoQtd * 0.7)
+        + (1 - aceitacaoNivel) * (1 - ceticismoQtd) * 0.25;
+    }
+
+    const confianca = consistencia * credibilidade * pesoQtd * (1 + weekBonus);
+
+    wAcerto += pAcerto * confianca;
+    wQuase += pQuase * confianca;
+    wErro += pErro * confianca;
+    totalWeight += confianca;
+  }
+
+  if (totalWeight === 0) return { pAcerto: 0, pQuase: 0, pErro: 0, confiancaGlobal: 0 };
+
+  const pAcerto = wAcerto / totalWeight;
+  const pQuase = wQuase / totalWeight;
+  const pErro = wErro / totalWeight;
+
+  const nSubjects = Object.keys(performanceData).filter(k => k !== 'all').length;
+  const confiancaGlobal = Math.min(1, totalWeight / nSubjects);
+
+  return { pAcerto, pQuase, pErro, confiancaGlobal };
+};
+
+const DESEMPENHO_LABELS = [
+  { min: 0.0, label: 'Iniciante' },
+  { min: 0.2, label: 'Regular' },
+  { min: 0.4, label: 'Estável' },
+  { min: 0.6, label: 'Ótimo' },
+  { min: 0.75, label: 'Excelente' },
+  { min: 0.88, label: 'Elite' },
+];
+
+const getDesempenhoLabel = (confiancaGlobal) => {
+  if (confiancaGlobal < 0.15) return null;
+  let label = DESEMPENHO_LABELS[0].label;
+  for (const { min, label: l } of DESEMPENHO_LABELS) {
+    if (confiancaGlobal >= min) label = l;
+  }
+  return label;
+};
+
+// ── Donut Chart (View 2) ─────────────────────────────────────────
+const DonutChart = ({ performanceData, progressData, weekDaysStudied, hoje, levelCounts, cardW, cardH }) => {
+  // Mapeia coordenadas do viewBox 993.13×603.71 para pixels reais do card
+  const sx = (x) => x * cardW / 993.13;
+  const sy = (y) => y * cardH / 603.71;
+
+  const { confiancaGlobal } = calcDesempenho(performanceData, progressData, weekDaysStudied);
+  const hasData = confiancaGlobal >= 0.15;
+
+  let totalAcertos = 0, totalQuases = 0, totalErros = 0;
+  if (performanceData) {
+    for (const [sid, entry] of Object.entries(performanceData)) {
+      if (sid === 'all') continue;
+      const a = entry.atual || entry;
+      totalAcertos += a.acertos || 0;
+      totalQuases += a.quases || 0;
+      totalErros += a.erros || 0;
+    }
+  }
+
+  const label = getDesempenhoLabel(confiancaGlobal);
+  const C_ACERTO = '#6fb633';
+  const C_QUASE = '#1cabcd';
+  const C_ERRO = '#e94542';
+
+  if (!cardW || !cardH) return null;
+
+  // ── Coordenadas exatas do SVG base (estatisticas-base.svg) ──────
+  // Painel esquerdo: área de conteúdo x=14.13→491.81, y=17.23→482.77
+  // + legenda inferior y=494.13→585.16
+  // Usamos como área total do painel: y=17→586, x=14→492
+  const ESQ_L = sx(14.13);
+  const ESQ_W = sx(491.81) - sx(14.13);
+
+  const totalSwipes = totalAcertos + totalQuases + totalErros;
+
+  // Legenda: y=494.13→585.16, separadores verticais x=186.39 e x=327.77
+  const LEG_T = sy(494);
+  const LEG_H = sy(586) - sy(494);
+
+  // Painel direito — strip inferior "estudados hoje": y=482→537, x=505→978
+  // Separador vertical em x=800.65 → esq=label, dir=número
+  const HOJE_T = sy(495.65);
+  const HOJE_H = sy(586) - sy(495.65);
+  const HOJE_L_L = sx(505.97);
+  const HOJE_L_W = sx(800.65) - sx(505.97);
+  const HOJE_N_L = sx(802.65);
+  const HOJE_N_W = sx(978) - sx(802.65);
+
+  // Fontes proporcionais ao card
+  const fTitle = Math.round(sy(28));
+  const fLabel = Math.round(sy(56));
+  const fPct = Math.round(sy(36));
+  const fAnalis = Math.round(sy(32));
+  const fLegNum = Math.round(sy(38));
+  const fLegLbl = Math.round(sy(26));
+  const fHojeTit = Math.round(sy(26));
+  const fHoje = Math.round(sy(60));
+
+
+  return (
+    <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="box-none">
+
+      {/* ── Título "Desempenho Geral" — painel esq, y=17→114 ── */}
+      <View style={{ position: 'absolute', left: sx(14), top: sy(17), width: sx(478), height: sy(97), alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#fff', fontSize: fTitle, fontFamily: theme.fontFamily.uiBold }}>Desempenho Geral</Text>
+      </View>
+
+      {/* ── Título da tabela — painel dir, y=136→222 ── */}
+      <View style={{ position: 'absolute', left: sx(506), top: sy(136), width: sx(472), height: sy(86), alignItems: 'center', justifyContent: 'center', paddingHorizontal: sx(12) }}>
+        <Text style={{ color: '#fff', fontSize: fTitle, fontFamily: theme.fontFamily.uiBold, textAlign: 'center' }}>Total de flashcards por nível</Text>
+      </View>
+
+
+      {/* ── Arco cinza do donut — sobe 30u quando !hasData, cobre área exposta ── */}
+      <Svg width={sx(492)} height={cardH} viewBox="0 0 492 603.71" style={{ position: 'absolute', left: 0, top: 0, backgroundColor: 'transparent' }} pointerEvents="none">
+        {!hasData && <SvgPath fill="#333" d="M14.13,117 h477.68 v366 h-477.68 z" />}
+        <SvgPath fill="#444" transform={!hasData ? 'translate(0,-30)' : undefined} d="M252.97,164.19c-37.73,0-73.37,14.86-100.34,41.83s-41.83,62.61-41.83,100.34c0,41.31,17.92,80.51,49.17,107.54l5.29,4.58,7.71-8.91c-30.77-23.89-50.58-61.23-50.58-103.21,0-72.12,58.46-130.58,130.58-130.58s130.58,58.46,130.58,130.58c0,41.94-19.78,79.26-50.51,103.15l7.71,8.9,5.29-4.58c31.2-27.02,49.09-66.19,49.09-107.47,0-37.73-14.86-73.37-41.83-100.34s-62.61-41.83-100.35-41.83Z" />
+      </Svg>
+
+      {/* ── Arcos coloridos do donut — viewBox idêntico ao SVG base ── */}
+      {hasData && (() => {
+        const CX = 252.97, CY = 294.77, R = 130.58, SW = 21;
+        const C = 2 * Math.PI * R;
+        const AL = C * 0.75;
+        const G = 4;
+        const aA = totalSwipes > 0 ? AL * totalAcertos / totalSwipes : 0;
+        const aQ = totalSwipes > 0 ? AL * totalQuases / totalSwipes : 0;
+        const aE = totalSwipes > 0 ? AL * totalErros / totalSwipes : 0;
+        const oQ = aA > 0 ? aA + G : 0;
+        const oE = oQ + (aQ > 0 ? aQ + G : 0);
+        return (
+          <Svg width={sx(492)} height={cardH} viewBox={`0 0 492 603.71`} style={{ position: 'absolute', left: 0, top: 0, backgroundColor: 'transparent' }} pointerEvents="none">
+            {aA > 0 && <Circle cx={CX} cy={CY} r={R} stroke={C_ACERTO} strokeWidth={SW} fill="none" strokeDasharray={`${aA - G} ${C}`} strokeLinecap="round" transform={`rotate(135 ${CX} ${CY})`} />}
+            {aQ > 0 && <Circle cx={CX} cy={CY} r={R} stroke={C_QUASE} strokeWidth={SW} fill="none" strokeDasharray={`${aQ - G} ${C}`} strokeDashoffset={-oQ} strokeLinecap="round" transform={`rotate(135 ${CX} ${CY})`} />}
+            {aE > 0 && <Circle cx={CX} cy={CY} r={R} stroke={C_ERRO} strokeWidth={SW} fill="none" strokeDasharray={`${aE - G} ${C}`} strokeDashoffset={-oE} strokeLinecap="round" transform={`rotate(135 ${CX} ${CY})`} />}
+          </Svg>
+        );
+      })()}
+
+      {/* ── Texto dentro do arco — y=164→425, sobe junto com arco quando !hasData ── */}
+      <View style={{ position: 'absolute', left: sx(14), width: sx(478), top: sy(164) - (!hasData ? sy(30) : 0), height: sy(261), alignItems: 'center', justifyContent: 'center', gap: sy(8) }}>
+        {hasData ? (
+          <>
+            <Text style={{ color: '#fff', fontSize: fLabel, fontFamily: theme.fontFamily.uiBold, lineHeight: fLabel }}>{label}</Text>
+            <Text style={{ color: C_ACERTO, fontSize: fPct, fontFamily: theme.fontFamily.uiBold }}>{Math.round(confiancaGlobal * 100)}%</Text>
+          </>
+        ) : (
+          <Text style={{ color: '#aaa', fontSize: fAnalis, fontFamily: theme.fontFamily.uiMedium }}>em análise</Text>
+        )}
+      </View>
+
+      {/* ── 3 traços verdes + "continue estudando" — abaixo do arco ── */}
+      {!hasData && (
+        <>
+          <View style={{ position: 'absolute', left: sx(14), width: sx(478), top: sy(387), height: sy(30), alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ flexDirection: 'row', gap: sx(8) }}>
+              {[0, 1, 2].map(k => <View key={k} style={{ width: sx(28), height: sy(4), backgroundColor: C_ACERTO, borderRadius: 2 }} />)}
+            </View>
+          </View>
+          <View style={{ position: 'absolute', left: sx(14), width: sx(478), top: sy(405), height: sy(69), alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#fff', fontSize: fAnalis, fontFamily: theme.fontFamily.uiMedium }}>continue estudando</Text>
+          </View>
+        </>
+      )}
+
+      {/* ── Legenda: contador-exemplo.svg completo (símbolos + separadores) ── */}
+      <SvgXml
+        width={ESQ_W} height={LEG_H}
+        style={{ position: 'absolute', left: ESQ_L, top: LEG_T }}
+        xml={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 477.73 91.03">
+          <path fill="#2a2a2a" d="M0,0V41.21c0,27.52,22.31,49.82,49.82,49.82H427.9c27.52,0,49.82-22.31,49.82-49.82V0H0Z"/>
+          <path fill="#333" d="M134.74,55.65c-.89,0-1.61,.35-2.15,1.06s-.82,1.72-.82,3.04c0,1.17,.27,2.11,.81,2.82,.54,.71,1.27,1.06,2.18,1.06s1.64-.36,2.18-1.08c.54-.72,.81-1.72,.81-3.02,0-1.16-.27-2.09-.82-2.81s-1.28-1.08-2.19-1.08Z"/>
+          <path fill="#333" d="M110.45,55.65c-.73,0-1.34,.26-1.83,.79-.49,.53-.8,1.27-.92,2.23h5.28v-.14c-.05-.92-.3-1.63-.74-2.13-.44-.5-1.04-.75-1.79-.75Z"/>
+          <path fill="#333" d="M283.13,55.65c-.73,0-1.34,.26-1.83,.79-.49,.53-.8,1.27-.92,2.23h5.28v-.14c-.05-.92-.3-1.63-.74-2.13-.44-.5-1.04-.75-1.79-.75Z"/>
+          <polygon fill="#333" points="85.58 59.67 90.4 59.67 87.98 53.03 85.58 59.67"/>
+          <path fill="#333" d="M259.33,61.73c0,.57,.19,1.01,.57,1.33s.86,.48,1.45,.48,1.1-.15,1.61-.44c.51-.29,.87-.67,1.1-1.14v-2.16h-1.41c-2.21,0-3.31,.65-3.31,1.94Z"/>
+          <path fill="#333" d="M242.36,57.36c0-1.67-.33-2.96-1-3.86-.67-.91-1.62-1.36-2.85-1.36s-2.1,.45-2.78,1.35c-.68,.9-1.03,2.15-1.05,3.75v1.04c0,1.62,.34,2.9,1.02,3.84,.68,.93,1.62,1.4,2.83,1.4s2.14-.44,2.81-1.32c.66-.88,1-2.14,1.02-3.79v-1.05Z"/>
+          <path fill="#333" d="M409.67,55.65c-.89,0-1.61,.35-2.15,1.06s-.82,1.72-.82,3.04c0,1.17,.27,2.11,.81,2.82,.54,.71,1.27,1.06,2.18,1.06s1.64-.36,2.18-1.08c.54-.72,.81-1.72,.81-3.02,0-1.16-.27-2.09-.82-2.81s-1.28-1.08-2.19-1.08Z"/>
+          <polygon fill="#333" points="114.28 27.95 114.05 28.34 110.43 34.1 114.28 34.1 114.28 27.95"/>
+          <path fill="#333" d="M0,0V41.21c0,27.52,22.31,49.82,49.82,49.82H427.9c27.52,0,49.82-22.31,49.82-49.82V0H0ZM114.25,23.24h3.49v10.86h1.97v2.79h-1.97v3.77h-3.46v-3.77h-7.14l-.16-2.18,7.26-11.47Zm-44.13,13.7l-18.73,19.96c-.69,.73-1.62,1.1-2.55,1.1-.79,0-1.58-.26-2.23-.8l-10.29-8.5c-1.49-1.23-1.7-3.44-.47-4.93,1.23-1.49,3.44-1.7,4.93-.47l7.76,6.41,16.49-17.56c1.32-1.41,3.54-1.48,4.95-.16,1.41,1.32,1.48,3.54,.16,4.95Zm10.12-11.14l7.21-2.58h.37v17.43h-3.46v-13.32l-4.12,1.28v-2.81Zm12.08,39.11l-1.35-3.71h-5.94l-1.33,3.71h-1.93l5.42-14.19h1.64l5.43,14.19h-1.92Zm5.63-2.26c.5,.66,1.21,.98,2.14,.98,.64,0,1.21-.2,1.69-.58s.75-.88,.8-1.46h1.71c-.03,.6-.24,1.18-.62,1.72-.38,.54-.9,.98-1.54,1.31-.64,.32-1.32,.49-2.03,.49-1.44,0-2.58-.48-3.42-1.44s-1.27-2.27-1.27-3.93v-.3c0-1.03,.19-1.94,.57-2.74,.38-.8,.92-1.42,1.62-1.86,.7-.44,1.54-.66,2.5-.66,1.18,0,2.17,.35,2.95,1.06,.78,.71,1.2,1.63,1.25,2.76h-1.71c-.05-.68-.31-1.24-.77-1.68-.46-.44-1.04-.66-1.72-.66-.92,0-1.63,.33-2.13,.99-.5,.66-.75,1.61-.75,2.86v.34c0,1.21,.25,2.15,.75,2.81Zm7.46-22h-11.93v-2.37l5.63-6c.77-.85,1.34-1.58,1.72-2.21,.37-.63,.56-1.23,.56-1.79,0-.77-.2-1.38-.59-1.82s-.95-.66-1.67-.66c-.78,0-1.4,.27-1.85,.81s-.68,1.25-.68,2.12h-3.47c0-1.06,.25-2.03,.76-2.91,.51-.88,1.22-1.56,2.15-2.06s1.97-.75,3.14-.75c1.79,0,3.19,.43,4.18,1.29,.99,.86,1.49,2.08,1.49,3.65,0,.86-.22,1.74-.67,2.63-.45,.89-1.21,1.93-2.3,3.12l-3.96,4.17h7.49v2.79Zm9.39,19.51h-7.14c.03,1.04,.33,1.88,.91,2.52,.58,.64,1.32,.96,2.22,.96,.64,0,1.18-.13,1.62-.39,.44-.26,.83-.6,1.16-1.03l1.1,.86c-.88,1.36-2.21,2.04-3.97,2.04-1.43,0-2.59-.47-3.49-1.41s-1.34-2.19-1.34-3.77v-.33c0-1.04,.2-1.98,.6-2.8,.4-.82,.96-1.46,1.68-1.93,.72-.46,1.5-.7,2.33-.7,1.37,0,2.44,.45,3.2,1.35,.76,.9,1.14,2.2,1.14,3.88v.75Zm7.18-4.17c-.27-.05-.57-.07-.89-.07-1.18,0-1.98,.5-2.41,1.51v7.48h-1.8v-10.54h1.75l.03,1.22c.59-.94,1.43-1.41,2.51-1.41,.35,0,.62,.05,.8,.14v1.68Zm6.61,8.93c-.47,.13-.93,.19-1.38,.19-.81,0-1.41-.24-1.82-.73s-.61-1.18-.61-2.08v-6.54h-1.92v-1.39h1.92v-2.55h1.8v2.55h1.97v1.39h-1.97v6.55c0,.42,.09,.74,.26,.95,.17,.21,.47,.32,.9,.32,.21,0,.49-.04,.86-.12v1.45Zm10.98-5.16c0,1.03-.2,1.95-.59,2.76-.39,.81-.96,1.45-1.69,1.9-.73,.46-1.57,.68-2.52,.68-1.43,0-2.59-.5-3.47-1.49s-1.33-2.31-1.33-3.95v-.13c0-1.03,.2-1.96,.61-2.79,.41-.83,.97-1.46,1.7-1.91,.72-.45,1.55-.67,2.48-.67,1.44,0,2.6,.5,3.48,1.49,.89,.99,1.33,2.32,1.33,3.96v.13Zm9.07,4.5c-.75,.57-1.73,.85-2.93,.85-.84,0-1.59-.15-2.24-.45-.65-.3-1.16-.72-1.52-1.25-.37-.54-.55-1.12-.55-1.74h1.8c.03,.6,.27,1.08,.73,1.44,.45,.35,1.05,.53,1.79,.53,.68,0,1.23-.14,1.64-.41,.41-.28,.62-.64,.62-1.11,0-.49-.18-.87-.55-1.14s-1.01-.5-1.92-.7c-.91-.2-1.64-.43-2.17-.7-.54-.27-.93-.6-1.19-.97s-.38-.83-.38-1.34c0-.86,.37-1.59,1.1-2.19,.73-.6,1.67-.9,2.8-.9,1.2,0,2.16,.31,2.91,.93s1.12,1.41,1.12,2.37h-1.81c0-.49-.21-.92-.63-1.28-.42-.36-.95-.54-1.58-.54s-1.17,.14-1.54,.43c-.37,.29-.56,.66-.56,1.12,0,.44,.17,.76,.52,.98,.34,.22,.97,.43,1.87,.63s1.63,.44,2.19,.72c.56,.28,.97,.62,1.24,1.01,.27,.39,.4,.87,.4,1.44,0,.94-.38,1.7-1.13,2.27Zm20.54,14.78c0,.55-.45,1-1,1s-1-.45-1-1V11.96c0-.55,.45-1,1-1s1,.45,1,1V79.03Zm49.82-24.23l-4.96,2.2c-1.6,.71-3.38,1.06-5.16,1.06-2.73,0-5.49-.82-7.68-2.39-1.62-1.16-4.11-1.42-5.92-.62l-4.96,2.2c-1.77,.78-3.84-.01-4.62-1.78-.78-1.77,.01-3.83,1.78-4.62l4.96-2.2c4.06-1.8,9.22-1.27,12.84,1.33,1.62,1.16,4.11,1.42,5.92,.62l4.96-2.2c1.77-.79,3.84,.01,4.62,1.78,.78,1.77-.01,3.83-1.78,4.62Zm.34-16.48l-4.96,2.2c-1.6,.71-3.38,1.06-5.16,1.06-2.73,0-5.49-.82-7.68-2.39-1.62-1.16-4.11-1.42-5.92-.62l-4.96,2.2c-1.77,.78-3.83-.01-4.62-1.78s.01-3.83,1.78-4.62l4.96-2.2c4.06-1.8,9.22-1.27,12.84,1.33,1.62,1.16,4.11,1.42,5.92,.62l4.96-2.2c1.77-.78,3.83,.02,4.62,1.78,.78,1.77-.01,3.83-1.78,4.62Zm23.66,28.99l-2.99-2.38c-.47,.12-.96,.18-1.48,.18-1.12,0-2.11-.27-2.97-.82-.86-.55-1.53-1.33-2.01-2.35s-.72-2.19-.74-3.53v-1.02c0-1.36,.24-2.57,.71-3.62,.47-1.05,1.14-1.85,2.01-2.4,.87-.56,1.86-.83,2.98-.83s2.15,.28,3.02,.83c.87,.55,1.54,1.35,2,2.38,.47,1.04,.7,2.25,.7,3.63v.91c0,1.37-.22,2.55-.65,3.54-.43,.99-1.05,1.77-1.83,2.32l2.53,1.99-1.28,1.18Zm1.77-42.14l-6.73,15.48h-3.65l6.74-14.62h-8.66v-2.79h12.29v1.93Zm10.32,39.74h-1.71l-.04-1.04c-.7,.83-1.73,1.24-3.09,1.24-1.12,0-1.98-.33-2.57-.98-.59-.65-.89-1.62-.89-2.9v-6.86h1.8v6.81c0,1.6,.65,2.4,1.95,2.4,1.38,0,2.29-.51,2.75-1.54v-7.67h1.8v10.54Zm.28-24.26h-3.46v-13.32l-4.12,1.28v-2.81l7.21-2.58h.37v17.43Zm10.85,24.26h-1.89c-.1-.21-.19-.58-.25-1.11-.84,.87-1.84,1.31-3,1.31-1.04,0-1.89-.29-2.56-.88s-1-1.33-1-2.24c0-1.1,.42-1.95,1.25-2.56,.83-.61,2.01-.91,3.52-.91h1.75v-.83c0-.63-.19-1.13-.56-1.51-.38-.37-.93-.56-1.67-.56-.64,0-1.18,.16-1.62,.49-.43,.33-.65,.72-.65,1.18h-1.81c0-.53,.19-1.03,.56-1.53,.37-.49,.88-.88,1.52-1.16s1.34-.43,2.11-.43c1.21,0,2.17,.3,2.86,.91s1.04,1.44,1.07,2.51v4.85c0,.97,.12,1.74,.37,2.31v.16Zm9.27-.66c-.75,.57-1.73,.85-2.93,.85-.84,0-1.59-.15-2.24-.45-.65-.3-1.16-.72-1.52-1.25-.37-.54-.55-1.12-.55-1.74h1.8c.03,.6,.27,1.08,.73,1.44,.45,.35,1.05,.53,1.79,.53,.68,0,1.23-.14,1.64-.41,.41-.28,.62-.64,.62-1.11,0-.49-.18-.87-.55-1.14s-1.01-.5-1.92-.7c-.91-.2-1.64-.43-2.17-.7-.54-.27-.93-.6-1.19-.97s-.38-.83-.38-1.34c0-.86,.37-1.59,1.1-2.19,.73-.6,1.67-.9,2.8-.9,1.2,0,2.16,.31,2.91,.93s1.12,1.41,1.12,2.37h-1.81c0-.49-.21-.92-.63-1.28-.42-.36-.95-.54-1.58-.54s-1.17,.14-1.54,.43c-.37,.29-.56,.66-.56,1.12,0,.44,.17,.76,.52,.98,.34,.22,.97,.43,1.87,.63s1.63,.44,2.19,.72c.56,.28,.97,.62,1.24,1.01,.27,.39,.4,.87,.4,1.44,0,.94-.38,1.7-1.13,2.27Zm11.96-4.1h-7.14c.03,1.04,.33,1.88,.91,2.52,.58,.64,1.32,.96,2.22,.96,.64,0,1.18-.13,1.62-.39,.44-.26,.83-.6,1.16-1.03l1.1,.86c-.88,1.36-2.21,2.04-3.97,2.04-1.43,0-2.59-.47-3.49-1.41s-1.34-2.19-1.34-3.77v-.33c0-1.04,.2-1.98,.6-2.8,.4-.82,.96-1.46,1.68-1.93,.72-.46,1.5-.7,2.33-.7,1.37,0,2.44,.45,3.2,1.35,.76,.9,1.14,2.2,1.14,3.88v.75Zm8.9,4.1c-.75,.57-1.73,.85-2.93,.85-.84,0-1.59-.15-2.24-.45-.65-.3-1.16-.72-1.52-1.25-.37-.54-.55-1.12-.55-1.74h1.8c.03,.6,.27,1.08,.73,1.44,.45,.35,1.05,.53,1.79,.53,.68,0,1.23-.14,1.64-.41,.41-.28,.62-.64,.62-1.11,0-.49-.18-.87-.55-1.14s-1.01-.5-1.92-.7c-.91-.2-1.64-.43-2.17-.7-.54-.27-.93-.6-1.19-.97s-.38-.83-.38-1.34c0-.86,.37-1.59,1.1-2.19,.73-.6,1.67-.9,2.8-.9,1.2,0,2.16,.31,2.91,.93s1.12,1.41,1.12,2.37h-1.81c0-.49-.21-.92-.63-1.28-.42-.36-.95-.54-1.58-.54s-1.17,.14-1.54,.43c-.37,.29-.56,.66-.56,1.12,0,.44,.17,.76,.52,.98,.34,.22,.97,.43,1.87,.63s1.63,.44,2.19,.72c.56,.28,.97,.62,1.24,1.01,.27,.39,.4,.87,.4,1.44,0,.94-.38,1.7-1.13,2.27Zm14.19,14.78c0,.55-.45,1-1,1s-1-.45-1-1V11.96c0-.55,.45-1,1-1s1,.45,1,1V79.03Zm55.74-22.9c1.37,1.37,1.37,3.58,0,4.95-.68,.68-1.58,1.03-2.47,1.03s-1.79-.34-2.47-1.03l-12.04-12.04-12.04,12.04c-.68,.68-1.58,1.03-2.47,1.03s-1.79-.34-2.47-1.03c-1.37-1.37-1.37-3.58,0-4.95l12.04-12.04-12.04-12.04c-1.37-1.37-1.37-3.58,0-4.95,1.37-1.37,3.58-1.37,4.95,0l12.04,12.04,12.04-12.04c1.37-1.37,3.58-1.37,4.95,0,1.37,1.37,1.37,3.58,0,4.95l-12.04,12.04,12.04,12.04Zm23.72,8.78h-9.01v-14.19h8.92v1.53h-7.04v4.57h6.15v1.53h-6.15v5.03h7.14v1.53Zm-3.97-24.02c-1.74,0-3.16-.46-4.26-1.38-1.1-.92-1.66-2.13-1.66-3.64h3.46c0,.65,.25,1.19,.74,1.6,.49,.42,1.09,.62,1.81,.62,.82,0,1.46-.22,1.93-.65,.47-.43,.7-1.01,.7-1.73,0-1.74-.96-2.61-2.87-2.61h-1.83v-2.7h1.84c.88,0,1.53-.22,1.95-.66,.42-.44,.63-1.02,.63-1.75s-.21-1.25-.63-1.64-.99-.59-1.73-.59c-.66,0-1.22,.18-1.66,.54-.45,.36-.67,.83-.67,1.42h-3.46c0-.91,.25-1.72,.74-2.45s1.18-1.29,2.06-1.69,1.85-.61,2.91-.61c1.84,0,3.28,.44,4.33,1.32,1.04,.88,1.57,2.09,1.57,3.64,0,.8-.24,1.53-.73,2.2-.49,.67-1.12,1.18-1.91,1.54,.98,.35,1.71,.88,2.19,1.58,.48,.7,.72,1.53,.72,2.49,0,1.55-.56,2.79-1.69,3.72-1.13,.93-2.62,1.4-4.48,1.4Zm11.12,15.1c-.27-.05-.57-.07-.89-.07-1.18,0-1.98,.5-2.41,1.51v7.48h-1.8v-10.54h1.75l.03,1.22c.59-.94,1.43-1.41,2.51-1.41,.35,0,.62,.05,.8,.14v1.68Zm6.75,0c-.27-.05-.57-.07-.89-.07-1.18,0-1.98,.5-2.41,1.51v7.48h-1.8v-10.54h1.75l.03,1.22c.59-.94,1.43-1.41,2.51-1.41,.35,0,.62,.05,.8,.14v1.68Zm.91-15.34h-3.46v-3.77h-7.14l-.16-2.18,7.26-11.47h3.49v10.86h1.97v2.79h-1.97v3.77Zm9.68,19.11c0,1.03-.2,1.95-.59,2.76-.39,.81-.96,1.45-1.69,1.9-.73,.46-1.57,.68-2.52,.68-1.43,0-2.59-.5-3.47-1.49s-1.33-2.31-1.33-3.95v-.13c0-1.03,.2-1.96,.61-2.79,.41-.83,.97-1.46,1.7-1.91,.72-.45,1.55-.67,2.48-.67,1.44,0,2.6,.5,3.48,1.49,.89,.99,1.33,2.32,1.33,3.96v.13Zm9.07,4.5c-.75,.57-1.73,.85-2.93,.85-.84,0-1.59-.15-2.24-.45-.65-.3-1.16-.72-1.52-1.25-.37-.54-.55-1.12-.55-1.74h1.8c.03,.6,.27,1.08,.73,1.44,.45,.35,1.05,.53,1.79,.53,.68,0,1.23-.14,1.64-.41,.41-.28,.62-.64,.62-1.11,0-.49-.18-.87-.55-1.14s-1.01-.5-1.92-.7c-.91-.2-1.64-.43-2.17-.7-.54-.27-.93-.6-1.19-.97s-.38-.83-.38-1.34c0-.86,.37-1.59,1.1-2.19,.73-.6,1.67-.9,2.8-.9,1.2,0,2.16,.31,2.91,.93s1.12,1.41,1.12,2.37h-1.81c0-.49-.21-.92-.63-1.28-.42-.36-.95-.54-1.58-.54s-1.17,.14-1.54,.43c-.37,.29-.56,.66-.56,1.12,0,.44,.17,.76,.52,.98,.34,.22,.97,.43,1.87,.63s1.63,.44,2.19,.72c.56,.28,.97,.62,1.24,1.01,.27,.39,.4,.87,.4,1.44,0,.94-.38,1.7-1.13,2.27Z"/>
+          <polygon fill="#333" points="397.5 34.1 401.35 34.1 401.35 27.95 401.12 28.34 397.5 34.1"/>
+          <polygon fill="#f9f9f9" points="84.35 40.65 87.81 40.65 87.81 23.21 87.44 23.21 80.23 25.8 80.23 28.61 84.35 27.33 84.35 40.65"/>
+          <path fill="#f9f9f9" d="M101.87,33.69c1.08-1.19,1.85-2.23,2.3-3.12,.45-.89,.67-1.77,.67-2.63,0-1.57-.5-2.79-1.49-3.65-.99-.86-2.39-1.29-4.18-1.29-1.17,0-2.22,.25-3.14,.75s-1.64,1.19-2.15,2.06c-.51,.88-.76,1.85-.76,2.91h3.47c0-.88,.23-1.58,.68-2.12s1.07-.81,1.85-.81c.73,0,1.28,.22,1.67,.66s.59,1.05,.59,1.82c0,.57-.19,1.16-.56,1.79-.37,.63-.94,1.37-1.72,2.21l-5.63,6v2.37h11.93v-2.79h-7.49l3.96-4.17Z"/>
+          <path fill="#f9f9f9" d="M114.28,36.88v3.77h3.46v-3.77h1.97v-2.79h-1.97v-10.86h-3.49l-7.26,11.47,.16,2.18h7.14Zm-.23-8.54l.23-.39v6.15h-3.85l3.62-5.75Z"/>
+          <path fill="#f9f9f9" d="M87.17,50.72l-5.42,14.19h1.93l1.33-3.71h5.94l1.35,3.71h1.92l-5.43-14.19h-1.64Zm-1.59,8.94l2.41-6.63,2.42,6.63h-4.82Z"/>
+          <path fill="#f9f9f9" d="M97.95,56.64c.5-.66,1.21-.99,2.13-.99,.68,0,1.25,.22,1.72,.66,.46,.44,.72,1,.77,1.68h1.71c-.05-1.13-.47-2.05-1.25-2.76-.78-.71-1.76-1.06-2.95-1.06-.96,0-1.79,.22-2.5,.66-.71,.44-1.25,1.06-1.62,1.86-.38,.8-.57,1.71-.57,2.74v.3c0,1.66,.42,2.97,1.27,3.93s1.99,1.44,3.42,1.44c.71,0,1.39-.16,2.03-.49,.64-.33,1.15-.76,1.54-1.31,.38-.55,.59-1.12,.62-1.72h-1.71c-.05,.58-.32,1.07-.8,1.46s-1.04,.58-1.69,.58c-.93,0-1.64-.33-2.14-.98-.5-.66-.75-1.59-.75-2.81v-.34c0-1.25,.25-2.2,.75-2.86Z"/>
+          <path fill="#f9f9f9" d="M110.45,54.17c-.84,0-1.62,.23-2.33,.7-.72,.46-1.28,1.11-1.68,1.93-.4,.82-.6,1.76-.6,2.8v.33c0,1.57,.45,2.83,1.34,3.77s2.06,1.41,3.49,1.41c1.77,0,3.09-.68,3.97-2.04l-1.1-.86c-.33,.43-.72,.77-1.16,1.03-.44,.26-.98,.39-1.62,.39-.9,0-1.63-.32-2.22-.96-.58-.64-.89-1.48-.91-2.52h7.14v-.75c0-1.68-.38-2.98-1.14-3.88-.76-.9-1.83-1.35-3.2-1.35Zm2.53,4.5h-5.28c.12-.96,.42-1.7,.92-2.23,.49-.53,1.1-.79,1.83-.79s1.35,.25,1.79,.75c.44,.5,.69,1.21,.74,2.13v.14Z"/>
+          <path fill="#f9f9f9" d="M118.66,55.59l-.03-1.22h-1.75v10.54h1.8v-7.48c.42-1.01,1.22-1.51,2.41-1.51,.32,0,.61,.02,.89,.07v-1.68c-.18-.09-.45-.14-.8-.14-1.08,0-1.92,.47-2.51,1.41Z"/>
+          <path fill="#f9f9f9" d="M126.82,63.26c-.18-.21-.26-.53-.26-.95v-6.55h1.97v-1.39h-1.97v-2.55h-1.8v2.55h-1.92v1.39h1.92v6.54c0,.9,.21,1.59,.61,2.08s1.02,.73,1.82,.73c.45,0,.91-.07,1.38-.19v-1.45c-.36,.08-.65,.12-.86,.12-.42,0-.72-.11-.9-.32Z"/>
+          <path fill="#f9f9f9" d="M134.74,54.17c-.93,0-1.76,.22-2.48,.67-.72,.45-1.29,1.08-1.7,1.91-.41,.83-.61,1.75-.61,2.79v.13c0,1.64,.44,2.95,1.33,3.95s2.04,1.49,3.47,1.49c.95,0,1.79-.23,2.52-.68,.73-.45,1.29-1.09,1.69-1.9,.39-.82,.59-1.74,.59-2.76v-.13c0-1.65-.44-2.97-1.33-3.96-.89-.99-2.05-1.49-3.48-1.49Zm2.2,8.38c-.54,.72-1.27,1.08-2.18,1.08s-1.64-.35-2.18-1.06c-.54-.71-.81-1.65-.81-2.82,0-1.32,.27-2.33,.82-3.04s1.26-1.06,2.15-1.06,1.64,.36,2.19,1.08,.82,1.66,.82,2.81c0,1.29-.27,2.3-.81,3.02Z"/>
+          <path fill="#f9f9f9" d="M148.11,59.54c-.56-.28-1.29-.52-2.19-.72s-1.52-.41-1.87-.63c-.34-.22-.52-.55-.52-.98,0-.46,.18-.83,.56-1.12,.37-.29,.88-.43,1.54-.43s1.16,.18,1.58,.54c.42,.36,.63,.78,.63,1.28h1.81c0-.96-.37-1.75-1.12-2.37s-1.71-.93-2.91-.93-2.07,.3-2.8,.9c-.73,.6-1.1,1.33-1.1,2.19,0,.52,.13,.97,.38,1.34s.65,.7,1.19,.97c.54,.27,1.26,.51,2.17,.7,.91,.19,1.55,.43,1.92,.7s.55,.65,.55,1.14c0,.46-.21,.83-.62,1.11-.41,.28-.96,.41-1.64,.41-.74,0-1.34-.18-1.79-.53-.45-.35-.69-.83-.73-1.44h-1.8c0,.62,.18,1.2,.55,1.74,.37,.54,.88,.95,1.52,1.25,.65,.3,1.4,.45,2.24,.45,1.2,0,2.18-.28,2.93-.85,.75-.57,1.13-1.32,1.13-2.27,0-.57-.13-1.04-.4-1.44-.27-.39-.68-.73-1.24-1.01Z"/>
+          <polygon fill="#f9f9f9" points="232.48 26.02 241.14 26.02 234.39 40.65 238.04 40.65 244.77 25.17 244.77 23.24 232.48 23.24 232.48 26.02"/>
+          <polygon fill="#f9f9f9" points="247.8 25.8 247.8 28.61 251.92 27.33 251.92 40.65 255.38 40.65 255.38 23.21 255.01 23.21 247.8 25.8"/>
+          <path fill="#f9f9f9" d="M243.58,61.82c.44-.99,.65-2.17,.65-3.54v-.91c0-1.38-.23-2.59-.7-3.63-.47-1.04-1.14-1.83-2-2.38-.87-.55-1.87-.83-3.02-.83s-2.11,.28-2.98,.83c-.87,.55-1.54,1.36-2.01,2.4-.47,1.05-.71,2.25-.71,3.62v1.02c.01,1.34,.26,2.52,.74,3.53s1.15,1.8,2.01,2.35c.86,.55,1.85,.82,2.97,.82,.52,0,1.01-.06,1.48-.18l2.99,2.38,1.28-1.18-2.53-1.99c.79-.56,1.4-1.33,1.83-2.32Zm-5.05,1.7c-1.21,0-2.15-.47-2.83-1.4-.68-.94-1.02-2.22-1.02-3.84v-1.04c.02-1.6,.37-2.85,1.05-3.75,.68-.9,1.61-1.35,2.78-1.35,1.23,0,2.18,.45,2.85,1.36,.67,.91,1,2.19,1,3.86v1.05c-.02,1.64-.36,2.91-1.02,3.79-.66,.88-1.6,1.32-2.81,1.32Z"/>
+          <path fill="#f9f9f9" d="M253.29,62.04c-.46,1.03-1.37,1.54-2.75,1.54-1.3,0-1.95-.8-1.95-2.4v-6.81h-1.8v6.86c0,1.28,.3,2.25,.89,2.9,.59,.65,1.44,.98,2.57,.98,1.36,0,2.39-.41,3.09-1.24l.04,1.04h1.71v-10.54h-1.8v7.67Z"/>
+          <path fill="#f9f9f9" d="M265.86,57.59c-.03-1.07-.38-1.9-1.07-2.51s-1.64-.91-2.86-.91c-.77,0-1.47,.14-2.11,.43s-1.15,.67-1.52,1.16c-.37,.49-.56,1-.56,1.53h1.81c0-.46,.22-.85,.65-1.18,.44-.32,.97-.49,1.62-.49,.73,0,1.29,.19,1.67,.56,.38,.37,.56,.88,.56,1.51v.83h-1.75c-1.51,0-2.69,.3-3.52,.91-.83,.61-1.25,1.46-1.25,2.56,0,.9,.33,1.65,1,2.24s1.52,.88,2.56,.88c1.16,0,2.16-.44,3-1.31,.07,.53,.15,.9,.25,1.11h1.89v-.16c-.25-.57-.37-1.34-.37-2.31v-4.85Zm-1.8,4.37c-.23,.47-.59,.85-1.1,1.14-.51,.29-1.04,.44-1.61,.44s-1.08-.16-1.45-.48-.57-.76-.57-1.33c0-1.29,1.1-1.94,3.31-1.94h1.41v2.16Z"/>
+          <path fill="#f9f9f9" d="M274.98,59.54c-.56-.28-1.29-.52-2.19-.72s-1.52-.41-1.87-.63c-.34-.22-.52-.55-.52-.98,0-.46,.18-.83,.56-1.12,.37-.29,.88-.43,1.54-.43s1.16,.18,1.58,.54c.42,.36,.63,.78,.63,1.28h1.81c0-.96-.37-1.75-1.12-2.37s-1.71-.93-2.91-.93-2.07,.3-2.8,.9c-.73,.6-1.1,1.33-1.1,2.19,0,.52,.13,.97,.38,1.34s.65,.7,1.19,.97c.54,.27,1.26,.51,2.17,.7,.91,.19,1.55,.43,1.92,.7s.55,.65,.55,1.14c0,.46-.21,.83-.62,1.11-.41,.28-.96,.41-1.64,.41-.74,0-1.34-.18-1.79-.53-.45-.35-.69-.83-.73-1.44h-1.8c0,.62,.18,1.2,.55,1.74,.37,.54,.88,.95,1.52,1.25,.65,.3,1.4,.45,2.24,.45,1.2,0,2.18-.28,2.93-.85,.75-.57,1.13-1.32,1.13-2.27,0-.57-.13-1.04-.4-1.44-.27-.39-.68-.73-1.24-1.01Z"/>
+          <path fill="#f9f9f9" d="M283.13,54.17c-.84,0-1.62,.23-2.33,.7-.72,.46-1.28,1.11-1.68,1.93-.4,.82-.6,1.76-.6,2.8v.33c0,1.57,.45,2.83,1.34,3.77s2.06,1.41,3.49,1.41c1.77,0,3.09-.68,3.97-2.04l-1.1-.86c-.33,.43-.72,.77-1.16,1.03-.44,.26-.98,.39-1.62,.39-.9,0-1.63-.32-2.22-.96-.58-.64-.89-1.48-.91-2.52h7.14v-.75c0-1.68-.38-2.98-1.14-3.88-.76-.9-1.83-1.35-3.2-1.35Zm2.53,4.5h-5.28c.12-.96,.42-1.7,.92-2.23,.49-.53,1.1-.79,1.83-.79s1.35,.25,1.79,.75c.44,.5,.69,1.21,.74,2.13v.14Z"/>
+          <path fill="#f9f9f9" d="M295.84,59.54c-.56-.28-1.29-.52-2.19-.72s-1.52-.41-1.87-.63c-.34-.22-.52-.55-.52-.98,0-.46,.18-.83,.56-1.12,.37-.29,.88-.43,1.54-.43s1.16,.18,1.58,.54c.42,.36,.63,.78,.63,1.28h1.81c0-.96-.37-1.75-1.12-2.37s-1.71-.93-2.91-.93-2.07,.3-2.8,.9c-.73,.6-1.1,1.33-1.1,2.19,0,.52,.13,.97,.38,1.34s.65,.7,1.19,.97c.54,.27,1.26,.51,2.17,.7,.91,.19,1.55,.43,1.92,.7s.55,.65,.55,1.14c0,.46-.21,.83-.62,1.11-.41,.28-.96,.41-1.64,.41-.74,0-1.34-.18-1.79-.53-.45-.35-.69-.83-.73-1.44h-1.8c0,.62,.18,1.2,.55,1.74,.37,.54,.88,.95,1.52,1.25,.65,.3,1.4,.45,2.24,.45,1.2,0,2.18-.28,2.93-.85,.75-.57,1.13-1.32,1.13-2.27,0-.57-.13-1.04-.4-1.44-.27-.39-.68-.73-1.24-1.01Z"/>
+          <path fill="#f9f9f9" d="M391.48,33.28c-.48-.7-1.21-1.23-2.19-1.58,.79-.36,1.43-.87,1.91-1.54,.49-.67,.73-1.4,.73-2.2,0-1.55-.52-2.76-1.57-3.64-1.04-.88-2.49-1.32-4.33-1.32-1.06,0-2.03,.2-2.91,.61s-1.57,.97-2.06,1.69-.74,1.54-.74,2.45h3.46c0-.58,.22-1.05,.67-1.42,.45-.36,1-.54,1.66-.54,.73,0,1.31,.2,1.73,.59s.63,.94,.63,1.64-.21,1.31-.63,1.75c-.42,.44-1.07,.66-1.95,.66h-1.84v2.7h1.83c1.91,0,2.87,.87,2.87,2.61,0,.72-.23,1.29-.7,1.73-.47,.44-1.11,.65-1.93,.65-.72,0-1.32-.21-1.81-.62-.49-.41-.74-.95-.74-1.6h-3.46c0,1.51,.55,2.72,1.66,3.64,1.1,.92,2.52,1.38,4.26,1.38,1.86,0,3.35-.47,4.48-1.4,1.13-.93,1.69-2.17,1.69-3.72,0-.96-.24-1.79-.72-2.49Z"/>
+          <path fill="#f9f9f9" d="M406.78,34.1h-1.97v-10.86h-3.49l-7.26,11.47,.16,2.18h7.14v3.77h3.46v-3.77h1.97v-2.79Zm-5.43,0h-3.85l3.62-5.75,.23-.39v6.15Z"/>
+          <polygon fill="#f9f9f9" points="382.86 58.35 389.01 58.35 389.01 56.82 382.86 56.82 382.86 52.25 389.91 52.25 389.91 50.72 380.99 50.72 380.99 64.91 390.01 64.91 390.01 63.38 382.86 63.38 382.86 58.35"/>
+          <path fill="#f9f9f9" d="M393.84,55.59l-.03-1.22h-1.75v10.54h1.8v-7.48c.42-1.01,1.22-1.51,2.41-1.51,.32,0,.61,.02,.89,.07v-1.68c-.18-.09-.45-.14-.8-.14-1.08,0-1.92,.47-2.51,1.41Z"/>
+          <path fill="#f9f9f9" d="M400.59,55.59l-.03-1.22h-1.75v10.54h1.8v-7.48c.42-1.01,1.22-1.51,2.41-1.51,.32,0,.61,.02,.89,.07v-1.68c-.18-.09-.45-.14-.8-.14-1.08,0-1.92,.47-2.51,1.41Z"/>
+          <path fill="#f9f9f9" d="M409.67,54.17c-.93,0-1.76,.22-2.48,.67-.72,.45-1.29,1.08-1.7,1.91-.41,.83-.61,1.75-.61,2.79v.13c0,1.64,.44,2.95,1.33,3.95s2.04,1.49,3.47,1.49c.95,0,1.79-.23,2.52-.68,.73-.45,1.29-1.09,1.69-1.9,.39-.82,.59-1.74,.59-2.76v-.13c0-1.65-.44-2.97-1.33-3.96-.89-.99-2.05-1.49-3.48-1.49Zm2.2,8.38c-.54,.72-1.27,1.08-2.18,1.08s-1.64-.35-2.18-1.06c-.54-.71-.81-1.65-.81-2.82,0-1.32,.27-2.33,.82-3.04s1.26-1.06,2.15-1.06,1.64,.36,2.19,1.08,.82,1.66,.82,2.81c0,1.29-.27,2.3-.81,3.02Z"/>
+          <path fill="#f9f9f9" d="M423.04,59.54c-.56-.28-1.29-.52-2.19-.72s-1.52-.41-1.87-.63c-.34-.22-.52-.55-.52-.98,0-.46,.18-.83,.56-1.12,.37-.29,.88-.43,1.54-.43s1.16,.18,1.58,.54c.42,.36,.63,.78,.63,1.28h1.81c0-.96-.37-1.75-1.12-2.37s-1.71-.93-2.91-.93-2.07,.3-2.8,.9c-.73,.6-1.1,1.33-1.1,2.19,0,.52,.13,.97,.38,1.34s.65,.7,1.19,.97c.54,.27,1.26,.51,2.17,.7,.91,.19,1.55,.43,1.92,.7s.55,.65,.55,1.14c0,.46-.21,.83-.62,1.11-.41,.28-.96,.41-1.64,.41-.74,0-1.34-.18-1.79-.53-.45-.35-.69-.83-.73-1.44h-1.8c0,.62,.18,1.2,.55,1.74,.37,.54,.88,.95,1.52,1.25,.65,.3,1.4,.45,2.24,.45,1.2,0,2.18-.28,2.93-.85,.75-.57,1.13-1.32,1.13-2.27,0-.57-.13-1.04-.4-1.44-.27-.39-.68-.73-1.24-1.01Z"/>
+          <path fill="#444" d="M168.17,10.96c-.55,0-1,.45-1,1V79.03c0,.55,.45,1,1,1s1-.45,1-1V11.96c0-.55-.45-1-1-1Z"/>
+          <path fill="#444" d="M309.55,10.96c-.55,0-1,.45-1,1V79.03c0,.55,.45,1,1,1s1-.45,1-1V11.96c0-.55-.45-1-1-1Z"/>
+          <path fill="${C_ACERTO}" d="M65.01,32.14l-16.49,17.56-7.76-6.41c-1.49-1.23-3.7-1.02-4.93,.47-1.23,1.49-1.02,3.7,.47,4.93l10.29,8.5c.65,.54,1.44,.8,2.23,.8,.94,0,1.87-.37,2.55-1.1l18.73-19.96c1.32-1.41,1.25-3.62-.16-4.95-1.41-1.32-3.62-1.25-4.95,.16Z"/>
+          <path fill="${C_QUASE}" d="M216.51,31.92l-4.96,2.2c-1.81,.8-4.3,.54-5.92-.62-3.62-2.6-8.78-3.13-12.84-1.33l-4.96,2.2c-1.77,.78-2.57,2.85-1.78,4.62s2.85,2.57,4.62,1.78l4.96-2.2c1.81-.8,4.3-.54,5.92,.62,2.19,1.57,4.95,2.39,7.68,2.39,1.78,0,3.56-.35,5.16-1.06l4.96-2.2c1.77-.78,2.57-2.85,1.78-4.62-.78-1.77-2.85-2.57-4.62-1.78Z"/>
+          <path fill="${C_QUASE}" d="M216.16,48.41l-4.96,2.2c-1.81,.8-4.3,.54-5.92-.62-3.62-2.6-8.78-3.13-12.84-1.33l-4.96,2.2c-1.77,.78-2.57,2.85-1.78,4.62,.78,1.77,2.85,2.56,4.62,1.78l4.96-2.2c1.82-.8,4.3-.54,5.92,.62,2.19,1.57,4.95,2.39,7.68,2.39,1.78,0,3.56-.35,5.16-1.06l4.96-2.2c1.77-.78,2.56-2.85,1.78-4.62-.78-1.77-2.85-2.57-4.62-1.78Z"/>
+          <path fill="${C_ERRO}" d="M366.29,27.1c-1.37-1.37-3.58-1.37-4.95,0l-12.04,12.04-12.04-12.04c-1.37-1.37-3.58-1.37-4.95,0-1.37,1.37-1.37,3.58,0,4.95l12.04,12.04-12.04,12.04c-1.37,1.37-1.37,3.58,0,4.95,.68,.68,1.58,1.03,2.47,1.03s1.79-.34,2.47-1.03l12.04-12.04,12.04,12.04c.68,.68,1.58,1.03,2.47,1.03s1.79-.34,2.47-1.03c1.37-1.37,1.37-3.58,0-4.95l-12.04-12.04,12.04-12.04c1.37-1.37,1.37-3.58,0-4.95Z"/>
+        </svg>`}
+      />
+
+      {/* ── Strip "Flashcards estudados hoje" (bottom direito, y=482→537) ── */}
+      {/* Label (esquerda do separador x=800) */}
+      <View style={{
+        position: 'absolute',
+        left: HOJE_L_L, top: HOJE_T,
+        width: HOJE_L_W, height: HOJE_H,
+        alignItems: 'center', justifyContent: 'center',
+        paddingHorizontal: sx(8),
+      }}>
+        <Text style={{
+          color: '#fff', fontSize: fHojeTit,
+          fontFamily: theme.fontFamily.uiBold,
+          textAlign: 'left',
+        }}>{"Flashcards\nestudados hoje"}</Text>
+      </View>
+      {/* Número (direita do separador) */}
+      <View style={{
+        position: 'absolute',
+        left: HOJE_N_L, top: HOJE_T,
+        width: HOJE_N_W, height: HOJE_H,
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Text style={{
+          color: C_ACERTO, fontSize: fHoje,
+          fontFamily: theme.fontFamily.heading,
+          lineHeight: fHoje, includeFontPadding: false,
+          textAlign: 'center',
+        }}>{hoje || 0}</Text>
+      </View>
+
+      {/* ── Tabela: barras coloridas + textos no mesmo viewBox do SVG base ── */}
+      {(() => {
+        const LVL_COLORS = ['#3D4451', '#2D6A4F', '#40916C', '#52B788', '#74C69D', '#5DD62C'];
+        const counts = [0, 1, 2, 3, 4, 5].map(n => levelCounts[n] ?? 0);
+        // 3 linhas: row0=nível0(esq)/nível3(dir), row1=nível1/nível4, row2=nível2/nível5
+        const rowY = [[222, 320], [320, 390], [390, 482]];
+        const fBig = 52, fSm = 30;
+        // Barras: x=543.65 (esq, w=11.21) e x=742.07 (dir, w=11.21)
+        // Cada barra ocupa do topo da sua linha até y=457.67 com bottom-cap arredondado
+        return (
+          <Svg width={cardW} height={cardH} viewBox="0 0 993.13 603.71"
+            style={{ position: 'absolute', left: 0, top: 0, backgroundColor: 'transparent' }} pointerEvents="none">
+
+
+            {/* textos */}
+            {rowY.map(([y1, y2], row) => {
+              const cy = y1 + (y2 - y1) / 2;
+              return (
+                <React.Fragment key={row}>
+                  <SvgText x={597} y={cy + fBig * 0.35} textAnchor="middle" fill="#fff" fontSize={fBig} fontWeight="700">{row}</SvgText>
+                  <SvgText x={692} y={cy + fSm * 0.35} textAnchor="middle" fill="#888" fontSize={fSm} fontWeight="700">{counts[row]}</SvgText>
+                  <SvgText x={795} y={cy + fBig * 0.35} textAnchor="middle" fill="#fff" fontSize={fBig} fontWeight="700">{row + 3}</SvgText>
+                  <SvgText x={904} y={cy + fSm * 0.35} textAnchor="middle" fill="#888" fontSize={fSm} fontWeight="700">{counts[row + 3]}</SvgText>
+                </React.Fragment>
+              );
+            })}
+          </Svg>
+        );
+      })()}
+    </View>
+  );
+};
+
+const StreakCard = ({ streak, bestStreak, studiedDatesSet, preservedDatesSet = new Set(), firstUseDate, totalDecks, totalSubjects, totalTopics, totalFlashcards, statsData, progressData, performanceData, weekDaysStudied }) => {
+  const { width: screenWidth } = useWindowDimensions();
+  const W = Math.max(300, screenWidth - 32);
+  const EXTRA = 32;
+  const H = Math.round(W * 603.71 / 993.13) + EXTRA;
+  const svgX = (x) => Math.round(W * x / 993.13);
+  const svgY = (y) => Math.round((H - EXTRA) * y / 603.71);
+
+  // posições diretas do SVG exemplo3
+  const TAB_LEFT = svgX(521.52);
+  const TAB_H = svgY(105.12);
+  const MC_L = svgX(18.52);
+  const MC_T = svgY(18.87);
+  const MC_R = svgX(488.71);
+  const MC_B = svgY(300.84);
+  const MC_W = MC_R - MC_L;
+  const MC_H = MC_B - MC_T;
+  const FIRE_R = svgX(155);
+  const CIR_R = svgX(52);
+  const DIV_Y = Math.round((MC_B + (svgY(453.03) - svgX(52))) / 2); // divisória no lugar original
+  const CIR_CY = svgY(453.03) + EXTRA; // círculos empurrados para baixo
+  const CHIP_H = 36;
+  const CHIP_TOP = Math.round((DIV_Y + (CIR_CY - CIR_R) - CHIP_H) / 2) - 10;
+  const CIR_CX = [81.16, 220.05, 357.49, 495.16, 634.54, 772.34, 911.09].map(svgX);
+
+  const [showStats, setShowStats] = useState(false);
+  const [showingLastWeek, setShowingLastWeek] = useState(false);
+  const lastWeekTimerRef = useRef(null);
+  const circleOpacity = useSharedValue(1);
+  const flippedRef = useRef(false);
+
+  const weekDates = getWeekDates(showingLastWeek ? 1 : 0);
+
+  const handleShowLastWeek = () => {
+    if (lastWeekTimerRef.current) clearTimeout(lastWeekTimerRef.current);
+    if (showingLastWeek) {
+      circleOpacity.value = withTiming(0, { duration: 200 }, () => {
+        runOnJS(setShowingLastWeek)(false);
+        circleOpacity.value = withTiming(1, { duration: 200 });
+      });
+      return;
+    }
+    circleOpacity.value = withTiming(0, { duration: 200 }, () => {
+      runOnJS(setShowingLastWeek)(true);
+      circleOpacity.value = withTiming(1, { duration: 200 });
+    });
+    lastWeekTimerRef.current = setTimeout(() => {
+      circleOpacity.value = withTiming(0, { duration: 200 }, () => {
+        runOnJS(setShowingLastWeek)(false);
+        circleOpacity.value = withTiming(1, { duration: 200 });
+      });
+    }, 5000);
+  };
+
+  const circleAnimStyle = useAnimatedStyle(() => ({ opacity: circleOpacity.value }));
+
+  const flipProgress = useSharedValue(0);
+
+  const doFlip = () => {
+    const goTo = flippedRef.current ? 0 : 1;
+    flippedRef.current = !flippedRef.current;
+    flipProgress.value = withTiming(goTo, { duration: 400, easing: Easing.inOut(Easing.ease) });
+  };
+
+  const frontAnimStyle = useAnimatedStyle(() => {
+    const rotateX = interpolate(flipProgress.value, [0, 1], [0, 180]);
+    return {
+      transform: [{ perspective: 800 }, { rotateX: `${rotateX}deg` }],
+      opacity: flipProgress.value < 0.5 ? 1 : 0,
+    };
+  });
+
+  const backAnimStyle = useAnimatedStyle(() => {
+    const rotateX = interpolate(flipProgress.value, [0, 1], [-180, 0]);
+    return {
+      transform: [{ perspective: 800 }, { rotateX: `${rotateX}deg` }],
+      opacity: flipProgress.value >= 0.5 ? 1 : 0,
+    };
+  });
+
+  // divisória interna do mini-card (y=241.35 no SVG)
+  const MC_DIV_Y = svgY(241.35);
+  // área superior do mini-card (acima da linha interna)
+  const MC_TOP_H = MC_DIV_Y - MC_T;
+
+
+  const FaceContent = ({ label, num, hint, icon }) => (
+    <View style={{ flex: 1, flexDirection: 'column' }}>
+      {/* área superior: ícone + textos lado a lado, centralizados verticalmente */}
+      <View style={{ height: MC_TOP_H, flexDirection: 'row', alignItems: 'center' }}>
+        {/* ícone da face */}
+        <View style={{ width: FIRE_R - MC_L, alignItems: 'flex-start', justifyContent: 'center', paddingLeft: 4 }}>
+          <Text style={{ fontSize: svgY(100) }}>{icon}</Text>
+        </View>
+        {/* label + número + unidade */}
+        <View style={{ flex: 1, paddingRight: 6 }}>
+          <Text style={[sc.faceLabel, { textAlign: 'left', marginBottom: -6 }]}>{label}</Text>
+          <Text style={[sc.faceNum, { marginTop: 0, marginBottom: -10 }]}>{num}</Text>
+          <Text style={sc.faceUnit}>Dias seguidos</Text>
+        </View>
+      </View>
+      {/* linha divisória */}
+      <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: svgX(18) }} />
+      {/* hint abaixo da linha divisória interna */}
+      <View style={{ flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingTop: 0 }}>
+        <Text style={sc.faceHint}>{hint}</Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={[sc.root, { height: H }]}>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#1C1C1C', borderRadius: 20 }]} />
+
+      {!showStats ? (
+        <>
+          {/* Mini-card com flip */}
+          {/* Fundo fixo atrás do mini-card */}
+          <View style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H, backgroundColor: '#1C1C1C', borderRadius: svgX(41) }} />
+          <View style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H }}>
+            <Reanimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#333', borderRadius: svgX(41) }, frontAnimStyle]}>
+              <FaceContent label="Sequência" num={streak} hint="Ver seu record" icon="🔥" />
+            </Reanimated.View>
+            <Reanimated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#333', borderRadius: svgX(41) }, backAnimStyle]}>
+              <FaceContent label="Record máximo" num={bestStreak} hint="Ver sua sequência" icon="🏆" />
+            </Reanimated.View>
+          </View>
+
+          {/* Toque invisível sobre o mini-card inteiro */}
+          <TouchableOpacity
+            style={{ position: 'absolute', top: MC_T, left: MC_L, width: MC_W, height: MC_H, backgroundColor: 'transparent' }}
+            onPress={doFlip} activeOpacity={1}
+          />
+
+          {/* Contadores — centralizados verticalmente com o mini-card */}
+          <View style={{ position: 'absolute', top: MC_T, left: TAB_LEFT + 16, right: 12, height: MC_H, justifyContent: 'center', gap: 18 }}>
+            <View style={{ flexDirection: 'row' }}>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalDecks}</Text><Text style={sc.statLbl}>Decks</Text></View>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalTopics}</Text><Text style={sc.statLbl}>Assuntos</Text></View>
+            </View>
+            <View style={{ flexDirection: 'row' }}>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalSubjects}</Text><Text style={sc.statLbl}>Matérias</Text></View>
+              <View style={{ flex: 1 }}><Text style={sc.statVal}>{totalFlashcards}</Text><Text style={sc.statLbl}>Flashcards</Text></View>
+            </View>
+          </View>
+
+          {/* Divisória com botão no centro */}
+          <View pointerEvents="box-none" style={{ position: 'absolute', top: CHIP_TOP, left: svgX(14), right: svgX(14), flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity onPress={handleShowLastWeek} activeOpacity={0.7}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: showingLastWeek ? 'rgba(111,182,51,0.15)' : '#2A2A2A', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: showingLastWeek ? theme.primary : '#3A3A3A' }}>
+                <Ionicons name="time-outline" size={12} color={showingLastWeek ? theme.primary : 'rgba(255,255,255,0.5)'} />
+                <Text style={{ color: showingLastWeek ? theme.primary : 'rgba(255,255,255,0.6)', fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>
+                  {showingLastWeek ? 'Semana passada' : 'Ver histórico da semana passada'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.12)' }} />
+          </View>
+
+          {/* Círculos */}
+          <Reanimated.View pointerEvents="none" style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }, circleAnimStyle]}>
+            {weekDates.map((day, i) => {
+              const studied = studiedDatesSet.has(day.date);
+              const preserved = preservedDatesSet.has(day.date);
+              const isPast = !day.isToday && !day.isFuture;
+              const afterFirstUse = firstUseDate && day.date >= firstUseDate;
+              const green = studied && (isPast || day.isToday);
+              const preservedDay = preserved && !studied && isPast;
+              const failed = !studied && !preserved && isPast && afterFirstUse;
+              return (
+                <View key={i} style={{ position: 'absolute', top: CIR_CY - CIR_R, left: CIR_CX[i] - CIR_R, width: CIR_R * 2, alignItems: 'center', gap: 3 }}>
+                  <View style={[sc.circle, { width: CIR_R * 2, height: CIR_R * 2, borderRadius: CIR_R }, green ? sc.circleDone : preservedDay ? sc.circlePreserved : failed ? sc.circleFailed : sc.circleGray, day.isToday && sc.circleToday]}>
+                    {green
+                      ? <Ionicons name="checkmark-sharp" size={CIR_R * 1.4} color="#0c0d0d" />
+                      : preservedDay
+                        ? <Ionicons name="pause" size={CIR_R * 1.1} color="#888" />
+                        : failed
+                          ? <Ionicons name="close-sharp" size={CIR_R * 1.4} color="#e94542" />
+                          : day.isToday
+                            ? <View style={{ width: CIR_R * 0.5, height: CIR_R * 0.5, borderRadius: CIR_R * 0.25, backgroundColor: '#5e5d5d' }} />
+                            : <Ionicons name="checkmark-sharp" size={CIR_R * 1.1} color="#5e5d5dff" />
+                    }
+                  </View>
+                  <Text style={[sc.dayLbl, day.isToday && sc.dayLblToday]}>{day.label}</Text>
+                </View>
+              );
+            })}
+          </Reanimated.View>
+
+        </>
+      ) : (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <DonutChart
+            performanceData={performanceData}
+            progressData={progressData}
+            weekDaysStudied={weekDaysStudied}
+            hoje={statsData.hoje}
+            cardW={W}
+            cardH={H}
+            levelCounts={(() => {
+              const counts = [0, 0, 0, 0, 0, 0];
+              (progressData || []).filter(d => !d.isExample).forEach(d =>
+                (d.subjects || []).forEach(s => {
+                  (s.levelCounts || []).forEach((n, i) => { counts[i] = (counts[i] || 0) + n; });
+                })
+              );
+              return counts;
+            })()}
+          />
+        </View>
+      )}
+    </View>
+  );
+};
+
+const sc = StyleSheet.create({
+  root: {
+    marginHorizontal: 16,
+    marginTop: 12,
+  },
+
+  // Botão orelha
+  tabBtn: {
+    color: '#fff',
+    fontSize: 13,
+    fontFamily: theme.fontFamily.uiBold,
+    textAlign: 'center',
+  },
+
+  // Mini-card faces
+  face: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    flexDirection: 'column',
+  },
+  faceTop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingLeft: '28%',
+    paddingRight: 6,
+  },
+  faceBottom: {
+    paddingBottom: 6,
+    alignItems: 'center',
+  },
+  faceLabel: {
+    color: '#aaa',
+    fontSize: 13,
+    lineHeight: 17,
+    fontFamily: theme.fontFamily.uiMedium,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  faceRow: {
+    fontSize: 14,
+    color: '#e0e0e0',
+    includeFontPadding: false,
+  },
+  faceNum: {
+    color: theme.primary,
+    fontSize: 36,
+    includeFontPadding: false,
+    fontFamily: theme.fontFamily.heading,
+  },
+  faceUnit: {
+    color: '#e0e0e0',
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: theme.fontFamily.uiBold,
+  },
+  faceHint: {
+    color: '#8f8f8fff',
+    fontSize: 11,
+    fontFamily: theme.fontFamily.ui,
+    textAlign: 'center',
+  },
+
+  statInline: {
+    fontSize: 13,
+    includeFontPadding: false,
+  },
+  // Stats células
+  statCell: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statLbl: {
+    color: '#fff',
+    fontSize: 13,
+    fontFamily: theme.fontFamily.uiMedium,
+    marginTop: -3,
+  },
+  statVal: {
+    color: theme.primary,
+    fontSize: 15,
+    fontFamily: theme.fontFamily.uiBold,
+    lineHeight: 20,
+    includeFontPadding: false,
+  },
+
+  // Círculos dos dias
+  circle: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleDone: {
+    backgroundColor: '#6fb637',
+  },
+  circleGray: {
+    backgroundColor: '#333',
+  },
+  circleFailed: {
+    backgroundColor: '#512828',
+    borderWidth: 2,
+    borderColor: '#c32926',
+  },
+  circlePreserved: {
+    backgroundColor: '#2A2A2A',
+    borderWidth: 2,
+    borderColor: '#555',
+  },
+  circleToday: {
+    borderWidth: 2,
+    borderColor: theme.primary,
+  },
+  dayLbl: {
+    color: '#ccc',
+    fontSize: 12,
+    fontFamily: theme.fontFamily.uiMedium,
+    textAlign: 'center',
+  },
+  dayLblToday: {
+    color: '#fff',
+    fontFamily: theme.fontFamily.uiBold,
+  },
+
+  // v2 — layout
+  v2VDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginHorizontal: 4 },
+  v2HDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 6 },
+  v2Title: { color: '#fff', fontSize: 14, fontFamily: theme.fontFamily.uiBold, marginBottom: 2 },
+  v2Hint: { color: '#666', fontSize: 11, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center', marginTop: -8, marginBottom: 4 },
+
+  // Legenda
+  v2Legend: { flexDirection: 'row', alignItems: 'stretch', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)' },
+  v2LegendItem: { flex: 1, flexDirection: 'column', alignItems: 'center', paddingVertical: 5, gap: 1 },
+  v2LegendSep: { width: 1, backgroundColor: 'rgba(255,255,255,0.12)', alignSelf: 'stretch', marginVertical: 4 },
+  v2LegendNum: { fontSize: 13, fontFamily: theme.fontFamily.uiBold },
+  v2LegendTilde: { fontSize: 15, fontFamily: theme.fontFamily.uiBold, lineHeight: 17 },
+  v2LegendLbl: { color: '#888', fontSize: 9, fontFamily: theme.fontFamily.uiMedium },
+
+  // Painel direito
+  v2RightBox: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 8, padding: 8 },
+  v2RightTitle: { color: '#bbb', fontSize: 11, fontFamily: theme.fontFamily.uiBold, marginBottom: 2 },
+  v2RightHint: { color: '#666', fontSize: 9, fontFamily: theme.fontFamily.uiMedium },
+  v2HojeNum: { color: theme.primary, fontSize: 32, fontFamily: theme.fontFamily.heading, lineHeight: 36, includeFontPadding: false },
+
+  // Grid de níveis
+  v2LevelDivider: { width: 2, backgroundColor: '#6fb633', borderRadius: 1, alignSelf: 'stretch', marginHorizontal: 4 },
+  v2LevelLbl: { fontSize: 15, fontFamily: theme.fontFamily.uiBold },
+  v2LevelCount: { color: '#fff', fontSize: 13, fontFamily: theme.fontFamily.uiBold },
+});
+
+// ── Tela principal ───────────────────────────────────────────────
+export const ProgressScreen = () => {
+  const navigation = useNavigation();
+  const scrollViewRef = useRef(null);
+  const { width: screenWidth } = useWindowDimensions();
+
+  const [progressData, setProgressData] = useState([]);
+  const [todaySessions, setTodaySessions] = useState([]);
+  const [studiedDatesSet, setStudiedDatesSet] = useState(new Set());
+  const [preservedDatesSet, setPreservedDatesSet] = useState(new Set());
+  const [firstUseDate, setFirstUseDate] = useState(null);
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+  const [, setWeekStreak] = useState(0);
+  const [performanceData, setPerformanceData] = useState({});
+  const [weekDaysStudied, setWeekDaysStudied] = useState(0);
+  const [totalToday, setTotalToday] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('hoje');
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [expandedDecks, setExpandedDecks] = useState({});
+  const [expandedHojeDecks, setExpandedHojeDecks] = useState({});
+  const [deckView, setDeckView] = useState({});
+  const [expandedSubjects, setExpandedSubjects] = useState({});
+
+  // Totais globais
+  const [totalDecks, setTotalDecks] = useState(0);
+  const [totalSubjects, setTotalSubjects] = useState(0);
+  const [totalTopics, setTotalTopics] = useState(0);
+  const [totalFlashcards, setTotalFlashcards] = useState(0);
+  const [statsData, setStatsData] = useState({ acertos: 0, quase: 0, erros: 0, total: 0, hoje: 0 });
+
+  const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    global.onDailyGoalReached = () => { loadRef.current?.(); };
+    return () => { global.onDailyGoalReached = null; };
+  }, []);
+
+  const loadRef = useRef(null);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    const load = async () => {
+      setLoading(true);
+      const [data, history, availabilityLog] = await Promise.all([getAppData(), getStudyHistory(), getCardsAvailabilityLog()]);
+
+      const getAllCards = (subject) =>
+        subject.topics?.length > 0
+          ? subject.topics.flatMap(t => t.flashcards || [])
+          : (subject.flashcards || []);
+
+      const structured = data.map(deck => {
+        const subjectsWithLevels = deck.subjects.map(subject => {
+          const cards = getAllCards(subject);
+          const levelCounts = [0, 0, 0, 0, 0, 0];
+          cards.forEach(c => { levelCounts[c.level || 0]++; });
+          const totalLevels = cards.length * 5;
+          const currentLevels = cards.reduce((sum, c) => sum + (c.level || 0), 0);
+          return {
+            ...subject,
+            levelCounts,
+            progress: totalLevels > 0 ? Math.round((currentLevels / totalLevels) * 100) : 0,
+          };
+        });
+        return { ...deck, subjects: subjectsWithLevels };
+      });
+      setProgressData(structured);
+
+      // Totais globais (exclui deck exemplo)
+      const realDecks = data.filter(d => !d.isExample);
+      setTotalDecks(realDecks.length);
+      setTotalSubjects(realDecks.reduce((sum, d) => sum + d.subjects.length, 0));
+      setTotalTopics(realDecks.reduce((sum, d) => sum + d.subjects.reduce((s2, sub) => s2 + (sub.topics?.length || 0), 0), 0));
+      const allCards = realDecks.flatMap(d => d.subjects.flatMap(s => s.topics?.length > 0 ? s.topics.flatMap(t => t.flashcards || []) : (s.flashcards || [])));
+      setTotalFlashcards(allCards.length);
+      // Desempenho geral por nível
+      let acertos = 0, quase = 0, erros = 0;
+      allCards.forEach(c => {
+        const lvl = c.level || 0;
+        if (lvl >= 4) acertos++;
+        else if (lvl >= 2) quase++;
+        else erros++;
+      });
+      const today = new Date().toISOString().split('T')[0];
+      const todayEntries = history.filter(s => s.date === today);
+      setTodaySessions(todayEntries);
+      setTotalToday(todayEntries.reduce((sum, s) => sum + s.count, 0));
+      const hojeAcertos = todayEntries.reduce((sum, s) => sum + (s.acertos || 0), 0);
+      const hojeQuases = todayEntries.reduce((sum, s) => sum + (s.quases || 0), 0);
+      const hojeErros = todayEntries.reduce((sum, s) => sum + (s.erros || 0), 0);
+      setStatsData({ acertos, quase, erros, total: allCards.length, hoje: todayEntries.reduce((sum, s) => sum + s.count, 0), hojeAcertos, hojeQuases, hojeErros });
+
+      const daysWithStudy = new Set(history.map(s => s.date));
+      // Dias sem cards disponíveis (registrados no log) — streak preservado
+      const preserved = new Set(
+        Object.entries(availabilityLog)
+          .filter(([, hasCards]) => hasCards === false)
+          .map(([date]) => date)
+      );
+      setStudiedDatesSet(daysWithStudy);
+      setPreservedDatesSet(preserved);
+
+      // Primeiro uso: menor data do histórico, ou hoje se não há histórico
+      let fud = await AsyncStorage.getItem(FIRST_USE_KEY);
+      if (!fud) {
+        const sorted = [...daysWithStudy].sort();
+        fud = sorted.length > 0 ? sorted[0] : today;
+        await AsyncStorage.setItem(FIRST_USE_KEY, fud);
+      }
+      setFirstUseDate(fud);
+
+      // Streak atual — dias estudados OU preservados (sem cards disponíveis) contam
+      const isValidStreakDay = (dateStr) => daysWithStudy.has(dateStr) || preserved.has(dateStr);
+      let streakCount = 0;
+      const d = new Date();
+      if (!isValidStreakDay(today)) d.setDate(d.getDate() - 1);
+      while (true) {
+        const dateStr = d.toISOString().split('T')[0];
+        if (isValidStreakDay(dateStr)) { streakCount++; d.setDate(d.getDate() - 1); } else break;
+      }
+      setStreak(streakCount);
+
+      // Melhor streak — inclui dias preservados
+      const allValidDates = [...new Set([...daysWithStudy, ...preserved])].sort();
+      let best = 0, cur = 0, prev = null;
+      for (const dateStr of allValidDates) {
+        if (prev) {
+          const diff = (new Date(dateStr) - new Date(prev)) / 86400000;
+          cur = diff === 1 ? cur + 1 : 1;
+        } else { cur = 1; }
+        if (cur > best) best = cur;
+        prev = dateStr;
+      }
+      setBestStreak(best);
+
+      // Week streak — inclui dias preservados
+      const currentWeekDates = getWeekDates();
+      const weekCount = currentWeekDates.filter(day => {
+        if (day.isToday || day.isFuture) return false;
+        if (day.date < fud) return false;
+        return isValidStreakDay(day.date);
+      }).length + (isValidStreakDay(today) ? 1 : 0);
+      const wc = Math.min(weekCount, 7);
+      setWeekStreak(wc);
+      setWeekDaysStudied(wc);
+
+      // Performance data para o pie chart — limpa entradas órfãs (matérias que não existem mais)
+      const PERF_VERSION = 'v4';
+      const perfVersion = await AsyncStorage.getItem('@FlashcardsApp:perfVersion');
+      if (perfVersion !== PERF_VERSION) {
+        await AsyncStorage.removeItem('@FlashcardsApp:performanceData');
+        await AsyncStorage.removeItem('@FlashcardsApp:studyHistory');
+        await AsyncStorage.setItem('@FlashcardsApp:perfVersion', PERF_VERSION);
+      }
+      const perfData = await getPerformanceData();
+      const validIds = new Set(['all']);
+      realDecks.forEach(d => d.subjects.forEach(sub => {
+        validIds.add(sub.id);
+        (sub.topics || []).forEach(t => validIds.add(t.id));
+      }));
+      const cleanedPerf = Object.fromEntries(Object.entries(perfData).filter(([k]) => validIds.has(k)));
+      if (Object.keys(cleanedPerf).length !== Object.keys(perfData).length) {
+        await AsyncStorage.setItem('@FlashcardsApp:performanceData', JSON.stringify(cleanedPerf));
+      }
+      setPerformanceData(cleanedPerf);
+
+      setLoading(false);
+    };
+    loadRef.current = load;
+    load();
+  }, [isFocused]);
+
+  if (loading) return (
+    <View style={s.loadingWrap}><ActivityIndicator size="large" color={theme.primary} /></View>
+  );
+
+  // ── Aba Hoje ────────────────────────────────────────────────────
+  const renderHoje = () => {
+    if (totalToday === 0) {
+      const now = new Date();
+      let pendingCount = 0;
+      const isPending = (c) => {
+        if ((c.level || 0) >= 5) return false;
+        if (!c.nextReview) return true;
+        return new Date(c.nextReview) <= now;
+      };
+      for (const deck of progressData) {
+        for (const subject of deck.subjects) {
+          const cards = subject.topics?.length > 0
+            ? subject.topics.flatMap(t => t.flashcards || [])
+            : (subject.flashcards || []);
+          pendingCount += cards.filter(isPending).length;
+        }
+      }
+
+      if (pendingCount === 0) return (
+        <View style={s.emptyWrap}>
+          <Ionicons name="checkmark-circle-outline" size={48} color={theme.primary} />
+          <Text style={s.emptyTitle}>Tudo em dia!</Text>
+          <Text style={s.emptyDesc}>Nenhum card pendente para estudar agora.</Text>
+        </View>
+      );
+
+      return (
+        <View style={s.emptyWrap}>
+          <Ionicons name="flame-outline" size={48} color={theme.primary} />
+          <Text style={s.emptyTitle}>
+            {pendingCount} {pendingCount === 1 ? 'card pendente' : 'cards pendentes'} para estudar hoje
+          </Text>
+          <Text style={s.emptyDesc}>Comece uma sessão e mantenha sua sequência!</Text>
+        </View>
+      );
+    }
+
+    const byDeck = {};
+    todaySessions.forEach(sess => {
+      if (!byDeck[sess.deckId]) byDeck[sess.deckId] = { deckName: sess.deckName, subjects: {} };
+      const key = sess.subjectName;
+      if (!byDeck[sess.deckId].subjects[key]) byDeck[sess.deckId].subjects[key] = { subjectName: sess.subjectName, count: 0, lastSessionAt: null };
+      byDeck[sess.deckId].subjects[key].count += sess.count;
+      if (sess.lastSessionAt) byDeck[sess.deckId].subjects[key].lastSessionAt = sess.lastSessionAt;
+    });
+
+    const toggleHojeDeck = (id) => setExpandedHojeDecks(prev => ({ ...prev, [id]: !prev[id] }));
+
+    return (
+      <>
+        {Object.entries(byDeck).map(([deckId, deck]) => {
+          const subjects = Object.values(deck.subjects);
+          const totalDeck = subjects.reduce((acc, s) => acc + s.count, 0);
+          const isOpen = !!expandedHojeDecks[deckId];
+          return (
+            <View key={deckId} style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
+
+              {/* Header */}
+              <TouchableOpacity
+                onPress={() => toggleHojeDeck(deckId)}
+                activeOpacity={0.7}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18 }}
+              >
+                <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1}>{deck.deckName}</Text>
+                <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
+              </TouchableOpacity>
+
+              {isOpen && (
+                <>
+                  <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />
+                  {subjects.map((sub, i) => (
+                    <View key={i} style={{ backgroundColor: '#1a1a1a' }}>
+                      {i > 0 && <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, marginBottom: 8 }} numberOfLines={1}>{sub.subjectName}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#252525', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                              <Text style={{ color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>{sub.count}</Text>
+                              <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{sub.count === 1 ? 'card estudado' : 'cards estudados'}</Text>
+                            </View>
+                            {sub.lastSessionAt && (
+                              <>
+                                <View style={{ width: 1, height: 14, backgroundColor: '#333' }} />
+                                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#252525', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                                  <Ionicons name="time-outline" size={12} color={theme.primary} />
+                                  <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>Última sessão · </Text>
+                                  <Text style={{ color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>
+                                    {new Date(sub.lastSessionAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  </Text>
+                                </View>
+                              </>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+            </View>
+          );
+        })}
+      </>
+    );
+  };
+
+  // ── Aba Níveis ──────────────────────────────────────────────────
+  const renderNiveis = () => {
+    const realDecks = progressData.filter(deck => !deck.isExample);
+    const SL = [theme.srsLevel0, theme.srsLevel1, theme.srsLevel2, theme.srsLevel3, theme.srsLevel4, theme.srsLevel5];
+    const LEVEL_NAMES_SHORT = ['Marco Zero', 'Aprendiz', 'Em Progresso', 'Consolidando', 'Confiante', 'Dominado'];
+    const COL_BG = ['#222222', '#1A1A1A', '#222222', '#1A1A1A', '#222222', '#1A1A1A'];
+
+    // Gauge circle para tabela de matéria
+    const tableW = screenWidth - 64;
+    const COL_W = Math.floor(tableW / 6);
+    const GAUGE_R = Math.floor(COL_W * 0.36);
+    const GAUGE_SW = 3;
+
+    const GaugeCircle = ({ level, radius, sw }) => {
+      const R = radius ?? GAUGE_R;
+      const SW = sw ?? GAUGE_SW;
+      const C = 2 * Math.PI * R;
+      const ratio = level / 5;
+      const fill = ratio > 0 ? C * ratio : 0;
+      const size = R * 2 + SW * 2;
+      const cx = R + SW;
+      const cy = R + SW;
+      return (
+        <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+          <Svg width={size} height={size}>
+            <Circle cx={cx} cy={cy} r={R} stroke="#333" strokeWidth={SW} fill="none" />
+            {fill > 0 && <Circle cx={cx} cy={cy} r={R} stroke={SL[level]} strokeWidth={SW} fill="none"
+              strokeDasharray={`${fill} ${C}`} strokeLinecap="round"
+              transform={`rotate(-90 ${cx} ${cy})`} />}
+          </Svg>
+          <Text style={{ position: 'absolute', color: theme.textPrimary, fontFamily: theme.fontFamily.uiBold, includeFontPadding: false, textAlignVertical: 'center', lineHeight: R * 0.85, fontSize: R * 0.7 }}>{level}</Text>
+        </View>
+      );
+    };
+
+    if (realDecks.length === 0) return (
+      <View style={s.emptyWrap}>
+        <Ionicons name="bar-chart-outline" size={48} color={theme.textMuted} />
+        <Text style={[s.emptyTitle, { color: theme.textMuted }]}>Nenhum deck encontrado.</Text>
+      </View>
+    );
+
+    return (
+      <>
+        {realDecks.map(deck => {
+          const deckExpanded = !!expandedDecks[deck.id];
+          const showLegend = (deckView[deck.id] ?? 'legend') === 'legend';
+          const allCards = deck.subjects.flatMap(s => s.topics?.length > 0 ? s.topics.flatMap(t => t.flashcards || []) : (s.flashcards || []));
+          const deckTotal = allCards.length;
+          const currentLevels = allCards.reduce((sum, c) => sum + (c.level || 0), 0);
+          const pct = deckTotal > 0 ? Math.round((currentLevels / (deckTotal * 5)) * 100) : 0;
+
+          const subjectRows = deck.subjects.map((sub, si) => {
+            const counts = sub.levelCounts || [0, 0, 0, 0, 0, 0];
+            const total = counts.reduce((a, b) => a + b, 0);
+            const subPct = sub.progress || 0;
+            return { id: sub.id || si, name: sub.name, counts, total, subPct };
+          });
+
+          return (
+            <View key={deck.id} style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
+
+              {/* ── Header: nome + chevron ── */}
+              <Pressable
+                onPress={() => {
+                  const isOpen = !!expandedDecks[deck.id];
+                  setExpandedDecks(prev => ({ ...prev, [deck.id]: !isOpen }));
+                  if (isOpen) setExpandedSubjects({});
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18 }}
+              >
+                <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1}>{deck.name}</Text>
+                <Ionicons name={deckExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
+              </Pressable>
+
+              {deckExpanded && (
+                <>
+                  <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />
+                  {/* ── Seção 1: métricas do deck (só se tiver matérias) ── */}
+                  {subjectRows.length > 0 && (
+                    <View style={{ flexDirection: 'row', paddingBottom: 16, paddingTop: 16 }}>
+                      <View style={{ flex: 1, alignItems: 'center', gap: 3 }}>
+                        <Text style={{ color: theme.primary, fontSize: 22, fontFamily: theme.fontFamily.uiBold }}>{deck.subjects.length}</Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>{deck.subjects.length === 1 ? 'Matéria' : 'Matérias'}</Text>
+                      </View>
+                      <View style={{ width: 1, backgroundColor: '#2A2A2A' }} />
+                      <View style={{ flex: 1, alignItems: 'center', gap: 3 }}>
+                        <Text style={{ color: theme.primary, fontSize: 22, fontFamily: theme.fontFamily.uiBold }}>{deckTotal}</Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>Flashcards</Text>
+                      </View>
+                      <View style={{ width: 1, backgroundColor: '#2A2A2A' }} />
+                      <View style={{ flex: 1, alignItems: 'center', gap: 3 }}>
+                        <Text style={{ fontFamily: theme.fontFamily.uiBold, fontSize: 22 }}>
+                          <Text style={{ color: theme.primary }}>{pct}</Text>
+                          <Text style={{ color: theme.textMuted, fontSize: 13 }}>%</Text>
+                        </Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>Concluído</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* ── Seção 2: matérias ── */}
+                  <View style={{ height: 1, backgroundColor: '#272727ff' }} />
+
+                  {subjectRows.length === 0 && (
+                    <Pressable
+                      onPress={() => navigation.navigate('SubjectListFromProgress', { deckId: deck.id, deckName: deck.name, preloadedSubjects: [] })}
+                      style={{ backgroundColor: '#181818', paddingHorizontal: 20, paddingVertical: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }}
+                    >
+                      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#252525', alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="layers-outline" size={22} color={theme.textMuted} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiBold, marginBottom: 3 }}>Nenhuma matéria ainda</Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>Toque para criar a primeira matéria deste deck</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+                    </Pressable>
+                  )}
+                  {subjectRows.map((row, ri) => {
+                    const subKey = `${deck.id}_${row.id}`;
+                    const subExpanded = !!expandedSubjects[subKey];
+
+                    return (
+                      <View key={subKey} style={{ backgroundColor: '#1a1a1aff' }}>
+                        {ri > 0 && <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />}
+
+                        {/* Linha da matéria */}
+                        <Pressable
+                          onPress={() => setExpandedSubjects(prev => {
+                            const isOpen = !!prev[subKey];
+                            const next = {};
+                            if (!isOpen) next[subKey] = true;
+                            return next;
+                          })}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 }}
+                        >
+                          {/* Conteúdo: nome + chips */}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, marginBottom: 8 }} numberOfLines={1}>{row.name}</Text>
+                            {/* chips de % e flashcards */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#252525', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                                <Text style={{ color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>{row.subPct}%</Text>
+                                <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{row.subPct === 100 ? 'concluído' : row.subPct === 0 ? 'não iniciado' : 'estudado'}</Text>
+                              </View>
+                              <View style={{ width: 1, height: 14, backgroundColor: '#333' }} />
+                              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#252525', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}>
+                                <Text style={{ color: theme.primary, fontSize: 12, fontFamily: theme.fontFamily.uiBold }}>{row.total}</Text>
+                                <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontFamily.uiMedium }}>{row.total === 1 ? 'flashcard' : 'flashcards'}</Text>
+                              </View>
+                            </View>
+                          </View>
+                          <Ionicons name={subExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textMuted} style={{ marginLeft: 8 }} />
+                        </Pressable>
+
+                        {/* Níveis expandidos */}
+                        {subExpanded && (
+                          <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+                            {/* Legendas: 3 por linha */}
+                            <View style={{ gap: 6, marginBottom: 16 }}>
+                              {[[0, 1, 2], [3, 4, 5]].map((group, gi) => (
+                                <View key={gi} style={{ flexDirection: 'row' }}>
+                                  {group.map(i => (
+                                    <View key={i} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                      <View style={{ width: 11, height: 11, borderRadius: 6, backgroundColor: SL[i], marginTop: 3 }} />
+                                      <Text style={{ color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.uiMedium }}>{LEVEL_NAMES_SHORT[i]}</Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              ))}
+                            </View>
+                            {/* 6 blocos de nível lado a lado */}
+                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                              {[0, 1, 2, 3, 4, 5].map(lvl => (
+                                <View key={lvl} style={{ flex: 1, alignItems: 'center', gap: 8, backgroundColor: '#242424', borderRadius: 10, paddingVertical: 12, borderWidth: 1, borderColor: '#2E2E2E' }}>
+                                  <GaugeCircle level={lvl} />
+                                  <Text style={{ color: row.counts[lvl] > 0 ? theme.primary : 'rgba(255,255,255,0.2)', fontSize: 13, fontFamily: theme.fontFamily.uiBold }}>{row.counts[lvl]}</Text>
+                                  <Text style={{ color: row.counts[lvl] > 0 ? theme.textSecondary : 'rgba(255,255,255,0.2)', fontSize: 10, fontFamily: theme.fontFamily.uiMedium, marginTop: -6 }}>{row.counts[lvl] === 1 ? 'card' : 'cards'}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </>
+              )}
+            </View>
+          );
+        })}
+      </>
+    );
+  };
+
+  // ── Aba Concluídos ──────────────────────────────────────────────
+  const renderConcluidos = () => {
+    const completed = progressData
+      .filter(d => !d.isExample)
+      .map(deck => ({ ...deck, subjects: deck.subjects.filter(s => s.progress === 100) }))
+      .filter(deck => deck.subjects.length > 0);
+
+    if (completed.length === 0) return (
+      <View style={s.emptyWrap}>
+        <Ionicons name="trophy-outline" size={48} color={theme.textMuted} />
+        <Text style={[s.emptyTitle, { color: theme.textMuted }]}>Nenhuma matéria concluída ainda.</Text>
+        <Text style={s.emptyDesc}>Continue estudando!</Text>
+      </View>
+    );
+
+    const toggleConclDeck = (id) => setExpandedHojeDecks(prev => ({ ...prev, [id]: !prev[id] }));
+
+    return completed.map(deck => {
+      const isOpen = !!expandedHojeDecks[deck.id];
+      return (
+        <View key={deck.id} style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
+          <TouchableOpacity
+            onPress={() => toggleConclDeck(deck.id)}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18 }}
+          >
+            <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 18, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1}>{deck.name}</Text>
+            <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={20} color={theme.textMuted} />
+          </TouchableOpacity>
+          {isOpen && (
+            <>
+              <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />
+              {deck.subjects.map((sub, i) => (
+                <View key={sub.id} style={{ backgroundColor: '#1a1a1a' }}>
+                  {i > 0 && <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 }}>
+                    <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.uiBold }}>{sub.name}</Text>
+                    <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+        </View>
+      );
+    });
+  };
+
+  const renderStats = () => {
+    const CA = '#6fb633';
+    const CQ = '#1cabcd';
+    const CE = '#e94542';
+    const SL = [theme.srsLevel0, theme.srsLevel1, theme.srsLevel2, theme.srsLevel3, theme.srsLevel4, theme.srsLevel5];
+
+    // Contadores persistentes: última sessão de cada matéria, somadas
+    let totA = 0, totQ = 0, totE = 0;
+    for (const [sid, entry] of Object.entries(performanceData)) {
+      if (sid === 'all') continue;
+      const a = entry.atual || entry;
+      totA += a.acertos || 0;
+      totQ += a.quases || 0;
+      totE += a.erros || 0;
+    }
+    const tot = totA + totQ + totE;
+
+    // Confiança global pelos 3 pilares (regras do .md)
+    const { confiancaGlobal: confRaw } = calcDesempenho(performanceData, progressData, weekDaysStudied);
+    const ok = confRaw >= 0.15;
+    const confiancaGlobal = confRaw;
+    const lvCounts = [0, 0, 0, 0, 0, 0];
+    (progressData || []).filter(d => !d.isExample).forEach(d =>
+      (d.subjects || []).forEach(s =>
+        (s.levelCounts || []).forEach((n, i) => { lvCounts[i] = (lvCounts[i] || 0) + n; })
+      )
+    );
+    const maxLv = Math.max(...lvCounts, 1);
+
+    // lado esquerdo do card: ~48% da largura disponível
+    const cardW = screenWidth - 32;
+    const leftW = cardW * 0.52;
+    // arco preenche quase toda a largura do lado esq com padding
+    const arcSize = leftW - 28;
+    const R = arcSize / 2 - 10;
+    const SW = 13;
+    const CX = arcSize / 2;
+    const CY = arcSize / 2;
+    const C = 2 * Math.PI * R;
+    const AL = C * 0.70;
+    const ROT = 90 + (1 - 0.70) * 180;
+    const G = 3;
+    const sA = tot > 0 ? AL * totA / tot : 0;
+    const sQ = tot > 0 ? AL * totQ / tot : 0;
+    const sE = tot > 0 ? AL * totE / tot : 0;
+    const oQ = sA > 0 ? sA + G : 0;
+    const oE = oQ + (sQ > 0 ? sQ + G : 0);
+
+    const BAR_H = 58;
+    const BAR_W = 10;
+    const lvPairs = [[0, 3], [1, 4], [2, 5]];
+
+    return (
+      <>
+        {/* LINHA TOPO: "Flashcards estudados hoje  |  27" — sem card, texto solto */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 0 }}>
+          <Text style={{ flex: 1, color: theme.textPrimary, fontSize: 17, fontFamily: theme.fontFamily.uiBold }} numberOfLines={1} adjustsFontSizeToFit>
+            Flashcards estudados hoje
+          </Text>
+          <View style={{ width: 1, height: 44, backgroundColor: '#444', marginRight: 9 }} />
+          <View style={{ minWidth: 48, alignItems: 'center' }}>
+            <Text style={{ color: CA, fontSize: 40, fontFamily: theme.fontFamily.heading, includeFontPadding: false, lineHeight: 50 }}>
+              {statsData.hoje || 0}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ height: 1, backgroundColor: '#2A2A2A', marginBottom: 16 }} />
+        {/* DESEMPENHO GERAL: card esquerdo + contadores direito (sem card) lado a lado */}
+        <View style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'stretch' }}>
+
+          {/* Card esquerdo: arco */}
+          <View style={{ width: leftW, backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', paddingTop: 14, paddingBottom: ok ? 16 : 24 }}>
+            <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, marginBottom: 10, alignSelf: 'center' }}>
+              Desempenho Geral
+            </Text>
+            <View style={{ width: leftW - 15, height: 1, backgroundColor: '#2A2A2A', marginBottom: 10 }} />
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ width: arcSize, height: arcSize * 0.94, marginTop: ok ? 8 : 2 }}>
+                <Svg width={arcSize} height={arcSize}>
+                  <Circle cx={CX} cy={CY} r={R} stroke="#333" strokeWidth={SW} fill="none"
+                    strokeDasharray={`${AL} ${C - AL}`} strokeLinecap="round"
+                    transform={`rotate(${ROT} ${CX} ${CY})`} />
+                  {ok && <Circle cx={CX} cy={CY} r={R} stroke={CA} strokeWidth={SW} fill="none"
+                    strokeDasharray={`${confiancaGlobal >= 1 ? AL : AL * confiancaGlobal - G} ${C}`} strokeLinecap="round"
+                    transform={`rotate(${ROT} ${CX} ${CY})`} />}
+                </Svg>
+                {/* % centralizado no arco */}
+                <View style={{ position: 'absolute', top: CY - R / 3 + 0, left: SW - 2, right: SW - 2, alignItems: 'center' }}>
+                  {ok ? (
+                    <Text style={{ color: 'rgba(240,240,240,0.9)', fontFamily: theme.fontFamily.uiBold, includeFontPadding: false }}>
+                      <Text style={{ fontSize: 34 }}>{Math.round(confiancaGlobal * 100)}</Text>
+                      <Text style={{ fontSize: 20 }}>%</Text>
+                    </Text>
+                  ) : (
+                    <Text style={{ color: '#666', fontSize: 17, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center', marginTop: CY * 0.1 }}>em análise</Text>
+                  )}
+                </View>
+                {/* Label entre as pontas do arco */}
+                {ok && (
+                  <View style={{ position: 'absolute', bottom: SW + R * (1 - Math.cos(Math.PI * 0.25)) - 26 + 0, left: 0, right: 0, alignItems: 'center', marginLeft: 0 }}>
+                    <Text style={{ color: '#F0F0F0', fontSize: 16, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>
+                      {getDesempenhoLabel(confiancaGlobal)}
+                    </Text>
+                  </View>
+                )}
+                {!ok && (
+                  <View style={{ position: 'absolute', bottom: SW + R * (1 - Math.cos(Math.PI * 0.25)) - 15 + -5, left: 0, right: 0, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 5 }}>
+                    {[0, 1, 2].map(k => <View key={k} style={{ width: 20, height: 3, backgroundColor: CA, borderRadius: 2 }} />)}
+                  </View>
+                )}
+                {!ok && (
+                  <View style={{ position: 'absolute', bottom: -15, left: 0, right: 0, alignItems: 'center' }}>
+                    <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium }}>
+                      continue estudando
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Direita: Acertos / Quases / Erros — sem card, fundo transparente */}
+          <View style={{ flex: 1, justifyContent: 'center', paddingLeft: 16 }}>
+            {[
+              { svg: ICON_ACERTO_SVG, val: totA, label: 'Acertos' },
+              { svg: ICON_QUASE_SVG, val: totQ, label: 'Quases' },
+              { svg: ICON_ERRO_SVG, val: totE, label: 'Erros' },
+            ].map((it, i) => (
+              <View key={i} style={{
+                flexDirection: 'row', alignItems: 'center',
+                paddingVertical: 26,
+                borderTopWidth: i > 0 ? 1 : 0,
+                borderTopColor: '#2A2A2A',
+              }}>
+                <SvgXml xml={it.svg} width={18} height={18} style={{ marginRight: 8, marginTop: 3 }} />
+                <Text style={{ flex: 1, color: '#aaa', fontSize: 14, fontFamily: theme.fontFamily.uiMedium }}>
+                  {it.label}
+                </Text>
+                <Text style={{ color: theme.textPrimary, fontSize: 17, fontFamily: theme.fontFamily.heading, paddingRight: 8 }}>
+                  {it.val}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+        </View>
+
+        {/* CARD NÍVEIS */}
+        <View style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', overflow: 'hidden' }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, textAlign: 'center' }}>
+            Total de flashcards por nivel
+          </Text>
+          <View style={{ height: 1, backgroundColor: '#2A2A2A', marginHorizontal: 10, marginBottom: 15 }} />
+          <View style={{ paddingBottom: 16, position: 'relative' }}>
+            {/* linha 1 e 2 verticais */}
+            {(() => {
+              const halfW = (cardW - 32) / 2;
+              const lineOffX = BAR_W + 12 + 30 + 8;
+              return <>
+                <View style={{ position: 'absolute', top: 0, bottom: 16, left: 16 + lineOffX, width: 1, backgroundColor: '#2A2A2A' }} />
+                <View style={{ position: 'absolute', top: 0, bottom: 16, left: 16 + halfW + lineOffX, width: 1, backgroundColor: '#2A2A2A' }} />
+                {/* barra esquerda — 3 segmentos sólidos */}
+                {[0, 1, 2].map(lv => (
+                  <View key={lv} style={{
+                    position: 'absolute', left: 16, width: BAR_W, height: BAR_H,
+                    top: lv * BAR_H,
+                    backgroundColor: SL[lv],
+                    borderTopLeftRadius: lv === 0 ? BAR_W / 2 : 0,
+                    borderTopRightRadius: lv === 0 ? BAR_W / 2 : 0,
+                    borderBottomLeftRadius: lv === 2 ? BAR_W / 2 : 0,
+                    borderBottomRightRadius: lv === 2 ? BAR_W / 2 : 0,
+                  }} />
+                ))}
+                {/* barra direita — 3 segmentos sólidos */}
+                {[3, 4, 5].map((lv, i) => (
+                  <View key={lv} style={{
+                    position: 'absolute', left: 16 + halfW, width: BAR_W, height: BAR_H,
+                    top: i * BAR_H,
+                    backgroundColor: SL[lv],
+                    borderTopLeftRadius: i === 0 ? BAR_W / 2 : 0,
+                    borderTopRightRadius: i === 0 ? BAR_W / 2 : 0,
+                    borderBottomLeftRadius: i === 2 ? BAR_W / 2 : 0,
+                    borderBottomRightRadius: i === 2 ? BAR_W / 2 : 0,
+                  }} />
+                ))}
+              </>;
+            })()}
+            {lvPairs.map(([lvA, lvB], row) => (
+              <View key={row} style={{
+                flexDirection: 'row', alignItems: 'center',
+                borderTopWidth: row > 0 ? 1 : 0, borderTopColor: '#2A2A2A',
+                marginHorizontal: 16,
+                paddingVertical: 0,
+                height: BAR_H,
+              }}>
+                {/* metade esquerda — espaço reservado para barra + textos */}
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: BAR_W }} />
+                  <Text style={{ color: theme.textPrimary, fontSize: 24, fontFamily: theme.fontFamily.heading, includeFontPadding: false, marginLeft: 18, width: 30 }}>{lvA}</Text>
+                  <View style={{ width: 16 }} />
+                  <Text style={{ color: '#666', fontSize: 15, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>{lvCounts[lvA]}</Text>
+                </View>
+                {/* metade direita */}
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: BAR_W }} />
+                  <Text style={{ color: theme.textPrimary, fontSize: 24, fontFamily: theme.fontFamily.heading, includeFontPadding: false, marginLeft: 18, width: 30 }}>{lvB}</Text>
+                  <View style={{ width: 16 }} />
+                  <Text style={{ color: '#666', fontSize: 15, fontFamily: theme.fontFamily.uiMedium, includeFontPadding: false }}>{lvCounts[lvB]}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+      </>
+    );
+  };
+
+  return (
+    <View style={s.root}>
+      {/* Header */}
+      <View style={[s.header, { paddingTop: insets.top }]}>
+        <View style={s.headerInner}>
+          <Text style={s.headerTitle}>Progresso</Text>
+        </View>
+        <View style={s.headerDivider} />
+      </View>
+
+      {/* Streak card */}
+      <StreakCard
+        streak={streak}
+        bestStreak={bestStreak}
+        studiedDatesSet={studiedDatesSet}
+        preservedDatesSet={preservedDatesSet}
+        firstUseDate={firstUseDate}
+        totalDecks={totalDecks}
+        totalSubjects={totalSubjects}
+        totalTopics={totalTopics}
+        totalFlashcards={totalFlashcards}
+        statsData={statsData}
+        progressData={progressData}
+        performanceData={performanceData}
+        weekDaysStudied={weekDaysStudied}
+        showStats={viewMode === 'stats'}
+        weekOffset={weekOffset}
+        setWeekOffset={setWeekOffset}
+      />
+
+      {/* Tabs */}
+      <View style={s.tabsWrap}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={[s.tabsInner, { flex: 1 }]}>
+            {[
+              { key: 'hoje', label: 'Hoje' },
+              { key: 'niveis', label: 'Níveis' },
+              { key: 'concluidos', label: 'Concluídos' },
+            ].map((tab, i, arr) => {
+              const isActive = viewMode === tab.key;
+              const prevActive = i > 0 && viewMode === arr[i - 1].key;
+              const showDivider = i > 0 && !isActive && !prevActive;
+              return (
+                <React.Fragment key={tab.key}>
+                  {i > 0 && (
+                    <View style={{ width: 1, height: 28, backgroundColor: showDivider ? '#444' : 'transparent', alignSelf: 'center', marginVertical: 4 }} />
+                  )}
+                  <TouchableOpacity
+                    style={[s.tab, isActive && s.tabActive]}
+                    onPress={() => setViewMode(tab.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.tabText, isActive && s.tabTextActive]}>{tab.label}</Text>
+                  </TouchableOpacity>
+                </React.Fragment>
+              );
+            })}
+          </View>
+          {/* Botão estatísticas — fora da barra, separado */}
+          <TouchableOpacity
+            style={[s.tabStats, viewMode === 'stats' && s.tabStatsActive]}
+            onPress={() => setViewMode(viewMode === 'stats' ? 'hoje' : 'stats')}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="pulse"
+              size={22}
+              color={viewMode === 'stats' ? '#0F0F0F' : theme.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView
+        ref={scrollViewRef}
+        style={s.scroll}
+        contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {viewMode === 'hoje' && renderHoje()}
+        {viewMode === 'niveis' && renderNiveis()}
+        {viewMode === 'concluidos' && renderConcluidos()}
+        {viewMode === 'stats' && renderStats()}
+      </ScrollView>
+    </View>
+  );
+};
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.background },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background },
+
+  header: { backgroundColor: theme.background },
+  headerInner: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12 },
+  headerTitle: { color: theme.textPrimary, fontSize: 22, fontFamily: theme.fontFamily.heading, letterSpacing: -0.3 },
+  headerDivider: { height: 1, backgroundColor: theme.backgroundSecondary },
+
+  // ── Tabs ─────────────────────────────────────────────────────────
+  tabsWrap: { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: theme.background },
+  tabsInner: {
+    flexDirection: 'row', backgroundColor: theme.backgroundSecondary,
+    borderRadius: 12, padding: 4, height: 48,
+  },
+  tab: { flex: 1, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  tabActive: { backgroundColor: theme.primary },
+  tabStats: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.backgroundSecondary },
+  tabStatsActive: { backgroundColor: theme.primary },
+  tabText: { color: theme.textMuted, fontSize: 14, fontFamily: theme.fontFamily.uiSemiBold },
+  tabTextActive: { color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold },
+
+  // ── Scroll ───────────────────────────────────────────────────────
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 4, gap: 10 },
+
+  // ── Card base ────────────────────────────────────────────────────
+  card: {
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 14, borderWidth: 1, borderColor: theme.backgroundTertiary,
+    overflow: 'hidden',
+  },
+  cardLabel: {
+    color: theme.textMuted, fontSize: 10, fontFamily: theme.fontFamily.uiBold,
+    letterSpacing: 1, textTransform: 'uppercase',
+    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
+  },
+  row: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingLeft: 20, paddingRight: 16, paddingVertical: 15,
+  },
+  rowDivider: { borderTopWidth: 1, borderTopColor: theme.backgroundTertiary },
+  rowText: { color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium, flex: 1 },
+  rowDot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: theme.primary,
+    marginRight: 10, opacity: 0.5,
+  },
+
+  // ── Hoje ─────────────────────────────────────────────────────────
+  hojeHeader: { marginBottom: 12 },
+  hojeHeaderTitle: { color: theme.textSecondary, fontSize: 14, fontFamily: theme.fontFamily.ui },
+  hojeHeaderCount: { color: theme.primary, fontSize: 14, fontFamily: theme.fontFamily.uiBold },
+  hojeHeaderSub: { color: theme.textMuted, fontSize: 12, fontFamily: theme.fontFamily.ui, marginTop: 2 },
+  deckCardHoje: {
+    backgroundColor: '#1C1C1C',
+    borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A',
+    marginBottom: 12, overflow: 'hidden',
+  },
+  deckCardHojeHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  deckCardHojeLeft: { flex: 1, marginRight: 12 },
+  deckCardHojeName: { color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.headingSemiBold },
+  deckCardHojeMeta: { color: theme.textMuted, fontSize: 12, fontFamily: theme.fontFamily.ui, marginTop: 2 },
+  deckCardHojeBody: {
+    backgroundColor: '#1a1a1a',
+    borderTopWidth: 1, borderTopColor: '#2A2A2A',
+    paddingHorizontal: 16, paddingBottom: 4,
+  },
+  hojeSubRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+  hojeSubCount: { color: theme.primary, fontSize: 16, fontFamily: theme.fontFamily.heading, includeFontPadding: false },
+  greenChip: {
+    backgroundColor: theme.primaryTransparent,
+    borderRadius: 24, paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: theme.primaryTransparent15,
+  },
+  greenChipText: { color: theme.primary, fontSize: 13, fontFamily: theme.fontFamily.uiBold },
+
+  // ── Níveis — decks ────────────────────────────────────────────────
+  deckHeader: {
+    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4,
+  },
+  deckName: { color: theme.textPrimary, fontSize: 15, fontFamily: theme.fontFamily.headingSemiBold },
+  deckMeta: { color: theme.textMuted, fontSize: 11, fontFamily: theme.fontFamily.ui, marginTop: 2 },
+  deckRingsRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 16,
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  deckRingItem: { alignItems: 'center', gap: 4 },
+  deckRingCount: { color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.headingSemiBold },
+  deckRingLabel: { color: theme.textMuted, fontSize: 9, fontFamily: theme.fontFamily.uiMedium, textAlign: 'center' },
+
+  // ── Empty ────────────────────────────────────────────────────────
+  emptyWrap: { alignItems: 'center', paddingVertical: 60, gap: 10 },
+  emptyTitle: { color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.headingSemiBold, textAlign: 'center', paddingHorizontal: 24 },
+  emptyDesc: { color: theme.textMuted, fontSize: 14, fontFamily: theme.fontFamily.ui, textAlign: 'center', paddingHorizontal: 32 },
+});
 
 export default ProgressScreen;

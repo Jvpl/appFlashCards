@@ -1,7 +1,7 @@
 import theme from '../styles/theme';
 
 export const LEVEL_CONFIG = {
-  0: { name: 'Marco Zero',    color: theme.srsLevel0, reviewTime: 0    }, // imediato
+  0: { name: 'Marco Zero',    color: theme.srsLevel0, reviewTime: 1    }, // 1 min
   1: { name: 'Aprendiz',      color: theme.srsLevel1, reviewTime: 10   }, // 10 min
   2: { name: 'Em Progresso',  color: theme.srsLevel2, reviewTime: 60   }, // 1 hora
   3: { name: 'Consolidando',  color: theme.srsLevel3, reviewTime: 360  }, // 6 horas
@@ -19,10 +19,10 @@ const LEVEL_5_INTERVALS = [
 
 export const calculateCardUpdate = (card, swipeDirection) => {
   let {
-    level             = 0,
-    points            = 0,
+    level              = 0,
+    points             = 0,
     consecutiveCorrect = 0,
-    reviewStreak      = 0,
+    reviewStreak       = 0,
   } = card;
 
   const now = new Date();
@@ -31,42 +31,33 @@ export const calculateCardUpdate = (card, swipeDirection) => {
     case 'right': // Memorizado
       points += 3;
       if (level === 5) {
-        // Já no máximo: apenas avança o streak para ampliar o intervalo
         reviewStreak += 1;
       } else {
         consecutiveCorrect += 1;
         if (consecutiveCorrect >= 2) {
-          level += 1; // sobe 1 nível (level era < 5)
+          level += 1;
           consecutiveCorrect = 0;
           if (level === 5) {
-            points += 5;   // bônus ao chegar no nível 5
+            points += 5;
             reviewStreak = 1;
           }
         }
       }
       break;
 
-    case 'up': // Quase
+    case 'up': // Quase — não sobe nível, interrompe streak
       points += 1;
-      if (level < 5) {
-        consecutiveCorrect += 1;
-        if (consecutiveCorrect >= 2) {
-          level = Math.min(level + 1, 4); // "Quase" não chega ao nível 5
-          consecutiveCorrect = 0;
-        }
-      }
-      // level 5 + "Quase": não altera nada no nível nem no streak
+      consecutiveCorrect = 0;
       break;
 
-    case 'left': // Errei
+    case 'left': // Errei — regressão agressiva, volta imediato
       points = Math.max(0, points - 2);
       consecutiveCorrect = 0;
       reviewStreak = 0;
-      level = level >= 3 ? 1 : 0; // regressão agressiva
+      level = level >= 3 ? 1 : 0;
       break;
   }
 
-  // Calcula próxima data de revisão
   let reviewTimeMinutes;
   if (level === 5) {
     const idx = Math.min(reviewStreak - 1, LEVEL_5_INTERVALS.length - 1);
@@ -76,7 +67,6 @@ export const calculateCardUpdate = (card, swipeDirection) => {
   }
 
   const nextReviewDate = new Date(now.getTime() + reviewTimeMinutes * 60 * 1000);
-
   return {
     ...card,
     level,

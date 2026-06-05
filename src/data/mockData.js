@@ -1,258 +1,1447 @@
-export const initialData = [
+const card = (id, question, answer) => ({
+  id, question, answer,
+  level: 0, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0,
+});
 
+export const initialData = [
   {
-    id: 'deck_pmmg_2024',
-    name: 'PMMG - Soldado 2024',
+    id: 'deck_policia_civil',
+    name: 'Polícia Civil - Agente 2025',
+    category: 'seguranca',
+    isDefaultDeck: true,
+    isUserCreated: false,
     subjects: [
       {
-        id: 'dir_const_pmmg',
-        name: 'Direito Constitucional',
-        flashcards: [
-          { id: 'dc_001', question: 'Quais são os fundamentos da República Federativa do Brasil?', answer: 'Soberania, Cidadania, Dignidade da pessoa humana, Valores sociais do trabalho e da livre iniciativa, Pluralismo político.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dc_002', question: 'O que é o princípio da legalidade?', answer: '"Ninguém será obrigado a fazer ou deixar de fazer alguma coisa senão em virtude de lei" (Art. 5º, II, CF).', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dc_003', question: 'Quais são os poderes da União?', answer: 'O Legislativo, o Executivo e o Judiciário, independentes e harmônicos entre si.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dc_004', question: 'O que é um Habeas Corpus?', answer: 'Remédio constitucional que visa proteger o direito de ir e vir (liberdade de locomoção).', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dc_005', question: 'A quem compete julgar o Presidente da República nos crimes de responsabilidade?', answer: 'Ao Senado Federal.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dc_006', question: 'Qual a idade mínima para se candidatar ao cargo de Presidente da República?', answer: '35 anos.', level: 0, points: 0, lastReview: null, nextReview: null },
+        id: 'subj_pc_port',
+        name: 'Português',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_pc_port_morf',
+            name: 'Morfologia',
+            flashcards: [
+              card('pc_pt_1', 'O que é substantivo?', 'Palavra que nomeia seres, objetos, lugares, sentimentos e ações. Ex: policial, cidade, coragem.'),
+              card('pc_pt_2', 'O que é adjetivo?', 'Palavra que caracteriza ou qualifica o substantivo. Ex: corajoso, rápido, eficiente.'),
+              card('pc_pt_3', 'O que é verbo?', 'Palavra que expressa ação, estado ou fenômeno. Ex: investigar, ser, chover.'),
+              card('pc_pt_4', 'O que é pronome?', 'Palavra que substitui ou acompanha o substantivo. Ex: eu, este, meu, que, alguém.'),
+              card('pc_pt_5', 'O que é advérbio?', 'Palavra que modifica verbo, adjetivo ou outro advérbio, indicando circunstâncias. Ex: rapidamente, hoje, aqui.'),
+              card('pc_pt_6', 'O que é preposição?', 'Palavra que liga termos da oração, estabelecendo relação de dependência. Ex: a, de, em, para, por.'),
+            ],
+          },
+          {
+            id: 'topic_pc_port_sint',
+            name: 'Sintaxe',
+            flashcards: [
+              card('pc_pt_7', 'O que é sujeito simples?', 'Sujeito com apenas um núcleo. Ex: "O policial correu."'),
+              card('pc_pt_8', 'O que é sujeito composto?', 'Sujeito com dois ou mais núcleos. Ex: "João e Maria investigaram o caso."'),
+              card('pc_pt_9', 'O que é predicado verbal?', 'Predicado cujo núcleo é um verbo de ação. Ex: "O agente prendeu o suspeito."'),
+              card('pc_pt_10', 'O que é objeto direto?', 'Complemento verbal sem preposição. Ex: "O policial viu o suspeito."'),
+              card('pc_pt_11', 'O que é objeto indireto?', 'Complemento verbal com preposição obrigatória. Ex: "O delegado gostou da solução."'),
+              card('pc_pt_12', 'O que é adjunto adverbial?', 'Termo que indica circunstância da ação (tempo, lugar, modo). Ex: "O policial chegou cedo."'),
+            ],
+          },
+          {
+            id: 'topic_pc_port_sem',
+            name: 'Semântica e Crase',
+            flashcards: [
+              card('pc_pt_13', 'O que é denotação?', 'Sentido literal e objetivo das palavras, registrado no dicionário.'),
+              card('pc_pt_14', 'O que é conotação?', 'Sentido figurado, subjetivo e contextual das palavras.'),
+              card('pc_pt_15', 'O que é crase?', 'Fusão da preposição "a" com o artigo "a" feminino, indicada pelo acento grave (à).'),
+              card('pc_pt_16', 'Quando NÃO ocorre crase?', 'Antes de pronomes (a ela, a você), antes de verbos, antes de palavras masculinas e em locuções adverbiais masculinas.'),
+              card('pc_pt_17', 'O que é regência verbal?', 'Relação de dependência entre o verbo e seus complementos, com ou sem preposição.'),
+              card('pc_pt_18', 'O verbo "assistir" no sentido de ver exige qual preposição?', '"A". Ex: "Assisti ao interrogatório." — verbo transitivo indireto.'),
+            ],
+          },
         ],
       },
-       {
-        id: 'port_pmmg',
-        name: 'Língua Portuguesa',
-        flashcards: [
-          { id: 'pt_001', question: 'O que é uma oração subordinada substantiva?', answer: 'É uma oração que exerce a função de substantivo (sujeito, objeto direto, etc.) em relação à oração principal.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'pt_002', question: 'Qual a diferença entre "mal" e "mau"?', answer: '"Mal" é o oposto de "bem" (advérbio). "Mau" é o oposto de "bom" (adjetivo).', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'pt_003', question: 'Para que serve a crase?', answer: 'Indica a fusão da preposição "a" com o artigo feminino "a" ou com pronomes demonstrativos.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'pt_004', question: 'O que é um hiato?', answer: 'É o encontro de duas vogais em sílabas diferentes. Ex: sa-ú-de.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'pt_005', question: 'Qual a função do adjunto adnominal?', answer: 'Caracterizar ou determinar um substantivo.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'pt_006', question: 'O que é um verbo transitivo direto?', answer: 'É um verbo que exige um complemento (objeto direto) sem preposição. Ex: "Eu comprei um livro".', level: 0, points: 0, lastReview: null, nextReview: null },
+      {
+        id: 'subj_pc_mat',
+        name: 'Matemática',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_pc_mat_arit',
+            name: 'Aritmética',
+            flashcards: [
+              card('pc_mt_1', 'O que é MMC?', 'Mínimo Múltiplo Comum: o menor múltiplo comum entre dois ou mais números.'),
+              card('pc_mt_2', 'O que é MDC?', 'Máximo Divisor Comum: o maior divisor comum entre dois ou mais números.'),
+              card('pc_mt_3', 'Como calcular porcentagem?', 'Multiplique o valor pela porcentagem e divida por 100. Ex: 20% de 150 = (20×150)/100 = 30.'),
+              card('pc_mt_4', 'O que é razão?', 'Comparação entre dois valores por divisão. Ex: a razão entre 6 e 2 é 6/2 = 3.'),
+              card('pc_mt_5', 'O que é proporção?', 'Igualdade entre duas razões. Ex: 2/4 = 3/6.'),
+              card('pc_mt_6', 'Qual a fórmula da regra de três simples?', 'a/b = c/x → x = (b×c)/a. Usada quando as grandezas são diretamente proporcionais.'),
+            ],
+          },
+          {
+            id: 'topic_pc_mat_alg',
+            name: 'Álgebra e Funções',
+            flashcards: [
+              card('pc_mt_7', 'O que é equação do 1º grau?', 'Igualdade da forma ax + b = 0. Tem exatamente uma solução. Ex: 2x + 4 = 0 → x = -2.'),
+              card('pc_mt_8', 'O que é equação do 2º grau?', 'Igualdade da forma ax² + bx + c = 0. Pode ter 0, 1 ou 2 soluções reais.'),
+              card('pc_mt_9', 'O que é discriminante (Δ)?', 'Δ = b² - 4ac. Se Δ>0: 2 raízes; Δ=0: 1 raiz; Δ<0: sem raízes reais.'),
+              card('pc_mt_10', 'O que é progressão aritmética (PA)?', 'Sequência onde a diferença entre termos consecutivos é constante (razão r).'),
+              card('pc_mt_11', 'Qual a fórmula do termo geral da PA?', 'aₙ = a₁ + (n-1)·r, onde a₁ é o 1º termo, n é a posição e r é a razão.'),
+              card('pc_mt_12', 'O que é função do 1º grau?', 'f(x) = ax + b, com a≠0. Gráfico é uma reta. Crescente se a>0, decrescente se a<0.'),
+            ],
+          },
+          {
+            id: 'topic_pc_mat_log',
+            name: 'Raciocínio Lógico',
+            flashcards: [
+              card('pc_mt_13', 'O que é proposição lógica?', 'Sentença declarativa que pode ser classificada como verdadeira ou falsa, mas não ambas.'),
+              card('pc_mt_14', 'O que é conjunção lógica (∧)?', 'Operador "E". A conjunção é verdadeira somente quando ambas as proposições são verdadeiras.'),
+              card('pc_mt_15', 'O que é disjunção lógica (∨)?', 'Operador "OU". A disjunção é falsa somente quando ambas as proposições são falsas.'),
+              card('pc_mt_16', 'O que é negação lógica (¬)?', 'Inverte o valor lógico da proposição. Se P é verdadeiro, ¬P é falso e vice-versa.'),
+              card('pc_mt_17', 'O que é condicional (→)?', 'Operador "SE…ENTÃO". P→Q é falsa somente quando P é verdadeiro e Q é falso.'),
+              card('pc_mt_18', 'O que é silogismo?', 'Forma de raciocínio dedutivo com premissa maior, premissa menor e conclusão. Ex: Todo X é Y; Z é X; logo Z é Y.'),
+            ],
+          },
         ],
       },
-       {
-        id: 'dir_penal_pmmg',
-        name: 'Direito Penal Militar',
-        flashcards: [
-          { id: 'dpm_001', question: 'O que é crime militar próprio?', answer: 'É aquele que só pode ser praticado por militar e está previsto apenas no Código Penal Militar.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dpm_002', question: 'Qual a definição de "motim"?', answer: 'Reunião de militares agindo contra a ordem recebida de superior, ou negando-se a cumpri-la.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dpm_003', question: 'O que é o crime de deserção?', answer: 'Ausentar-se o militar, sem licença, da unidade em que serve, por mais de oito dias.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dpm_004', question: 'Um civil pode cometer crime militar?', answer: 'Sim, em situações específicas previstas no Código Penal Militar, como violência contra militar em serviço.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dpm_005', question: 'Qual a pena para o crime de dormir em serviço?', answer: 'Detenção, de três meses a um ano.', level: 0, points: 0, lastReview: null, nextReview: null },
-          { id: 'dpm_006', question: 'O que caracteriza o crime de prevaricação?', answer: 'Retardar ou deixar de praticar, indevidamente, ato de ofício, ou praticá-lo contra disposição expressa de lei, para satisfazer interesse ou sentimento pessoal.', level: 0, points: 0, lastReview: null, nextReview: null },
+      {
+        id: 'subj_pc_leg',
+        name: 'Legislação Penal',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_pc_leg_crime',
+            name: 'Teoria do Crime',
+            flashcards: [
+              card('pc_lg_1', 'O que é crime doloso?', 'Crime praticado com intenção (dolo). O agente quer o resultado ou assume o risco de produzi-lo.'),
+              card('pc_lg_2', 'O que é crime culposo?', 'Crime praticado sem intenção, por negligência, imprudência ou imperícia.'),
+              card('pc_lg_3', 'O que é tentativa de crime?', 'Quando o agente inicia a execução do crime, mas não o consuma por circunstâncias alheias à sua vontade.'),
+              card('pc_lg_4', 'O que é iter criminis?', 'Caminho do crime: cogitação → preparação → execução → consumação. Punição começa na execução.'),
+              card('pc_lg_5', 'O que é erro de tipo?', 'Falsa percepção sobre elemento do tipo penal. Exclui o dolo. Ex: achar que objeto alheio é próprio.'),
+              card('pc_lg_6', 'O que é concurso de pessoas?', 'Quando duas ou mais pessoas contribuem para a prática de uma infração penal.'),
+            ],
+          },
+          {
+            id: 'topic_pc_leg_excl',
+            name: 'Excludentes de Ilicitude',
+            flashcards: [
+              card('pc_lg_7', 'O que é legítima defesa?', 'Usar moderadamente os meios necessários para repelir injusta agressão atual ou iminente a direito próprio ou alheio.'),
+              card('pc_lg_8', 'O que é estado de necessidade?', 'Sacrificar bem jurídico alheio para salvar direito próprio ou de terceiro de perigo atual não provocado.'),
+              card('pc_lg_9', 'O que é estrito cumprimento do dever legal?', 'Ação imposta por lei. Ex: policial que usa força autorizada ao prender o suspeito.'),
+              card('pc_lg_10', 'O que é exercício regular de direito?', 'Praticar ato autorizado pelo direito, ainda que cause dano a outrem. Ex: cirurgião em operação.'),
+              card('pc_lg_11', 'O que é coação irresistível?', 'Força física ou moral impossível de resistir que elimina a voluntariedade do ato.'),
+              card('pc_lg_12', 'Qual a diferença entre ilicitude e culpabilidade?', 'Ilicitude: o fato é contrário ao direito. Culpabilidade: o agente pode ser responsabilizado pelo fato ilícito.'),
+            ],
+          },
+          {
+            id: 'topic_pc_leg_penas',
+            name: 'Penas e Aplicação',
+            flashcards: [
+              card('pc_lg_13', 'Quais são as espécies de penas no Código Penal?', 'Penas privativas de liberdade (reclusão e detenção), restritivas de direitos e multa.'),
+              card('pc_lg_14', 'O que é concurso material de crimes?', 'Quando o agente pratica dois ou mais crimes com ações distintas. As penas são somadas.'),
+              card('pc_lg_15', 'O que é concurso formal de crimes?', 'Uma única ação produz dois ou mais crimes. Aplica-se a pena mais grave aumentada de 1/6 a 1/2.'),
+              card('pc_lg_16', 'O que são circunstâncias agravantes?', 'Fatos que aumentam a pena na 2ª fase da dosimetria. Ex: reincidência, crime por motivo fútil, uso de veneno.'),
+              card('pc_lg_17', 'O que são circunstâncias atenuantes?', 'Fatos que diminuem a pena na 2ª fase. Ex: menoridade relativa, confissão espontânea, motivo de relevante valor moral.'),
+              card('pc_lg_18', 'O que é prescrição penal?', 'Perda do direito de punir do Estado pelo decurso do tempo sem exercer a pretensão punitiva ou executória.'),
+            ],
+          },
         ],
       },
     ],
   },
   {
-    id: 'deck_pcsp_2025',
-    name: 'PC-SP - Investigador 2025',
-    subjects: [
-      {
-        id: 'info_pcsp',
-        name: 'Informática',
-        flashcards: [
-            { id: 'inf_001', question: 'O que é um "phishing"?', answer: 'É uma técnica de fraude online para roubar informações pessoais, disfarçando-se de uma entidade confiável.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'inf_002', question: 'Qual a função do "Firewall"?', answer: 'Monitorar e controlar o tráfego de rede, permitindo ou bloqueando comunicações com base em regras de segurança.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'inf_003', question: 'O que é "Hardware"?', answer: 'A parte física de um computador (peças e equipamentos).', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'inf_004', question: 'Qual a diferença entre Internet e Intranet?', answer: 'Internet é a rede mundial de computadores, pública. Intranet é uma rede privada, restrita a uma organização.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'inf_005', question: 'O que significa a sigla "URL"?', answer: 'Uniform Resource Locator (Localizador Padrão de Recursos), é o endereço de um recurso na web.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'inf_006', question: 'Para que serve a tecla de atalho "Ctrl + C"?', answer: 'Para copiar o item selecionado para a área de transferência.', level: 0, points: 0, lastReview: null, nextReview: null },
-        ]
-      },
-      {
-        id: 'crim_pcsp',
-        name: 'Criminologia',
-        flashcards: [
-            { id: 'crm_001', question: 'Quais são os objetos de estudo da Criminologia?', answer: 'O delito, o delinquente, a vítima e o controle social.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'crm_002', question: 'O que é a "cifra negra" da criminalidade?', answer: 'É a porcentagem de crimes que não chegam ao conhecimento oficial do Estado.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'crm_003', question: 'Qual a principal ideia da Escola Clássica da Criminologia?', answer: 'O crime é uma escolha racional do indivíduo (livre-arbítrio).', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'crm_004', question: 'O que é "vitimização primária"?', answer: 'O sofrimento direto causado pelo crime à vítima.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'crm_005', question: 'Quem é considerado o "pai" da Criminologia moderna?', answer: 'Cesare Lombroso.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'crm_006', question: 'O que é o controle social formal?', answer: 'É o controle exercido pelas instituições oficiais do Estado, como a polícia, o judiciário e o sistema prisional.', level: 0, points: 0, lastReview: null, nextReview: null },
-        ]
-      },
-      {
-        id: 'dir_adm_pcsp',
-        name: 'Direito Administrativo',
-        flashcards: [
-            { id: 'dad_001', question: 'Quais são os princípios da Administração Pública expressos no Art. 37 da CF?', answer: 'Legalidade, Impessoalidade, Moralidade, Publicidade e Eficiência (LIMPE).', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'dad_002', question: 'O que é um ato administrativo vinculado?', answer: 'Aquele em que a lei não deixa margem de escolha (liberdade) para o administrador.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'dad_003', question: 'O que é poder de polícia?', answer: 'É a faculdade que a Administração Pública tem de limitar direitos individuais em prol do interesse coletivo.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'dad_004', question: 'Quais são os atributos do ato administrativo?', answer: 'Presunção de legitimidade, Autoexecutoriedade, Tipicidade e Imperatividade (PATI).', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'dad_005', question: 'O que é uma autarquia?', answer: 'Entidade da administração indireta, com personalidade jurídica de direito público, criada por lei para exercer atividades típicas do Estado.', level: 0, points: 0, lastReview: null, nextReview: null },
-            { id: 'dad_006', question: 'O que é a responsabilidade objetiva do Estado?', answer: 'É o dever do Estado de indenizar danos causados por seus agentes, independentemente de dolo ou culpa.', level: 0, points: 0, lastReview: null, nextReview: null },
-        ]
-      }
-    ]
-  },
-  {
-    id: 'deck_prf_2025',
-    name: 'PRF - Policial Rodoviário 2025',
-    subjects: [
-        {
-            id: 'ctb_prf',
-            name: 'Legislação de Trânsito',
-            flashcards: [
-                { id: 'ctb_001', question: 'Qual a velocidade máxima permitida em uma via de trânsito rápido sem sinalização?', answer: '80 km/h.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ctb_002', question: 'O que significa a sigla "RENAVAM"?', answer: 'Registro Nacional de Veículos Automotores.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ctb_003', question: 'Qual o prazo para o proprietário adotar as providências de baixa do registro de veículo irrecuperável?', answer: 'O prazo é de 10 dias.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ctb_004', question: 'Dirigir sob a influência de álcool é qual tipo de infração?', answer: 'Infração gravíssima.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ctb_005', question: 'A faixa de pedestres é um exemplo de que tipo de sinalização?', answer: 'Sinalização horizontal.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ctb_006', question: 'Quem compõe o Sistema Nacional de Trânsito (SNT)?', answer: 'CONTRAN, CETRAN, CONTRANDIFE, órgãos e entidades executivos de trânsito da União, dos Estados, do DF e dos Municípios, PRF, Polícias Militares e JARI.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        },
-        {
-            id: 'fis_prf',
-            name: 'Física',
-            flashcards: [
-                { id: 'fis_001', question: 'Qual a Segunda Lei de Newton?', answer: 'Força resultante é igual a massa vezes aceleração (F = m.a).', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'fis_002', question: 'O que é energia cinética?', answer: 'É a energia associada ao movimento de um corpo.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'fis_003', question: 'O que é atrito estático?', answer: 'É a força de atrito que atua sobre um corpo em repouso, opondo-se ao início do movimento.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'fis_004', question: 'O que diz o princípio da conservação da energia?', answer: 'A energia total de um sistema isolado permanece constante. Ela pode ser transformada, mas não criada ou destruída.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'fis_005', question: 'O que é um MCU (Movimento Circular Uniforme)?', answer: 'É o movimento de um corpo em uma trajetória circular com velocidade escalar constante.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'fis_006', question: 'Qual a unidade de medida de potência no Sistema Internacional?', answer: 'Watt (W).', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        },
-        {
-            id: 'geo_prf',
-            name: 'Geopolítica',
-            flashcards: [
-                { id: 'geo_001', question: 'O que é o MERCOSUL?', answer: 'Bloco econômico sul-americano composto por Brasil, Argentina, Uruguai e Paraguai.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'geo_002', question: 'Qual a principal característica da globalização?', answer: 'A intensificação das trocas (econômicas, culturais, sociais) em escala mundial.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'geo_003', question: 'O que foi a Guerra Fria?', answer: 'Período de disputa político-ideológica entre os Estados Unidos (capitalismo) e a União Soviética (socialismo).', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'geo_004', question: 'O que são os BRICS?', answer: 'Agrupamento de países de mercado emergente: Brasil, Rússia, Índia, China e África do Sul.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'geo_005', question: 'Qual a função da ONU (Organização das Nações Unidas)?', answer: 'Manter a paz e a segurança internacional, promover os direitos humanos e o desenvolvimento sustentável.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'geo_006', question: 'O que é um "Estado-nação"?', answer: 'É um território delimitado por fronteiras, com uma população que compartilha uma identidade cultural e um governo soberano.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        }
-    ]
-  },
-  {
-    id: 'deck_bb_2025',
-    name: 'Banco do Brasil - Escriturário 2025',
-    subjects: [
-        {
-            id: 'con_banc_bb',
-            name: 'Conhecimentos Bancários',
-            flashcards: [
-                { id: 'cb_001', question: 'O que é a Taxa SELIC?', answer: 'É a taxa básica de juros da economia brasileira, usada como referência para outras taxas.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'cb_002', question: 'Qual a função do Banco Central do Brasil?', answer: 'Garantir a estabilidade do poder de compra da moeda e a solidez do sistema financeiro nacional.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'cb_003', question: 'O que é o FGC (Fundo Garantidor de Créditos)?', answer: 'É uma entidade que garante depósitos e investimentos em instituições financeiras até um certo limite.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'cb_004', question: 'O que é um CDB (Certificado de Depósito Bancário)?', answer: 'É um título de renda fixa emitido por bancos para captar recursos.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'cb_005', question: 'Qual a diferença entre conta corrente e conta poupança?', answer: 'Conta corrente é para transações diárias. Conta poupança é para guardar dinheiro e render juros.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'cb_006', question: 'O que é o PIX?', answer: 'É o sistema de pagamentos instantâneos brasileiro, que funciona 24/7.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        },
-        {
-            id: 'mat_fin_bb',
-            name: 'Matemática Financeira',
-            flashcards: [
-                { id: 'mf_001', question: 'Qual a fórmula dos juros simples?', answer: 'J = C * i * t (Juros = Capital * taxa * tempo).', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'mf_002', question: 'Qual a fórmula do montante nos juros compostos?', answer: 'M = C * (1 + i)^t.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'mf_003', question: 'O que é "amortização"?', answer: 'É o processo de pagamento de uma dívida através de prestações periódicas.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'mf_004', question: 'O que é taxa nominal?', answer: 'É a taxa de juros declarada em uma operação financeira, sem considerar a capitalização.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'mf_005', question: 'O que é taxa efetiva?', answer: 'É a taxa real de juros, considerando o período de capitalização.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'mf_006', question: 'O que é o VPL (Valor Presente Líquido)?', answer: 'É um método para analisar a viabilidade de projetos de investimento, trazendo todos os fluxos de caixa futuros para o valor presente.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        },
-        {
-            id: 'atend_bb',
-            name: 'Técnicas de Vendas e Atendimento',
-            flashcards: [
-                { id: 'at_001', question: 'O que é "rapport"?', answer: 'É a criação de uma conexão de empatia e confiança com o cliente.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'at_002', question: 'Cite uma etapa do funil de vendas.', answer: 'Topo (Atração), Meio (Consideração) ou Fundo (Decisão/Conversão).', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'at_003', question: 'O que é "cross-selling"?', answer: 'É a venda de um produto ou serviço complementar ao que o cliente já está comprando.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'at_004', question: 'O que é "up-selling"?', answer: 'É a oferta de uma versão mais avançada (e cara) do produto que o cliente pretende comprar.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'at_005', question: 'O que significa a sigla "CRM"?', answer: 'Customer Relationship Management (Gestão de Relacionamento com o Cliente).', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'at_006', question: 'O que é um "gatilho mental"?', answer: 'É um estímulo que influencia a tomada de decisão de uma pessoa. Ex: Escassez, Urgência, Prova Social.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        }
-    ]
-  },
-  {
-    id: 'deck_inss_2025',
+    id: 'deck_inss',
     name: 'INSS - Técnico do Seguro Social 2025',
+    category: 'administrativo',
+    isDefaultDeck: true,
+    isUserCreated: false,
     subjects: [
-        {
-            id: 'seg_soc_inss',
-            name: 'Seguridade Social',
+      {
+        id: 'subj_inss_port',
+        name: 'Português',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_inss_port_coes',
+            name: 'Coesão e Coerência',
             flashcards: [
-                { id: 'ss_001', question: 'Quais são os 3 pilares da Seguridade Social?', answer: 'Saúde, Previdência Social e Assistência Social.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ss_002', question: 'A Saúde é um direito de todos e dever de quem?', answer: 'Dever do Estado.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ss_003', question: 'A Previdência Social tem caráter contributivo?', answer: 'Sim, é necessário contribuir para ter direito aos benefícios.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ss_004', question: 'A Assistência Social exige contribuição?', answer: 'Não, ela é destinada a quem dela necessitar, independentemente de contribuição.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ss_005', question: 'O que é o princípio da universalidade da cobertura e do atendimento?', answer: 'A Seguridade Social deve abranger todas as pessoas e todas as contingências sociais (riscos).', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'ss_006', question: 'O que é o BPC/LOAS?', answer: 'Benefício de Prestação Continuada, garantido pela Lei Orgânica da Assistência Social, para idosos e pessoas com deficiência de baixa renda.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        },
-        {
-            id: 'dir_prev_inss',
-            name: 'Direito Previdenciário',
+              card('inss_pt_1', 'O que é coesão textual?', 'Ligação e harmonia entre palavras e frases do texto, usando conectivos, pronomes e outros recursos.'),
+              card('inss_pt_2', 'O que é coerência textual?', 'Lógica e sentido do texto como um todo. Um texto coerente não tem contradições.'),
+              card('inss_pt_3', 'O que são conjunções adversativas?', 'Conectam orações com ideias opostas. Principais: mas, porém, contudo, entretanto, todavia.'),
+              card('inss_pt_4', 'O que são conjunções conclusivas?', 'Indicam conclusão. Principais: portanto, logo, assim, então, pois (posposto ao verbo).'),
+              card('inss_pt_5', 'O que são conjunções explicativas?', 'Indicam explicação ou causa. Principais: porque, pois (anteposto ao verbo), que, porquanto.'),
+              card('inss_pt_6', 'O que são conjunções causais?', 'Introduzem a causa do fato principal. Principais: porque, visto que, já que, como, porquanto.'),
+            ],
+          },
+          {
+            id: 'topic_inss_port_sint',
+            name: 'Sintaxe e Vozes Verbais',
             flashcards: [
-                { id: 'dp_001', question: 'O que é "período de graça"?', answer: 'É o período em que o segurado mantém sua qualidade de segurado mesmo sem contribuir para o INSS.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dp_002', question: 'O que é "carência"?', answer: 'É o número mínimo de contribuições mensais para que o segurado tenha direito a um benefício.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dp_003', question: 'Quais são os tipos de segurados obrigatórios do RGPS?', answer: 'Empregado, empregado doméstico, contribuinte individual, trabalhador avulso e segurado especial.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dp_004', question: 'O que é o Salário de Benefício?', answer: 'É a base de cálculo para a renda mensal da maioria dos benefícios previdenciários.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dp_005', question: 'Pensão por morte exige carência?', answer: 'Não, em regra geral.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dp_006', question: 'O que é aposentadoria por incapacidade permanente?', answer: 'É o benefício concedido ao segurado que é considerado incapaz e insusceptível de reabilitação para o exercício de atividade que lhe garanta a subsistência.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        },
-        {
-            id: 'port_inss',
-            name: 'Língua Portuguesa',
+              card('inss_pt_7', 'O que é voz passiva analítica?', 'Construída com verbo ser + particípio. Ex: "O processo foi analisado pelo técnico."'),
+              card('inss_pt_8', 'O que é voz passiva sintética?', 'Construída com verbo + se (partícula apassivadora). Ex: "Analisa-se o processo."'),
+              card('inss_pt_9', 'O que é voz ativa?', 'O sujeito pratica a ação. Ex: "O técnico analisou o processo."'),
+              card('inss_pt_10', 'Como transformar voz ativa em passiva analítica?', 'O objeto direto vira sujeito, o verbo recebe auxiliar "ser" + particípio, o sujeito vira agente da passiva.'),
+              card('inss_pt_11', 'O que é aposto?', 'Termo que explica, resume ou esclarece outro. Ex: "O INSS, instituto federal, paga benefícios."'),
+              card('inss_pt_12', 'O que é complemento nominal?', 'Completa o sentido de nome (substantivo, adjetivo ou advérbio) com preposição. Ex: "Necessidade de documentos."'),
+            ],
+          },
+          {
+            id: 'topic_inss_port_morf',
+            name: 'Morfologia',
             flashcards: [
-                { id: 'pt_inss_001', question: 'O que é um vocativo?', answer: 'É um termo usado para chamar ou interpelar o interlocutor. Ex: "Maria, venha cá!"', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'pt_inss_002', question: 'Qual a regra de acentuação das proparoxítonas?', answer: 'Todas as proparoxítonas são acentuadas.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'pt_inss_003', question: 'O que é coesão textual?', answer: 'É a ligação gramatical entre os elementos de um texto (palavras, frases, parágrafos).', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'pt_inss_004', question: 'O que é coerência textual?', answer: 'É a relação lógica e de sentido entre as ideias de um texto.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'pt_inss_005', question: 'Qual a diferença entre "sessão", "seção" e "cessão"?', answer: 'Sessão: tempo de uma reunião. Seção: parte, divisão. Cessão: ato de ceder.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'pt_inss_006', question: 'O que é uma metáfora?', answer: 'É uma figura de linguagem que consiste em uma comparação implícita. Ex: "A vida é uma nuvem que voa."', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        }
-    ]
+              card('inss_pt_13', 'O que é pronome relativo?', 'Substitui um antecedente e introduz oração subordinada. Ex: que, quem, cujo, onde, o qual.'),
+              card('inss_pt_14', 'Qual o uso correto de "cujo"?', '"Cujo" indica posse e concorda com o substantivo que o segue, não com o antecedente. Nunca se usa artigo após "cujo".'),
+              card('inss_pt_15', 'O que é advérbio de intensidade?', 'Modifica adjetivo ou advérbio indicando grau. Ex: muito, pouco, bastante, demais, tão, quão.'),
+              card('inss_pt_16', 'O que é numeral ordinal?', 'Indica posição ou ordem. Ex: primeiro, segundo, décimo, vigésimo, centésimo.'),
+              card('inss_pt_17', 'O que é artigo definido?', 'Determina o substantivo de modo preciso: o, a, os, as. Ex: "O benefício foi aprovado."'),
+              card('inss_pt_18', 'O que é artigo indefinido?', 'Determina o substantivo de modo vago: um, uma, uns, umas. Ex: "Um requerimento foi recebido."'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_inss_prev',
+        name: 'Previdência Social',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_inss_prev_benef',
+            name: 'Benefícios por Incapacidade',
+            flashcards: [
+              card('inss_pv_1', 'O que é auxílio-doença?', 'Benefício pago ao segurado incapacitado para o trabalho por mais de 15 dias consecutivos, com carência de 12 meses.'),
+              card('inss_pv_2', 'O que é aposentadoria por invalidez?', 'Benefício ao segurado incapaz de forma permanente e irrecuperável para qualquer atividade laboral.'),
+              card('inss_pv_3', 'O que é acidente de trabalho para o INSS?', 'Evento que ocorre no exercício do trabalho, causando lesão ou perturbação funcional. Não exige carência.'),
+              card('inss_pv_4', 'O que é carência?', 'Número mínimo de contribuições mensais para ter direito ao benefício. Varia conforme o benefício.'),
+              card('inss_pv_5', 'O que é qualidade de segurado?', 'Condição de estar vinculado ao RGPS, mantida até 12 meses após última contribuição (período de graça).'),
+              card('inss_pv_6', 'O que é período de graça?', 'Período em que o segurado mantém a qualidade mesmo sem contribuir. Varia de 12 a 36 meses.'),
+            ],
+          },
+          {
+            id: 'topic_inss_prev_aposen',
+            name: 'Aposentadorias',
+            flashcards: [
+              card('inss_pv_7', 'O que é aposentadoria por idade?', 'Benefício ao segurado com 65 anos (homem) ou 62 anos (mulher) e carência de 180 contribuições mensais.'),
+              card('inss_pv_8', 'O que é aposentadoria por tempo de contribuição?', 'Após a EC 103/2019, substituída pela aposentadoria programada com pontos mínimos (86/96 pontos).'),
+              card('inss_pv_9', 'O que é aposentadoria especial?', 'Concedida ao segurado exposto a agentes nocivos à saúde, com carência de 180 meses.'),
+              card('inss_pv_10', 'Quem são os segurados obrigatórios do RGPS?', 'Empregados, empregados domésticos, contribuintes individuais, trabalhadores avulsos e segurados especiais.'),
+              card('inss_pv_11', 'O que é segurado especial?', 'Trabalhador rural em regime de economia familiar, sem usar mão de obra assalariada de forma permanente.'),
+              card('inss_pv_12', 'O que é salário de contribuição?', 'Base de cálculo das contribuições previdenciárias do trabalhador, limitado ao teto do RGPS.'),
+            ],
+          },
+          {
+            id: 'topic_inss_prev_aux',
+            name: 'Pensões e Auxílios',
+            flashcards: [
+              card('inss_pv_13', 'O que é pensão por morte?', 'Benefício pago aos dependentes do segurado falecido. Não exige carência quando o segurado tinha qualidade.'),
+              card('inss_pv_14', 'O que é salário-maternidade?', 'Benefício de 120 dias pago à segurada por nascimento, adoção ou guarda judicial de criança.'),
+              card('inss_pv_15', 'O que é salário-família?', 'Benefício pago ao segurado de baixa renda por filho ou equiparado de até 14 anos ou inválido.'),
+              card('inss_pv_16', 'O que é auxílio-reclusão?', 'Benefício pago aos dependentes do segurado de baixa renda que cumpre pena de reclusão ou detenção.'),
+              card('inss_pv_17', 'Quem são os dependentes previdenciários de 1ª classe?', 'Cônjuge, companheiro(a) e filhos não emancipados de até 21 anos ou inválidos ou deficientes.'),
+              card('inss_pv_18', 'O que é BPC (Benefício de Prestação Continuada)?', 'Benefício assistencial de 1 salário mínimo à pessoa idosa (65+) ou deficiente em situação de baixa renda.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_inss_info',
+        name: 'Informática',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_inss_info_seg',
+            name: 'Segurança da Informação',
+            flashcards: [
+              card('inss_if_1', 'O que é phishing?', 'Golpe virtual onde criminosos se passam por entidades confiáveis para roubar dados pessoais e senhas.'),
+              card('inss_if_2', 'O que é ransomware?', 'Malware que criptografa arquivos da vítima e exige pagamento de resgate para liberação.'),
+              card('inss_if_3', 'O que é backup?', 'Cópia de segurança de dados para proteção contra perda por falha, acidente ou ataque.'),
+              card('inss_if_4', 'O que é autenticação de dois fatores (2FA)?', 'Exige dois métodos de verificação: algo que você sabe (senha) + algo que você tem (código no celular).'),
+              card('inss_if_5', 'O que é firewall?', 'Sistema de segurança que monitora e controla o tráfego de rede com base em regras definidas.'),
+              card('inss_if_6', 'O que é criptografia?', 'Técnica que transforma dados legíveis em código ilegível para proteger informações durante transmissão ou armazenamento.'),
+            ],
+          },
+          {
+            id: 'topic_inss_info_sis',
+            name: 'Sistemas e Redes',
+            flashcards: [
+              card('inss_if_7', 'O que é um sistema operacional?', 'Software que gerencia os recursos do computador e serve de interface entre hardware e usuário. Ex: Windows, Linux.'),
+              card('inss_if_8', 'Qual a diferença entre HTTP e HTTPS?', 'HTTPS é a versão segura do HTTP, usa criptografia SSL/TLS para proteger dados transmitidos.'),
+              card('inss_if_9', 'O que é IP (Internet Protocol)?', 'Protocolo que identifica cada dispositivo na rede por meio de um endereço numérico único.'),
+              card('inss_if_10', 'O que é DNS?', 'Sistema de Nomes de Domínio — traduz endereços de sites (como www.inss.gov.br) para endereços IP.'),
+              card('inss_if_11', 'O que é cloud computing?', 'Armazenamento e processamento de dados em servidores remotos acessados via internet, sem hardware local.'),
+              card('inss_if_12', 'O que é VPN?', 'Rede Privada Virtual — cria túnel criptografado para navegação segura, como se o usuário estivesse em rede privada.'),
+            ],
+          },
+          {
+            id: 'topic_inss_info_escr',
+            name: 'Aplicativos de Escritório',
+            flashcards: [
+              card('inss_if_13', 'O que é planilha eletrônica?', 'Programa para organizar dados em linhas e colunas com cálculos automáticos. Ex: Microsoft Excel, LibreOffice Calc.'),
+              card('inss_if_14', 'O que é um arquivo .PDF?', 'Portable Document Format — mantém formatação original em qualquer dispositivo, ideal para documentos oficiais.'),
+              card('inss_if_15', 'O que é editor de texto?', 'Software para criar, editar e formatar documentos. Ex: Microsoft Word, LibreOffice Writer, Google Docs.'),
+              card('inss_if_16', 'O que é CTRL+C e CTRL+V?', 'Atalhos de teclado para copiar (CTRL+C) e colar (CTRL+V) conteúdo selecionado no computador.'),
+              card('inss_if_17', 'O que é extensão de arquivo?', 'Sufixo após o ponto que indica o tipo de arquivo. Ex: .docx (Word), .xlsx (Excel), .pdf (PDF), .jpg (imagem).'),
+              card('inss_if_18', 'O que é e-mail institucional?', 'Endereço de correio eletrônico fornecido pela organização para comunicações oficiais. Ex: nome@inss.gov.br.'),
+            ],
+          },
+        ],
+      },
+    ],
   },
-   {
-    id: 'deck_tjmg_2025',
+  {
+    id: 'deck_tjmg',
     name: 'TJ-MG - Oficial de Justiça 2025',
+    category: 'justica',
+    isDefaultDeck: true,
+    isUserCreated: false,
     subjects: [
-        {
-            id: 'proc_civil_tjmg',
-            name: 'Direito Processual Civil',
+      {
+        id: 'subj_tjmg_dir',
+        name: 'Direito Civil',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_tj_dir_pes',
+            name: 'Pessoas e Capacidade',
             flashcards: [
-                { id: 'dpc_001', question: 'Quais são os condições da ação?', answer: 'Legitimidade das partes e interesse de agir.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpc_002', question: 'O que é "citação"?', answer: 'É o ato pelo qual se convoca o réu, o executado ou o interessado para integrar a relação processual.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpc_003', question: 'O que é "litispendência"?', answer: 'Ocorre quando se reproduz uma ação idêntica a outra que já está em curso.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpc_004', question: 'Qual o prazo geral para contestação no procedimento comum?', answer: '15 dias úteis.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpc_005', question: 'O que é "revelia"?', answer: 'É a ausência de contestação por parte do réu, gerando a presunção de veracidade dos fatos alegados pelo autor.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpc_006', question: 'O que é "coisa julgada"?', answer: 'É a qualidade que torna imutável e indiscutível a decisão de mérito não mais sujeita a recurso.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        },
-        {
-            id: 'proc_penal_tjmg',
-            name: 'Direito Processual Penal',
+              card('tj_dc_1', 'O que é pessoa natural?', 'Todo ser humano com capacidade de ter direitos e deveres. A personalidade começa com o nascimento com vida.'),
+              card('tj_dc_2', 'O que é pessoa jurídica?', 'Entidade abstrata com personalidade jurídica própria. Ex: empresas, associações, fundações.'),
+              card('tj_dc_3', 'O que é capacidade civil plena?', 'Aptidão para exercer pessoalmente todos os atos da vida civil. Adquire-se aos 18 anos.'),
+              card('tj_dc_4', 'O que é domicílio civil?', 'Local onde a pessoa estabelece sua residência com ânimo definitivo, ou onde exerce sua atividade profissional.'),
+              card('tj_dc_5', 'O que é emancipação?', 'Aquisição da capacidade plena antes dos 18 anos por: casamento, exercício de emprego público, colação de grau, etc.'),
+              card('tj_dc_6', 'O que é ausência?', 'Situação jurídica de quem desaparece sem deixar notícia. Passa pelas fases de curadoria, sucessão provisória e definitiva.'),
+            ],
+          },
+          {
+            id: 'topic_tj_dir_neg',
+            name: 'Negócio Jurídico e Prazos',
             flashcards: [
-                { id: 'dpp_001', question: 'O que é o inquérito policial?', answer: 'Procedimento administrativo, presidido pelo delegado de polícia, que visa apurar a existência de uma infração penal e sua autoria.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpp_002', question: 'O inquérito policial é indispensável para a propositura da ação penal?', answer: 'Não, ele é dispensável se o Ministério Público já tiver elementos suficientes.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpp_003', question: 'O que é a "denúncia"?', answer: 'É a peça inicial da ação penal pública, oferecida pelo Ministério Público.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpp_004', question: 'O que é a "queixa-crime"?', answer: 'É a peça inicial da ação penal privada, oferecida pela vítima (querelante).', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpp_005', question: 'O que é a prisão em flagrante?', answer: 'É a prisão daquele que está cometendo a infração penal, ou acaba de cometê-la.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'dpp_006', question: 'O que é o "habeas corpus"?', answer: 'É uma ação constitucional (remédio) para proteger o direito à liberdade de locomoção contra ilegalidade ou abuso de poder.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        },
-        {
-            id: 'org_jud_tjmg',
-            name: 'Organização Judiciária',
+              card('tj_dc_7', 'O que é negócio jurídico?', 'Ato lícito com declaração de vontade destinado a produzir efeitos jurídicos. Ex: contrato, testamento.'),
+              card('tj_dc_8', 'Quais são os elementos essenciais do negócio jurídico?', 'Agente capaz, objeto lícito e possível, forma prescrita ou não defesa em lei.'),
+              card('tj_dc_9', 'O que é vício de consentimento?', 'Defeito que compromete a livre manifestação de vontade. Ex: erro, dolo, coação, estado de perigo, lesão.'),
+              card('tj_dc_10', 'O que é prescrição?', 'Perda da pretensão (direito de ação) pelo decurso do tempo sem exercê-la.'),
+              card('tj_dc_11', 'O que é decadência?', 'Extinção do próprio direito pelo não exercício no prazo legal. Não se suspende nem se interrompe em regra.'),
+              card('tj_dc_12', 'Qual a diferença entre prescrição e decadência?', 'Prescrição extingue a pretensão (ação). Decadência extingue o próprio direito. Prescrição pode ser suspensa; decadência, em regra, não.'),
+            ],
+          },
+          {
+            id: 'topic_tj_dir_obr',
+            name: 'Obrigações e Responsabilidade Civil',
             flashcards: [
-                { id: 'oj_001', question: 'Qual o órgão máximo do Poder Judiciário brasileiro?', answer: 'O Supremo Tribunal Federal (STF).', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'oj_002', question: 'Qual a função do Superior Tribunal de Justiça (STJ)?', answer: 'Uniformizar a interpretação da lei federal em todo o Brasil.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'oj_003', question: 'O que são os Juizados Especiais Cíveis?', answer: 'Órgãos para conciliação, julgamento e execução de causas cíveis de menor complexidade.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'oj_004', question: 'A quem compete processar e julgar os crimes dolosos contra a vida?', answer: 'Ao Tribunal do Júri.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'oj_005', question: 'O que é a "quinta constitucional"?', answer: 'É a regra que destina um quinto das vagas de certos tribunais a membros do Ministério Público e da advocacia.', level: 0, points: 0, lastReview: null, nextReview: null },
-                { id: 'oj_006', question: 'Qual a função do Conselho Nacional de Justiça (CNJ)?', answer: 'Realizar o controle da atuação administrativa e financeira do Poder Judiciário e do cumprimento dos deveres funcionais dos juízes.', level: 0, points: 0, lastReview: null, nextReview: null },
-            ]
-        }
-    ]
-  }
+              card('tj_dc_13', 'O que é obrigação?', 'Vínculo jurídico que impõe ao devedor o cumprimento de uma prestação patrimonial em favor do credor.'),
+              card('tj_dc_14', 'Quais as modalidades de obrigações quanto ao objeto?', 'Dar (coisa certa ou incerta), fazer e não fazer.'),
+              card('tj_dc_15', 'O que é mora?', 'Atraso injustificado no cumprimento da obrigação. A mora do devedor (mora solvendi) gera dever de indenizar.'),
+              card('tj_dc_16', 'O que é responsabilidade civil subjetiva?', 'Obriga a indenizar quando há ato ilícito, dano e nexo causal, exigindo prova de culpa ou dolo.'),
+              card('tj_dc_17', 'O que é responsabilidade civil objetiva?', 'Obriga a indenizar independentemente de culpa, bastando ato, dano e nexo causal. Ex: consumidor, transportador.'),
+              card('tj_dc_18', 'O que é dano moral?', 'Lesão aos direitos da personalidade (honra, imagem, intimidade) que gera sofrimento psíquico e direito à indenização.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_tjmg_proc',
+        name: 'Direito Processual Civil',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_tj_proc_comp',
+            name: 'Competência e Partes',
+            flashcards: [
+              card('tj_pc_1', 'O que é competência jurisdicional?', 'Medida da jurisdição que delimita o poder de cada juiz ou tribunal de julgar determinadas causas.'),
+              card('tj_pc_2', 'O que é competência absoluta?', 'Não pode ser modificada por vontade das partes. Ex: competência em razão da matéria ou hierarquia funcional.'),
+              card('tj_pc_3', 'O que é competência relativa?', 'Pode ser modificada por eleição de foro, prorrogação ou conexão/continência. Ex: competência territorial.'),
+              card('tj_pc_4', 'O que é litisconsórcio?', 'Pluralidade de partes num mesmo polo (ativo ou passivo) do processo. Pode ser facultativo ou necessário.'),
+              card('tj_pc_5', 'O que é legitimidade ad causam?', 'Pertinência subjetiva da ação: o autor deve ser o titular do direito e o réu o responsável pela obrigação.'),
+              card('tj_pc_6', 'O que é interesse processual?', 'Necessidade e utilidade da tutela jurisdicional. Ausência gera extinção sem resolução do mérito.'),
+            ],
+          },
+          {
+            id: 'topic_tj_proc_atos',
+            name: 'Atos Processuais',
+            flashcards: [
+              card('tj_pc_7', 'O que é citação?', 'Ato pelo qual o réu é chamado a integrar a relação processual e tomar conhecimento da ação proposta.'),
+              card('tj_pc_8', 'O que é intimação?', 'Ato pelo qual se dá ciência a alguém sobre atos do processo para que faça ou deixe de fazer alguma coisa.'),
+              card('tj_pc_9', 'O que é petição inicial?', 'Peça inaugural do processo, onde o autor expõe os fatos, o pedido e o fundamento jurídico da ação.'),
+              card('tj_pc_10', 'O que é contestação?', 'Resposta do réu em que pode alegar defesas processuais e de mérito contra os pedidos do autor.'),
+              card('tj_pc_11', 'O que é sentença?', 'Pronunciamento do juiz que encerra a fase de conhecimento do processo, decidindo ou não o mérito.'),
+              card('tj_pc_12', 'O que é coisa julgada?', 'Imutabilidade da decisão judicial após esgotamento dos recursos ou decurso do prazo sem interposição.'),
+            ],
+          },
+          {
+            id: 'topic_tj_proc_rec',
+            name: 'Recursos',
+            flashcards: [
+              card('tj_pc_13', 'O que é recurso de apelação?', 'Recurso cabível contra sentença, dirigido ao tribunal de segundo grau para reexame da decisão.'),
+              card('tj_pc_14', 'O que são embargos de declaração?', 'Recurso para sanar omissão, contradição, obscuridade ou erro material na decisão judicial.'),
+              card('tj_pc_15', 'O que é agravo de instrumento?', 'Recurso cabível contra decisões interlocutórias que causem lesão grave e de difícil reparação.'),
+              card('tj_pc_16', 'O que é recurso especial (REsp)?', 'Recurso ao STJ para uniformizar a interpretação da lei federal quando houver violação ou divergência.'),
+              card('tj_pc_17', 'O que é recurso extraordinário (RE)?', 'Recurso ao STF para questões constitucionais, quando a decisão contraria a Constituição Federal.'),
+              card('tj_pc_18', 'O que é efeito suspensivo do recurso?', 'Suspende a eficácia da decisão recorrida enquanto o recurso está pendente de julgamento.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_tjmg_port',
+        name: 'Português',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_tj_port_sint',
+            name: 'Sintaxe Oracional',
+            flashcards: [
+              card('tj_pt_1', 'O que é período simples?', 'Oração com apenas um verbo (ou locução verbal). Ex: "O oficial cumpriu o mandado."'),
+              card('tj_pt_2', 'O que é período composto por coordenação?', 'Orações independentes ligadas por conjunções coordenativas ou justapostas.'),
+              card('tj_pt_3', 'O que é período composto por subordinação?', 'Uma oração principal e pelo menos uma subordinada, que dela depende sintaticamente.'),
+              card('tj_pt_4', 'O que é oração subordinada adverbial causal?', 'Indica causa do fato principal. Introduzida por: porque, pois, visto que, já que, como.'),
+              card('tj_pt_5', 'O que é oração subordinada adverbial concessiva?', 'Indica concessão/contraste. Introduzida por: embora, ainda que, mesmo que, apesar de que.'),
+              card('tj_pt_6', 'O que é oração subordinada adjetiva restritiva?', 'Restringe o sentido do antecedente, sem vírgulas. Ex: "O processo que chegou hoje é urgente."'),
+            ],
+          },
+          {
+            id: 'topic_tj_port_conc',
+            name: 'Concordância e Regência',
+            flashcards: [
+              card('tj_pt_7', 'O que é concordância verbal?', 'O verbo deve concordar em número e pessoa com o sujeito da oração.'),
+              card('tj_pt_8', 'O que é concordância nominal?', 'Adjetivo, artigo, numeral e pronome concordam em gênero e número com o substantivo.'),
+              card('tj_pt_9', 'O que é regência verbal?', 'Relação de dependência entre o verbo e seus complementos, com ou sem preposição.'),
+              card('tj_pt_10', 'O que é crase?', 'Fusão da preposição "a" com o artigo "a" feminino, indicada pelo acento grave (à).'),
+              card('tj_pt_11', 'O que é colocação pronominal?', 'Posição dos pronomes oblíquos em relação ao verbo: próclise, mesóclise ou ênclise.'),
+              card('tj_pt_12', 'O que é paralelismo sintático?', 'Correspondência de estruturas gramaticais em elementos coordenados ou em listas. Garante clareza e coesão.'),
+            ],
+          },
+          {
+            id: 'topic_tj_port_pont',
+            name: 'Pontuação e Estilo',
+            flashcards: [
+              card('tj_pt_13', 'O vocativo exige vírgula?', 'Sim, sempre. Ex: "Doutor, assine o documento." / "O documento, doutor, foi entregue."'),
+              card('tj_pt_14', 'Quando usar ponto e vírgula?', 'Para separar orações coordenadas longas ou itens de enumeração complexa.'),
+              card('tj_pt_15', 'Quando usar dois pontos?', 'Antes de enumeração, citação, explicação ou fala de personagem.'),
+              card('tj_pt_16', 'O aposto explicativo exige vírgulas?', 'Sim, é isolado por vírgulas. Ex: "O TJ-MG, tribunal mineiro, julgou o recurso."'),
+              card('tj_pt_17', 'O que é pontuação de vocativo?', 'Vocativo é sempre separado por vírgulas. Ex: "João, venha aqui." / "Venha aqui, João."'),
+              card('tj_pt_18', 'Quando NÃO usar vírgula?', 'Nunca entre sujeito e verbo, nem entre verbo e objeto direto sem expressões intercaladas.'),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'deck_prf',
+    name: 'PRF - Policial Rodoviário 2025',
+    category: 'seguranca',
+    isDefaultDeck: true,
+    isUserCreated: false,
+    subjects: [
+      {
+        id: 'subj_prf_port',
+        name: 'Português',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_prf_port_sem',
+            name: 'Semântica',
+            flashcards: [
+              card('prf_pt_1', 'O que é denotação?', 'Sentido literal e objetivo das palavras, registrado no dicionário.'),
+              card('prf_pt_2', 'O que é conotação?', 'Sentido figurado, subjetivo e contextual das palavras.'),
+              card('prf_pt_3', 'O que é ambiguidade?', 'Duplo sentido em uma frase por má colocação de termos. Ex: "Vi o homem com o telescópio."'),
+              card('prf_pt_4', 'O que é sinonímia?', 'Relação entre palavras de sentido semelhante. Ex: carro e automóvel.'),
+              card('prf_pt_5', 'O que é antonímia?', 'Relação entre palavras de sentido oposto. Ex: rápido e lento.'),
+              card('prf_pt_6', 'O que é polissemia?', 'Uma palavra com vários sentidos dependendo do contexto. Ex: "manga" (fruta, parte da camisa).'),
+            ],
+          },
+          {
+            id: 'topic_prf_port_pron',
+            name: 'Pronomes e Referência',
+            flashcards: [
+              card('prf_pt_7', 'O que são pronomes relativos?', 'Substituem um antecedente e introduzem oração subordinada. Ex: que, quem, cujo, onde, o qual.'),
+              card('prf_pt_8', 'Qual o uso correto de "cujo"?', '"Cujo" indica posse e concorda com o substantivo que o segue, não com o antecedente.'),
+              card('prf_pt_9', 'O que é pronome demonstrativo?', 'Indica posição no espaço, no tempo ou no texto. Ex: este (perto), esse (médio), aquele (longe).'),
+              card('prf_pt_10', 'O que é referência anafórica?', 'Quando um termo retoma outro já mencionado anteriormente no texto.'),
+              card('prf_pt_11', 'O que é referência catafórica?', 'Quando um termo antecipa outro que será mencionado adiante no texto.'),
+              card('prf_pt_12', 'Qual a diferença entre "onde" e "aonde"?', '"Onde" indica lugar em que se está (repouso). "Aonde" indica lugar para onde se vai (movimento).'),
+            ],
+          },
+          {
+            id: 'topic_prf_port_fig',
+            name: 'Figuras de Linguagem',
+            flashcards: [
+              card('prf_pt_13', 'O que é metáfora?', 'Substituição de um termo por outro com base em semelhança implícita, sem comparativo. Ex: "Ele é uma rocha."'),
+              card('prf_pt_14', 'O que é metonímia?', 'Substituição de um termo por outro com base em relação de contiguidade. Ex: "Ler Machado de Assis" (obras).'),
+              card('prf_pt_15', 'O que é hipérbole?', 'Exagero intencional para dar ênfase. Ex: "Estou morrendo de saudade."'),
+              card('prf_pt_16', 'O que é eufemismo?', 'Substituição de expressão rude por outra mais suave. Ex: "ele partiu" em vez de "ele morreu".'),
+              card('prf_pt_17', 'O que é antítese?', 'Aproximação de ideias opostas no mesmo contexto. Ex: "O policial era forte, mas gentil."'),
+              card('prf_pt_18', 'O que são figuras de linguagem?', 'Recursos expressivos que ampliam o sentido das palavras para criar efeitos estilísticos. Ex: metáfora, ironia.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_prf_leg',
+        name: 'Legislação de Trânsito',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_prf_leg_ctb',
+            name: 'CTB e Infrações',
+            flashcards: [
+              card('prf_lg_1', 'O que é o CTB?', 'Código de Trânsito Brasileiro — Lei 9.503/97. Regulamenta o trânsito em todo território nacional.'),
+              card('prf_lg_2', 'O que é infração gravíssima?', 'Infração com fator multiplicador 7 na pontuação. Ex: dirigir embriagado, ultrapassar sinal vermelho.'),
+              card('prf_lg_3', 'O que é infração grave?', 'Infração com fator multiplicador 5. Ex: ultrapassar pela direita, não usar cinto de segurança.'),
+              card('prf_lg_4', 'Quantos pontos acumulados suspendem a CNH?', '20 pontos em 12 meses suspendem a CNH. Motoristas profissionais têm limite de 30 pontos.'),
+              card('prf_lg_5', 'O que é ultrapassagem proibida?', 'Manobra proibida em locais como curvas, pontes, viadutos, túneis e interseções sem sinalização adequada.'),
+              card('prf_lg_6', 'O que é infração leve?', 'Infração com fator multiplicador 1. Ex: usar buzina em local proibido, transitar na contramão em vias de mão única.'),
+            ],
+          },
+          {
+            id: 'topic_prf_leg_vel',
+            name: 'Velocidades e Habilitação',
+            flashcards: [
+              card('prf_lg_7', 'Qual a velocidade máxima em rodovias federais?', '110 km/h para automóveis, 90 km/h para ônibus e caminhões.'),
+              card('prf_lg_8', 'O que é a Lei Seca?', 'Proíbe dirigir com qualquer concentração de álcool no sangue. Infração gravíssima com multa e suspensão.'),
+              card('prf_lg_9', 'Quais as categorias de CNH?', 'A (moto), B (carro), C (caminhão), D (ônibus), E (combinado). Especial para PcD.'),
+              card('prf_lg_10', 'O que é blitz da PRF?', 'Operação de fiscalização rodoviária para verificar documentação, condições do veículo e estado do condutor.'),
+              card('prf_lg_11', 'Quais documentos são obrigatórios ao trafegar?', 'CNH ou permissão, CRLV (licenciamento), seguro obrigatório (DPVAT já extinto, verificar atualização).'),
+              card('prf_lg_12', 'O que é cassação da CNH?', 'Perda definitiva do direito de dirigir. Acontece em casos graves como homicídio culposo com agravante.'),
+            ],
+          },
+          {
+            id: 'topic_prf_leg_sin',
+            name: 'Sinalização e Segurança',
+            flashcards: [
+              card('prf_lg_13', 'O que é sinal vermelho?', 'Parada obrigatória antes da faixa de pedestres. Avançar é infração gravíssima.'),
+              card('prf_lg_14', 'O que é sinal amarelo?', 'Atenção — indica que o sinal mudará para vermelho. Deve-se reduzir a velocidade e preparar para parar.'),
+              card('prf_lg_15', 'O que é faixa de pedestres?', 'Área demarcada para travessia de pedestres. O motorista deve dar preferência sempre.'),
+              card('prf_lg_16', 'O que é uso obrigatório de cinto de segurança?', 'Todos os ocupantes do veículo devem usar. Infração grave para o condutor se passageiro não usar.'),
+              card('prf_lg_17', 'O que é cadeirinha infantil?', 'Dispositivo obrigatório para crianças até 7 anos e meio ou menos de 1,45 m. Infração gravíssima sem uso.'),
+              card('prf_lg_18', 'O que é sinalização vertical?', 'Placas colocadas à margem da via. Podem ser de regulamentação (vermelha/branca), advertência (amarela) ou indicação (azul/verde).'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_prf_geo',
+        name: 'Geografia do Brasil',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_prf_geo_reg',
+            name: 'Regiões Brasileiras',
+            flashcards: [
+              card('prf_ge_1', 'Quantos estados tem o Brasil?', '26 estados mais o Distrito Federal, totalizando 27 unidades federativas.'),
+              card('prf_ge_2', 'Qual a maior região em extensão territorial?', 'Região Norte, com aproximadamente 45% do território nacional.'),
+              card('prf_ge_3', 'Qual a região mais populosa do Brasil?', 'Região Sudeste, com mais de 88 milhões de habitantes, concentrando SP, RJ, MG e ES.'),
+              card('prf_ge_4', 'Quais estados fazem parte do Nordeste?', 'MA, PI, CE, RN, PB, PE, AL, SE, BA — 9 estados.'),
+              card('prf_ge_5', 'Quais estados fazem parte do Centro-Oeste?', 'MT, MS, GO e DF — 3 estados mais o Distrito Federal.'),
+              card('prf_ge_6', 'Qual a capital mais populosa do Brasil?', 'São Paulo, capital do estado homônimo, maior cidade do país com cerca de 12 milhões de habitantes.'),
+            ],
+          },
+          {
+            id: 'topic_prf_geo_bio',
+            name: 'Biomas',
+            flashcards: [
+              card('prf_ge_7', 'Quais são os biomas brasileiros?', 'Amazônia, Cerrado, Mata Atlântica, Caatinga, Pampa e Pantanal — 6 biomas continentais.'),
+              card('prf_ge_8', 'Qual o maior bioma do Brasil?', 'Amazônia, ocupando cerca de 49% do território nacional, presente principalmente na Região Norte.'),
+              card('prf_ge_9', 'O que é o Cerrado?', 'Savana tropical do Brasil Central, segundo maior bioma, considerado hotspot de biodiversidade mundial.'),
+              card('prf_ge_10', 'O que é a Caatinga?', 'Bioma exclusivo do Brasil, concentrado no Nordeste, com vegetação adaptada à seca (xerófita).'),
+              card('prf_ge_11', 'O que é o Pantanal?', 'Maior planície alagável do mundo, localizado em MT e MS. Biodiversidade excepcional.'),
+              card('prf_ge_12', 'Qual o bioma mais ameaçado do Brasil?', 'Mata Atlântica, restando menos de 12% da cobertura original. Concentrada no litoral leste e sul.'),
+            ],
+          },
+          {
+            id: 'topic_prf_geo_hid',
+            name: 'Hidrografia e Relevo',
+            flashcards: [
+              card('prf_ge_13', 'Qual o rio mais extenso do Brasil?', 'Rio Amazonas, com cerca de 6.992 km de extensão, maior em volume de água do mundo.'),
+              card('prf_ge_14', 'O que é o Rio São Francisco?', 'Chamado "Velho Chico" ou "Rio da Integração Nacional". Nasce em MG e deságua no Atlântico em AL/SE.'),
+              card('prf_ge_15', 'O que é o Aquífero Guarani?', 'Um dos maiores reservatórios de água doce subterrânea do mundo, sob o Centro-Sul do Brasil.'),
+              card('prf_ge_16', 'O que é o Semiárido brasileiro?', 'Região do Nordeste com baixa pluviosidade, altas temperaturas e predominância da Caatinga.'),
+              card('prf_ge_17', 'O que é o Planalto Brasileiro?', 'Domina grande parte do interior do país. Inclui o Planalto Central (Cerrado) e o Planalto Meridional.'),
+              card('prf_ge_18', 'Qual o ponto mais alto do Brasil?', 'Pico da Neblina, no Amazonas, com 2.994 m de altitude.'),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'deck_bb',
+    name: 'Banco do Brasil - Escriturário 2025',
+    category: 'administrativo',
+    isDefaultDeck: true,
+    isUserCreated: false,
+    subjects: [
+      {
+        id: 'subj_bb_mat',
+        name: 'Matemática Financeira',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_bb_mat_juros',
+            name: 'Juros Simples e Compostos',
+            flashcards: [
+              card('bb_mt_1', 'O que é juros simples?', 'Juros calculados sempre sobre o capital inicial. Fórmula: J = C × i × t.'),
+              card('bb_mt_2', 'O que é juros compostos?', 'Juros calculados sobre o montante acumulado (juros sobre juros). Fórmula: M = C × (1+i)^t.'),
+              card('bb_mt_3', 'O que é taxa nominal?', 'Taxa referenciada a um período diferente do de capitalização. Ex: 12% ao ano capitalizado mensalmente.'),
+              card('bb_mt_4', 'O que é taxa efetiva?', 'Taxa que corresponde exatamente ao período de capitalização. É a taxa real do período.'),
+              card('bb_mt_5', 'O que é montante?', 'Capital inicial acrescido dos juros. No simples: M = C(1+it). No composto: M = C(1+i)^t.'),
+              card('bb_mt_6', 'Como converter taxa nominal em efetiva mensal?', 'Divida a taxa anual por 12. Ex: 12% a.a. nominal = 1% a.m. efetiva (capitalização mensal).'),
+            ],
+          },
+          {
+            id: 'topic_bb_mat_desc',
+            name: 'Desconto e Amortização',
+            flashcards: [
+              card('bb_mt_7', 'O que é desconto bancário (por fora)?', 'Desconto calculado sobre o valor nominal do título (valor futuro). D = N × d × t.'),
+              card('bb_mt_8', 'O que é desconto racional (por dentro)?', 'Desconto calculado sobre o valor presente (atual). Matematicamente mais correto.'),
+              card('bb_mt_9', 'O que é amortização?', 'Processo de extinção de uma dívida por meio de pagamentos periódicos que incluem principal e juros.'),
+              card('bb_mt_10', 'O que é o sistema SAC?', 'Sistema de Amortização Constante — parcelas de amortização iguais; juros e prestação decrescentes.'),
+              card('bb_mt_11', 'O que é o sistema Price (Tabela Price)?', 'Parcelas iguais ao longo do financiamento; amortização crescente e juros decrescentes.'),
+              card('bb_mt_12', 'O que é VPL (Valor Presente Líquido)?', 'Diferença entre o valor presente das entradas e saídas de caixa. VPL > 0 indica investimento viável.'),
+            ],
+          },
+          {
+            id: 'topic_bb_mat_inv',
+            name: 'Análise de Investimentos',
+            flashcards: [
+              card('bb_mt_13', 'O que é TIR (Taxa Interna de Retorno)?', 'Taxa que torna o VPL de um projeto igual a zero. Se TIR > custo de capital, o projeto é viável.'),
+              card('bb_mt_14', 'O que é payback?', 'Período necessário para recuperar o investimento inicial com os fluxos de caixa gerados.'),
+              card('bb_mt_15', 'O que é fluxo de caixa?', 'Registro das entradas e saídas de dinheiro em um período. Fundamental para análise de viabilidade.'),
+              card('bb_mt_16', 'O que é porcentagem de variação?', 'Diferença relativa entre dois valores. Fórmula: (valor final - valor inicial) / valor inicial × 100%.'),
+              card('bb_mt_17', 'O que é inflação?', 'Aumento generalizado e sustentado dos preços na economia, reduzindo o poder de compra da moeda.'),
+              card('bb_mt_18', 'O que é taxa real de juros?', 'Taxa de juros descontada a inflação. Fórmula de Fisher: (1+i) = (1+r)(1+π), onde r é real e π é inflação.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_bb_atua',
+        name: 'Atualidades do Mercado Financeiro',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_bb_atua_sfn',
+            name: 'Sistema Financeiro Nacional',
+            flashcards: [
+              card('bb_at_1', 'O que é o Banco Central do Brasil?', 'Autarquia federal que regula o sistema financeiro, controla a inflação e emite moeda.'),
+              card('bb_at_2', 'O que é a Taxa Selic?', 'Taxa básica de juros da economia brasileira, definida pelo COPOM. Referência para outros juros do país.'),
+              card('bb_at_3', 'O que é o COPOM?', 'Comitê de Política Monetária do Banco Central, responsável por definir a meta da Taxa Selic.'),
+              card('bb_at_4', 'O que é o CMN?', 'Conselho Monetário Nacional — órgão máximo do SFN, define políticas de moeda e crédito.'),
+              card('bb_at_5', 'O que é o CDI?', 'Certificado de Depósito Interbancário. Taxa de referência para investimentos de renda fixa, próxima à Selic.'),
+              card('bb_at_6', 'O que é o IPCA?', 'Índice de Preços ao Consumidor Amplo — principal indicador oficial de inflação no Brasil, medido pelo IBGE.'),
+            ],
+          },
+          {
+            id: 'topic_bb_atua_inv',
+            name: 'Investimentos',
+            flashcards: [
+              card('bb_at_7', 'O que é renda fixa?', 'Investimentos com rentabilidade previsível, definida no momento da aplicação. Ex: CDB, Tesouro Direto.'),
+              card('bb_at_8', 'O que é renda variável?', 'Investimentos sem rendimento previsível, com retorno vinculado ao desempenho do mercado. Ex: ações, FIIs.'),
+              card('bb_at_9', 'O que é Open Banking?', 'Sistema que permite compartilhamento de dados financeiros entre instituições com consentimento do cliente.'),
+              card('bb_at_10', 'O que é Open Finance?', 'Evolução do Open Banking que expande o compartilhamento para seguros, previdência e câmbio.'),
+              card('bb_at_11', 'O que é CDB?', 'Certificado de Depósito Bancário — título emitido por bancos para captar recursos. Rentabilidade vinculada ao CDI.'),
+              card('bb_at_12', 'O que é Tesouro Direto?', 'Programa do governo federal para venda de títulos públicos a pessoas físicas via internet.'),
+            ],
+          },
+          {
+            id: 'topic_bb_atua_pag',
+            name: 'Meios de Pagamento',
+            flashcards: [
+              card('bb_at_13', 'O que é o PIX?', 'Sistema de pagamento instantâneo criado pelo Banco Central, disponível 24h por dia, 7 dias por semana, sem custo para PF.'),
+              card('bb_at_14', 'O que é TED?', 'Transferência Eletrônica Disponível — transferência bancária efetivada no mesmo dia útil. Disponível em horário comercial.'),
+              card('bb_at_15', 'O que é DOC?', 'Documento de Crédito — transferência que é creditada no próximo dia útil. Limite de R$ 4.999,99.'),
+              card('bb_at_16', 'O que é cartão de crédito?', 'Instrumento de pagamento que permite adiar o pagamento de compras para uma data futura (fatura).'),
+              card('bb_at_17', 'O que é cartão de débito?', 'Instrumento de pagamento que debita o valor diretamente da conta corrente no momento da transação.'),
+              card('bb_at_18', 'O que são criptomoedas?', 'Moedas digitais descentralizadas que usam criptografia para segurança. Ex: Bitcoin, Ethereum.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_bb_info',
+        name: 'Informática',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_bb_info_seg',
+            name: 'Segurança da Informação',
+            flashcards: [
+              card('bb_if_1', 'O que é ransomware?', 'Malware que sequestra dados criptografando arquivos e exige pagamento (geralmente em criptomoeda) para liberação.'),
+              card('bb_if_2', 'O que é autenticação de dois fatores?', 'Segurança adicional que exige dois métodos de verificação: senha + código enviado ao celular, por exemplo.'),
+              card('bb_if_3', 'O que é engenharia social?', 'Manipulação psicológica de pessoas para obter informações confidenciais ou acesso a sistemas.'),
+              card('bb_if_4', 'O que é certificado digital?', 'Documento eletrônico que garante a identidade de uma pessoa ou empresa em transações digitais.'),
+              card('bb_if_5', 'O que é assinatura digital?', 'Código criptográfico que confirma a autenticidade e integridade de um documento eletrônico.'),
+              card('bb_if_6', 'O que é LGPD?', 'Lei Geral de Proteção de Dados (Lei 13.709/2018) — regula o tratamento de dados pessoais no Brasil.'),
+            ],
+          },
+          {
+            id: 'topic_bb_info_rede',
+            name: 'Redes e Cloud',
+            flashcards: [
+              card('bb_if_7', 'O que é nuvem (cloud computing)?', 'Armazenamento e processamento de dados em servidores remotos acessados via internet, sem hardware próprio.'),
+              card('bb_if_8', 'O que é VPN?', 'Rede Privada Virtual — cria túnel criptografado entre dispositivo e servidor para navegação segura.'),
+              card('bb_if_9', 'O que é SaaS?', 'Software as a Service — software entregue via internet, sem instalação local. Ex: Google Workspace, Microsoft 365.'),
+              card('bb_if_10', 'O que é PaaS?', 'Platform as a Service — plataforma de desenvolvimento entregue via nuvem. Ex: Google App Engine, AWS Elastic Beanstalk.'),
+              card('bb_if_11', 'O que é IaaS?', 'Infrastructure as a Service — infraestrutura de TI (servidores, rede) entregue via nuvem. Ex: AWS EC2, Azure VMs.'),
+              card('bb_if_12', 'O que é largura de banda?', 'Capacidade máxima de transmissão de dados de uma rede em determinado período. Medida em Mbps ou Gbps.'),
+            ],
+          },
+          {
+            id: 'topic_bb_info_bd',
+            name: 'Banco de Dados e Sistemas',
+            flashcards: [
+              card('bb_if_13', 'O que é SQL?', 'Linguagem de consulta estruturada para criar, manipular e consultar bancos de dados relacionais.'),
+              card('bb_if_14', 'O que é API?', 'Interface de Programação de Aplicações — permite comunicação padronizada entre sistemas diferentes.'),
+              card('bb_if_15', 'O que é banco de dados relacional?', 'Banco de dados organizado em tabelas com linhas e colunas, relacionadas por chaves. Ex: MySQL, PostgreSQL.'),
+              card('bb_if_16', 'O que é ERP?', 'Enterprise Resource Planning — sistema integrado que gerencia todos os processos de uma empresa (RH, finanças, estoque).'),
+              card('bb_if_17', 'O que é BI (Business Intelligence)?', 'Conjunto de técnicas para transformar dados em informações de negócio para tomada de decisão.'),
+              card('bb_if_18', 'O que é CRM?', 'Customer Relationship Management — sistema para gerenciar relacionamento com clientes e oportunidades de venda.'),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'deck_pmmg',
+    name: 'PMMG - Soldado 2025',
+    category: 'militar',
+    isDefaultDeck: true,
+    isUserCreated: false,
+    subjects: [
+      {
+        id: 'subj_pm_port',
+        name: 'Português',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_pm_port_morf',
+            name: 'Morfologia',
+            flashcards: [
+              card('pm_pt_1', 'O que é morfologia?', 'Estudo da estrutura e classificação das palavras: substantivo, adjetivo, verbo, advérbio, etc.'),
+              card('pm_pt_2', 'O que é adjunto adnominal?', 'Termo que caracteriza ou determina um substantivo. Ex: "O corajoso soldado cumpriu a missão."'),
+              card('pm_pt_3', 'O que é complemento nominal?', 'Completa o sentido de nome com preposição. Ex: "necessidade de treinamento".'),
+              card('pm_pt_4', 'O que é aposto?', 'Termo que explica, resume ou esclarece outro. Ex: "João, o soldado mais antigo, foi promovido."'),
+              card('pm_pt_5', 'O que é locução verbal?', 'Conjunto de dois ou mais verbos que funcionam como um só. Ex: "O soldado foi preso."'),
+              card('pm_pt_6', 'O que é advérbio de modo?', 'Modifica o verbo indicando a maneira como a ação ocorre. Geralmente termina em -mente. Ex: rapidamente.'),
+            ],
+          },
+          {
+            id: 'topic_pm_port_sint',
+            name: 'Análise Sintática',
+            flashcards: [
+              card('pm_pt_7', 'O que é sintaxe?', 'Estudo das funções das palavras na oração e das relações entre elas.'),
+              card('pm_pt_8', 'O que é predicativo do sujeito?', 'Atributo dado ao sujeito pelo verbo de ligação. Ex: "O soldado estava preparado."'),
+              card('pm_pt_9', 'O que é predicativo do objeto?', 'Atributo dado ao objeto pelo verbo. Ex: "O comandante considerou o soldado apto."'),
+              card('pm_pt_10', 'O que é agente da passiva?', 'Termo que indica quem pratica a ação na voz passiva. Introduzido pelas preposições por ou de.'),
+              card('pm_pt_11', 'O que é sujeito oculto (desinencial)?', 'Sujeito não expresso, identificado pela desinência verbal. Ex: "Chegamos cedo." (nós).'),
+              card('pm_pt_12', 'O que é oração sem sujeito?', 'Oração cujo verbo é impessoal. Ex: verbos que indicam fenômenos naturais (choveu, trovejou) e o verbo haver impessoal.'),
+            ],
+          },
+          {
+            id: 'topic_pm_port_conc',
+            name: 'Concordância e Coesão',
+            flashcards: [
+              card('pm_pt_13', 'O que é concordância verbal?', 'O verbo deve concordar em número e pessoa com o sujeito. Ex: "Os soldados chegaram cedo."'),
+              card('pm_pt_14', 'O que é concordância nominal?', 'Adjetivo, artigo e pronome concordam em gênero e número com o substantivo.'),
+              card('pm_pt_15', 'O que é coesão textual?', 'Ligação entre as partes do texto por meio de conectivos, pronomes e outros recursos linguísticos.'),
+              card('pm_pt_16', 'O que é coerência textual?', 'Lógica e sentido global do texto. Um texto coerente não tem contradições nem redundâncias desnecessárias.'),
+              card('pm_pt_17', 'O que são conjunções coordenativas aditivas?', 'Conectam orações ou termos acrescentando informações. Ex: e, nem, não só... mas também.'),
+              card('pm_pt_18', 'O que são conjunções subordinativas temporais?', 'Introduzem oração adverbial de tempo. Ex: quando, enquanto, logo que, antes que, depois que.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_pm_hist',
+        name: 'História do Brasil',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_pm_hist_col',
+            name: 'Período Colonial e Imperial',
+            flashcards: [
+              card('pm_hs_1', 'Quando o Brasil foi descoberto?', 'Em 22 de abril de 1500, por Pedro Álvares Cabral, que chegou à costa do atual estado da Bahia.'),
+              card('pm_hs_2', 'O que foi o Ciclo do Ouro?', 'Período do século XVIII com intensa mineração em Minas Gerais, que gerou riqueza e tensões como a Inconfidência Mineira (1789).'),
+              card('pm_hs_3', 'Quando foi proclamada a Independência do Brasil?', 'Em 7 de setembro de 1822, por Dom Pedro I, às margens do Rio Ipiranga, em São Paulo.'),
+              card('pm_hs_4', 'O que foi o período de Dom Pedro II?', 'Reinado de 1840 a 1889, marcado pela estabilidade política, Guerra do Paraguai, abolição da escravatura e industrialização inicial.'),
+              card('pm_hs_5', 'Quando foi abolida a escravidão no Brasil?', 'Em 13 de maio de 1888, com a Lei Áurea, assinada pela Princesa Isabel, extinguindo a escravidão no Brasil.'),
+              card('pm_hs_6', 'Quando foi proclamada a República?', 'Em 15 de novembro de 1889, pelo Marechal Deodoro da Fonseca, encerrando o período imperial.'),
+            ],
+          },
+          {
+            id: 'topic_pm_hist_rep',
+            name: 'República e Era Vargas',
+            flashcards: [
+              card('pm_hs_7', 'O que foi a Política do Café com Leite?', 'Alternância no poder federal entre SP (café) e MG (leite) durante a República Velha (1889-1930).'),
+              card('pm_hs_8', 'O que foi a Revolução de 1930?', 'Movimento que encerrou a República Velha e levou Getúlio Vargas ao poder.'),
+              card('pm_hs_9', 'O que foi a Era Vargas?', 'Período de 1930 a 1945 e 1950 a 1954 em que Getúlio Vargas governou o Brasil, incluindo o Estado Novo (ditadura).'),
+              card('pm_hs_10', 'O que foi o Estado Novo (1937-1945)?', 'Regime ditatorial instaurado por Vargas, com suspensão da Constituição, censura e perseguição política.'),
+              card('pm_hs_11', 'O que foi a industrialização no Brasil?', 'Processo acelerado na Era Vargas com criação da Petrobras (1953), CSN e outros. Continuou com JK e sua política de "50 anos em 5".'),
+              card('pm_hs_12', 'O que foi o governo JK (1956-1961)?', 'Juscelino Kubitschek implementou o Plano de Metas e construiu Brasília, inaugurada em 1960.'),
+            ],
+          },
+          {
+            id: 'topic_pm_hist_mil',
+            name: 'Regime Militar e Redemocratização',
+            flashcards: [
+              card('pm_hs_13', 'O que foi o período militar (1964-1985)?', 'Regime de governo autoritário iniciado com o golpe de 1964 e encerrado com a redemocratização em 1985.'),
+              card('pm_hs_14', 'O que foi o AI-5?', 'Ato Institucional nº 5 (1968) — o mais duro do regime militar. Suspendeu direitos, fechou o Congresso e autorizou prisões sem habeas corpus.'),
+              card('pm_hs_15', 'O que foi a campanha Diretas Já?', 'Movimento popular de 1983-84 que exigia eleições diretas para presidente. A emenda não passou, mas influenciou a redemocratização.'),
+              card('pm_hs_16', 'Quando foi promulgada a Constituição Federal vigente?', 'Em 5 de outubro de 1988, chamada de "Constituição Cidadã" por ampliar direitos fundamentais.'),
+              card('pm_hs_17', 'Quem foi o primeiro presidente eleito diretamente após o regime militar?', 'Fernando Collor de Mello, eleito em 1989 e empossado em 1990. Sofreu impeachment em 1992.'),
+              card('pm_hs_18', 'O que foi o Plano Real (1994)?', 'Reforma monetária que criou o Real e controlou a hiperinflação. Lançado por FHC como Ministro da Fazenda no governo Itamar Franco.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_pm_dir',
+        name: 'Direitos Humanos',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_pm_dir_fund',
+            name: 'Direitos Fundamentais',
+            flashcards: [
+              card('pm_dh_1', 'O que são direitos fundamentais?', 'Direitos básicos garantidos pela CF/88 a todos: vida, liberdade, igualdade, segurança e propriedade (art. 5º, caput).'),
+              card('pm_dh_2', 'O que é dignidade da pessoa humana?', 'Fundamento da República Brasileira (art. 1º, III). Garante que todo ser humano merece respeito e tratamento digno.'),
+              card('pm_dh_3', 'O que proíbe a tortura na CF/88?', 'Art. 5º, III: "Ninguém será submetido a tortura nem a tratamento desumano ou degradante."'),
+              card('pm_dh_4', 'O que é o princípio da isonomia?', 'Todos são iguais perante a lei, sem distinção de qualquer natureza (art. 5º, caput, CF/88).'),
+              card('pm_dh_5', 'O que são direitos sociais na CF/88?', 'Direitos coletivos previstos no art. 6º: educação, saúde, alimentação, trabalho, moradia, transporte, lazer, segurança, previdência social.'),
+              card('pm_dh_6', 'O que é a inviolabilidade do domicílio?', 'A casa é asilo inviolável. Somente por autorização judicial, flagrante delito, desastre ou para prestar socorro pode ser adentrada sem consentimento.'),
+            ],
+          },
+          {
+            id: 'topic_pm_dir_gar',
+            name: 'Garantias Constitucionais',
+            flashcards: [
+              card('pm_dh_7', 'O que é habeas corpus?', 'Garantia para proteger a liberdade de locomoção contra violência ou coação ilegal. "Que apresentes o corpo."'),
+              card('pm_dh_8', 'O que é mandado de segurança?', 'Proteção de direito líquido e certo não amparado por habeas corpus ou habeas data contra ato abusivo de autoridade.'),
+              card('pm_dh_9', 'O que é o direito ao devido processo legal?', 'Ninguém será privado de liberdade ou bens sem processo legal regular (art. 5º, LIV, CF/88).'),
+              card('pm_dh_10', 'O que é presunção de inocência?', 'Ninguém será considerado culpado antes do trânsito em julgado de sentença penal condenatória (art. 5º, LVII).'),
+              card('pm_dh_11', 'O que é o contraditório?', 'Garantia de que as partes têm o direito de conhecer e contestar todas as alegações e provas do processo.'),
+              card('pm_dh_12', 'O que é ampla defesa?', 'Direito do acusado de usar todos os meios legítimos para provar sua inocência ou minimizar a pena.'),
+            ],
+          },
+          {
+            id: 'topic_pm_dir_int',
+            name: 'Legislação e Tratados',
+            flashcards: [
+              card('pm_dh_13', 'O que é o ECA?', 'Estatuto da Criança e do Adolescente (Lei 8.069/90) — protege pessoas de até 18 anos, garantindo direitos e deveres.'),
+              card('pm_dh_14', 'O que é o Estatuto do Idoso?', 'Lei 10.741/2003 — assegura direitos e proteção à pessoa com 60 anos ou mais.'),
+              card('pm_dh_15', 'O que é a DUDH?', 'Declaração Universal dos Direitos Humanos (ONU, 1948) — proclama direitos inalienáveis de todos os seres humanos.'),
+              card('pm_dh_16', 'O que é a Convenção Americana de Direitos Humanos?', 'Pacto de San José da Costa Rica (1969) — principal tratado interamericano de direitos humanos. Criou a CIDH e a Corte IDH.'),
+              card('pm_dh_17', 'O que é a CIDH?', 'Comissão Interamericana de Direitos Humanos — órgão da OEA que monitora os direitos humanos nas Américas.'),
+              card('pm_dh_18', 'O que são direitos humanos de 3ª geração?', 'Direitos de solidariedade ou fraternidade: paz, desenvolvimento, meio ambiente, autodeterminação dos povos.'),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'deck_receita',
+    name: 'Receita Federal - Auditor 2025',
+    category: 'fiscal',
+    isDefaultDeck: true,
+    isUserCreated: false,
+    subjects: [
+      {
+        id: 'subj_rf_dir',
+        name: 'Direito Tributário',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_rf_dir_conc',
+            name: 'Conceitos Básicos',
+            flashcards: [
+              card('rf_dt_1', 'O que é tributo?', 'Prestação pecuniária compulsória em moeda, que não constitua sanção por ato ilícito. Art. 3º do CTN.'),
+              card('rf_dt_2', 'Quais são as espécies tributárias?', 'Impostos, taxas, contribuições de melhoria, empréstimos compulsórios e contribuições especiais.'),
+              card('rf_dt_3', 'O que é fato gerador?', 'Situação definida em lei como necessária para o surgimento da obrigação tributária principal.'),
+              card('rf_dt_4', 'O que é base de cálculo?', 'Grandeza econômica sobre a qual se aplica a alíquota para determinar o valor do tributo.'),
+              card('rf_dt_5', 'O que é alíquota?', 'Percentual ou valor fixo aplicado sobre a base de cálculo para determinar o montante do tributo.'),
+              card('rf_dt_6', 'O que é sujeito passivo tributário?', 'Quem tem o dever de pagar o tributo. Pode ser contribuinte (relação direta com fato gerador) ou responsável.'),
+            ],
+          },
+          {
+            id: 'topic_rf_dir_obr',
+            name: 'Obrigação e Crédito Tributário',
+            flashcards: [
+              card('rf_dt_7', 'O que é lançamento tributário?', 'Ato administrativo que declara a ocorrência do fato gerador, identifica o sujeito passivo e define o crédito tributário.'),
+              card('rf_dt_8', 'Quais as modalidades de lançamento?', 'De ofício (autoridade), por declaração (contribuinte declara e fisco lança) e por homologação (contribuinte apura e paga).'),
+              card('rf_dt_9', 'O que é extinção do crédito tributário?', 'Formas de encerrar o crédito: pagamento, compensação, remissão, decadência, prescrição, transação, entre outras.'),
+              card('rf_dt_10', 'O que é decadência tributária?', 'Perda do direito de lançar o tributo. Prazo de 5 anos a partir do fato gerador (art. 150) ou exercício seguinte (art. 173).'),
+              card('rf_dt_11', 'O que é prescrição tributária?', 'Perda do direito de cobrar o crédito já lançado. Prazo de 5 anos a partir da constituição definitiva do crédito.'),
+              card('rf_dt_12', 'O que é isenção tributária?', 'Dispensa legal do pagamento do tributo. Exclui o crédito tributário — difere de imunidade, que é constitucional.'),
+            ],
+          },
+          {
+            id: 'topic_rf_dir_fed',
+            name: 'Tributos Federais',
+            flashcards: [
+              card('rf_dt_13', 'O que é o IR (Imposto de Renda)?', 'Imposto federal sobre a renda e proventos de qualquer natureza de pessoas físicas (IRPF) e jurídicas (IRPJ).'),
+              card('rf_dt_14', 'O que é o IPI?', 'Imposto sobre Produtos Industrializados — federal, incide sobre produtos saídos de estabelecimentos industriais.'),
+              card('rf_dt_15', 'O que é a CSLL?', 'Contribuição Social sobre o Lucro Líquido — incide sobre o lucro das pessoas jurídicas para financiar a seguridade social.'),
+              card('rf_dt_16', 'O que é PIS/COFINS?', 'Contribuições sociais sobre o faturamento das empresas. Financiam o seguro-desemprego, BNDES e seguridade social.'),
+              card('rf_dt_17', 'O que é o Simples Nacional?', 'Regime tributário simplificado para MPE, com recolhimento unificado de vários tributos em uma única guia (DAS).'),
+              card('rf_dt_18', 'O que é Lucro Real?', 'Regime tributário em que o IRPJ e a CSLL incidem sobre o lucro contábil ajustado. Obrigatório para grandes empresas.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_rf_cont',
+        name: 'Contabilidade Geral',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_rf_cont_bal',
+            name: 'Balanço Patrimonial',
+            flashcards: [
+              card('rf_cg_1', 'O que é ativo?', 'Bens e direitos de uma empresa. Divide-se em circulante (curto prazo) e não circulante (longo prazo).'),
+              card('rf_cg_2', 'O que é passivo?', 'Obrigações e dívidas de uma empresa. Divide-se em circulante e não circulante.'),
+              card('rf_cg_3', 'O que é patrimônio líquido?', 'Diferença entre ativo e passivo. Representa o capital próprio dos sócios/acionistas.'),
+              card('rf_cg_4', 'O que é ativo circulante?', 'Bens e direitos realizáveis até o fim do exercício seguinte (curto prazo). Ex: caixa, estoques, contas a receber.'),
+              card('rf_cg_5', 'O que é passivo não circulante?', 'Obrigações exigíveis após o exercício seguinte (longo prazo). Ex: financiamentos, debêntures de longo prazo.'),
+              card('rf_cg_6', 'Qual a equação fundamental do patrimônio?', 'Ativo = Passivo + Patrimônio Líquido. Todo recurso (ativo) tem uma origem: exigível (passivo) ou próprio (PL).'),
+            ],
+          },
+          {
+            id: 'topic_rf_cont_dre',
+            name: 'DRE e Resultado',
+            flashcards: [
+              card('rf_cg_7', 'O que é DRE?', 'Demonstração do Resultado do Exercício — apresenta receitas, custos e lucro/prejuízo de um período.'),
+              card('rf_cg_8', 'O que é regime de competência?', 'Receitas e despesas são reconhecidas quando ocorrem, independente do recebimento ou pagamento efetivo.'),
+              card('rf_cg_9', 'O que é regime de caixa?', 'Receitas e despesas são reconhecidas somente quando há movimentação financeira (entrada/saída de dinheiro).'),
+              card('rf_cg_10', 'O que é EBITDA?', 'Lucro antes de juros, impostos, depreciação e amortização. Mede o resultado operacional bruto da empresa.'),
+              card('rf_cg_11', 'O que é lucro bruto?', 'Receita líquida de vendas menos o custo dos produtos vendidos (CPV) ou serviços prestados (CSP).'),
+              card('rf_cg_12', 'O que é lucro líquido?', 'Resultado final após deduzir todas as despesas, juros e impostos do lucro bruto. É distribuído aos sócios ou retido.'),
+            ],
+          },
+          {
+            id: 'topic_rf_cont_cus',
+            name: 'Contabilidade de Custos',
+            flashcards: [
+              card('rf_cg_13', 'O que é depreciação?', 'Redução contábil do valor de bens do ativo imobilizado pelo uso, obsolescência ou ação do tempo.'),
+              card('rf_cg_14', 'O que é amortização?', 'Redução contábil do valor de ativos intangíveis (marcas, patentes, softwares) ao longo de sua vida útil.'),
+              card('rf_cg_15', 'O que são custos diretos?', 'Custos identificáveis e mensuráveis diretamente no produto/serviço. Ex: matéria-prima, mão de obra direta.'),
+              card('rf_cg_16', 'O que são custos indiretos?', 'Custos que não podem ser atribuídos diretamente a um produto. Ex: aluguel da fábrica, energia elétrica geral.'),
+              card('rf_cg_17', 'O que são custos fixos?', 'Custos que não variam com o volume produzido. Ex: aluguel, salários fixos, seguros.'),
+              card('rf_cg_18', 'O que são custos variáveis?', 'Custos que variam proporcionalmente ao volume de produção. Ex: matéria-prima, comissões de vendas.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_rf_port',
+        name: 'Português',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_rf_port_fig',
+            name: 'Figuras de Linguagem',
+            flashcards: [
+              card('rf_pt_1', 'O que é ironia?', 'Figura de linguagem que expressa o contrário do que se diz, com tom crítico ou humorístico.'),
+              card('rf_pt_2', 'O que é eufemismo?', 'Substituição de expressão rude ou desagradável por outra mais suave. Ex: "ele partiu" por "ele morreu".'),
+              card('rf_pt_3', 'O que é hipérbole?', 'Exagero intencional para dar ênfase. Ex: "Estou morrendo de fome."'),
+              card('rf_pt_4', 'O que é antítese?', 'Aproximação de ideias opostas no mesmo contexto. Ex: "O sábio é rico na pobreza."'),
+              card('rf_pt_5', 'O que é paradoxo?', 'Ideias contraditórias que revelam uma verdade. Ex: "Apresso-me lentamente."'),
+              card('rf_pt_6', 'O que é metonímia?', 'Substituição de uma palavra por outra com base em relação de contiguidade. Ex: "Ler Machado" (as obras).'),
+            ],
+          },
+          {
+            id: 'topic_rf_port_int',
+            name: 'Intertextualidade e Discurso',
+            flashcards: [
+              card('rf_pt_7', 'O que é intertextualidade?', 'Relação entre textos quando um faz referência a outro, incorporando-o ou dialogando com ele.'),
+              card('rf_pt_8', 'O que é interdiscursividade?', 'Diálogo entre discursos distintos — ideologias, posicionamentos ou campos do saber se entrecruzam.'),
+              card('rf_pt_9', 'O que é citação direta?', 'Reprodução literal das palavras de outrem, entre aspas com indicação da fonte.'),
+              card('rf_pt_10', 'O que é paráfrase?', 'Reformulação do texto original com outras palavras, mantendo o sentido. Não é plágio.'),
+              card('rf_pt_11', 'O que é pastiche?', 'Imitação do estilo de outro autor ou obra, geralmente com fins críticos, irônicos ou homenagem.'),
+              card('rf_pt_12', 'O que é alusão?', 'Referência implícita a outro texto, pessoa ou evento sem citar explicitamente. Ex: "Jogou a pedra e escondeu a mão."'),
+            ],
+          },
+          {
+            id: 'topic_rf_port_arg',
+            name: 'Argumentação',
+            flashcards: [
+              card('rf_pt_13', 'O que é tese?', 'Posição do autor sobre o tema, que será defendida com argumentos ao longo do texto dissertativo.'),
+              card('rf_pt_14', 'O que são argumentos de autoridade?', 'Argumento que cita especialistas ou fontes reconhecidas para dar credibilidade à tese.'),
+              card('rf_pt_15', 'O que é contra-argumento?', 'Ideia contrária à tese apresentada para ser depois refutada, fortalecendo o ponto de vista do autor.'),
+              card('rf_pt_16', 'O que são operadores argumentativos?', 'Conectivos que orientam a interpretação da relação entre enunciados. Ex: "portanto" (conclusão), "embora" (concessão).'),
+              card('rf_pt_17', 'O que é progressão temática?', 'Desenvolvimento gradual do tema, acrescentando informações novas a cada parágrafo de forma lógica.'),
+              card('rf_pt_18', 'O que é refutação?', 'Parte do texto argumentativo em que se rebate o contra-argumento, reforçando a validade da tese principal.'),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'deck_petrobras_enf',
+    name: 'Petrobrás - Enfermeiro 2025',
+    category: 'operacional',
+    isDefaultDeck: true,
+    isUserCreated: false,
+    subjects: [
+      {
+        id: 'subj_pb_port',
+        name: 'Português',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_pb_port_comp',
+            name: 'Compreensão de Textos',
+            flashcards: [
+              card('pb_pc_1', 'O que é compreensão textual?', 'Capacidade de entender o significado global de um texto, suas ideias principais e intenção do autor.'),
+              card('pb_pc_2', 'O que é interpretação de texto?', 'Análise profunda do texto, identificando sentidos implícitos, figuras de linguagem e propósito comunicativo.'),
+              card('pb_pc_3', 'O que são gêneros textuais?', 'Categorias de textos com características próprias de forma e função social. Ex: artigo, carta, receita.'),
+              card('pb_pc_4', 'Qual a diferença entre narração e descrição?', 'Narração relata ações sequenciadas no tempo. Descrição apresenta características estáticas de pessoas ou lugares.'),
+              card('pb_pc_5', 'O que é dissertação?', 'Texto que argumenta sobre um tema, apresentando tese, argumentos e conclusão de forma lógica.'),
+              card('pb_pc_6', 'O que é texto injuntivo?', 'Texto que instrui ou orienta o leitor sobre como fazer algo. Ex: receitas, manuais, instruções.'),
+            ],
+          },
+          {
+            id: 'topic_pb_port_cl',
+            name: 'Classes de Palavras',
+            flashcards: [
+              card('pb_po_1', 'O que é substantivo?', 'Classe de palavras que designa seres, coisas, qualidades, ações. Ex: enfermeiro, saúde, cuidado.'),
+              card('pb_po_2', 'O que é adjetivo?', 'Palavra que modifica ou caracteriza o substantivo. Ex: capaz, dedicado, clínico.'),
+              card('pb_po_3', 'O que é verbo?', 'Palavra que expressa ações, estados ou fenômenos. Ex: tratar, estar, medicar.'),
+              card('pb_po_4', 'O que é preposição?', 'Palavra que estabelece relação entre termos da oração. Ex: em, de, para, por, com.'),
+              card('pb_po_5', 'O que é conjunção?', 'Palavra que liga orações ou termos de mesma função. Ex: e, mas, porém, porque, se.'),
+              card('pb_po_6', 'O que é advérbio?', 'Modifica verbo, adjetivo ou outro advérbio indicando circunstâncias. Ex: rapidamente, hoje, sempre.'),
+            ],
+          },
+          {
+            id: 'topic_pb_port_morf',
+            name: 'Morfossintaxe',
+            flashcards: [
+              card('pb_pm_1', 'O que é sujeito?', 'Termo sobre o qual se declara algo. Concorda com o verbo em número e pessoa.'),
+              card('pb_pm_2', 'O que é predicado?', 'Tudo que se declara sobre o sujeito. Inclui o verbo e seus complementos.'),
+              card('pb_pm_3', 'O que é complemento verbal?', 'Termo que completa o sentido do verbo. Pode ser direto (sem preposição) ou indireto (com preposição).'),
+              card('pb_pm_4', 'O que é regência verbal?', 'Relação obrigatória entre verbo e seus complementos, com ou sem preposição.'),
+              card('pb_pm_5', 'O que é concordância verbal?', 'O verbo deve concordar em número e pessoa com o sujeito da oração.'),
+              card('pb_pm_6', 'O que é concordância nominal?', 'Adjetivo, artigo e pronome concordam em gênero e número com o substantivo.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_pb_mat',
+        name: 'Matemática',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_pb_mat_conj',
+            name: 'Conjuntos e Funções',
+            flashcards: [
+              card('pb_mc_1', 'O que é conjunto?', 'Coleção de elementos bem definidos e distintos. Ex: {1, 2, 3} ou {a, e, i, o, u}.'),
+              card('pb_mc_2', 'O que é conjunto vazio?', 'Conjunto que não contém nenhum elemento, representado por ∅ ou {}.'),
+              card('pb_mc_3', 'O que é função?', 'Relação entre domínio e contradomínio onde cada elemento do domínio tem uma única imagem.'),
+              card('pb_mc_4', 'O que é função do 1º grau?', 'f(x) = ax + b, com a≠0. Gráfico é uma reta. Crescente se a>0, decrescente se a<0.'),
+              card('pb_mc_5', 'O que é função do 2º grau?', 'f(x) = ax² + bx + c, com a≠0. Gráfico é uma parábola. Vértice é ponto de máximo ou mínimo.'),
+              card('pb_mc_6', 'Como calcular raízes pela fórmula de Bhaskara?', 'x = (-b ± √Δ) / 2a, onde Δ = b² - 4ac. Δ>0: 2 raízes; Δ=0: 1 raiz; Δ<0: sem raízes reais.'),
+            ],
+          },
+          {
+            id: 'topic_pb_mat_eq',
+            name: 'Equações e Progressões',
+            flashcards: [
+              card('pb_me_1', 'O que é equação do 1º grau?', 'Igualdade envolvendo uma incógnita com expoente 1. Ex: 2x + 3 = 7.'),
+              card('pb_me_2', 'Como resolver uma equação do 1º grau?', 'Isolar a incógnita usando operações inversas. Ex: 2x = 4 → x = 2.'),
+              card('pb_me_3', 'O que é progressão aritmética (PA)?', 'Sequência onde a diferença entre termos consecutivos é constante (razão r).'),
+              card('pb_me_4', 'Qual a fórmula do termo geral da PA?', 'aₙ = a₁ + (n-1)r, onde a₁ é o primeiro termo e r é a razão.'),
+              card('pb_me_5', 'O que é progressão geométrica (PG)?', 'Sequência onde o quociente entre termos consecutivos é constante (razão q).'),
+              card('pb_me_6', 'Qual a fórmula do termo geral da PG?', 'aₙ = a₁ × q^(n-1), onde a₁ é o primeiro termo e q é a razão.'),
+            ],
+          },
+          {
+            id: 'topic_pb_mat_geo',
+            name: 'Geometria e Financeira',
+            flashcards: [
+              card('pb_mgf_1', 'Qual a fórmula da área do triângulo?', 'A = (base × altura) / 2.'),
+              card('pb_mgf_2', 'Qual a fórmula da área do círculo?', 'A = π × r², onde r é o raio.'),
+              card('pb_mgf_3', 'O que é perímetro?', 'Soma das medidas de todos os lados de uma figura geométrica plana.'),
+              card('pb_mgf_4', 'O que é juros simples?', 'Juros calculados sempre sobre o capital inicial. J = C × i × t.'),
+              card('pb_mgf_5', 'O que é juros compostos?', 'Juros calculados sobre o montante acumulado (juros sobre juros). M = C(1+i)^t.'),
+              card('pb_mgf_6', 'O que é montante?', 'Valor final após aplicação de juros. Montante = Capital + Juros.'),
+            ],
+          },
+        ],
+      },
+      {
+        id: 'subj_pb_enf',
+        name: 'Enfermagem',
+        flashcards: [],
+        topics: [
+          {
+            id: 'topic_pb_enf_urg',
+            name: 'Urgências e Emergências',
+            flashcards: [
+              card('pb_ep_1', 'O que é atendimento pré-hospitalar?', 'Conjunto de ações de auxílio realizadas fora do hospital, antes da chegada ao serviço de saúde.'),
+              card('pb_ep_2', 'O que é urgência?', 'Situação de saúde que requer atendimento rápido, mas não coloca vida em risco imediato.'),
+              card('pb_ep_3', 'O que é emergência?', 'Situação que coloca a vida em risco imediato, requer atendimento urgente e imediato.'),
+              card('pb_ep_4', 'O que é RCP (Ressuscitação Cardiopulmonar)?', 'Técnica que combina compressões torácicas e ventilação artificial para manter circulação em parada cardiorrespiratória.'),
+              card('pb_ep_5', 'Qual a proporção de compressões e ventilações na RCP?', '30:2 (30 compressões para 2 ventilações) ou apenas compressões contínuas em leigos.'),
+              card('pb_ep_6', 'O que é triagem hospitalar?', 'Classificação de pacientes por prioridade de atendimento. O Sistema Manchester usa 5 níveis por cores.'),
+            ],
+          },
+          {
+            id: 'topic_pb_enf_epid',
+            name: 'Epidemiologia',
+            flashcards: [
+              card('pb_es_1', 'O que é epidemiologia?', 'Ciência que estuda padrões de ocorrência e distribuição de doenças em populações.'),
+              card('pb_es_2', 'O que é incidência?', 'Número de casos novos de uma doença em uma população em determinado período.'),
+              card('pb_es_3', 'O que é prevalência?', 'Número total de casos (novos e antigos) de uma doença em uma população em determinado momento.'),
+              card('pb_es_4', 'O que é endemia?', 'Doença que ocorre permanentemente em uma região específica. Ex: malária em regiões tropicais.'),
+              card('pb_es_5', 'O que é epidemia?', 'Aumento anormal de casos de doença em determinada população e período, acima do esperado.'),
+              card('pb_es_6', 'O que é pandemia?', 'Epidemia que se espalha por vários países ou continentes, afetando grande número de pessoas.'),
+            ],
+          },
+          {
+            id: 'topic_pb_enf_trab',
+            name: 'Saúde do Trabalhador',
+            flashcards: [
+              card('pb_ev_1', 'O que é vigilância em saúde?', 'Monitoramento contínuo de doenças, agravos e condições de risco à saúde em populações.'),
+              card('pb_ev_2', 'O que é saúde do trabalhador?', 'Campo que visa compreender e atuar nas relações entre trabalho e saúde, prevenindo doenças ocupacionais.'),
+              card('pb_ev_3', 'O que é doença ocupacional?', 'Doença causada diretamente pelo exercício de trabalho peculiar a determinada atividade. Ex: silicose em mineiros.'),
+              card('pb_ev_4', 'O que é acidente de trabalho?', 'Evento súbito e inesperado que causa lesão ou alteração da capacidade funcional do trabalhador.'),
+              card('pb_ev_5', 'O que são EPIs?', 'Equipamentos de Proteção Individual — dispositivos usados pelo trabalhador para proteção contra riscos de acidentes.'),
+              card('pb_ev_6', 'O que é notificação compulsória?', 'Comunicação obrigatória às autoridades de doenças e agravos previstos em lista nacional do Ministério da Saúde.'),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'deck_petrobras_enf_v2',
+    name: 'Petrobrás - Enfermeiro 2025 (Organizado)',
+    category: 'operacional',
+    isDefaultDeck: true,
+    isUserCreated: false,
+    subjects: [
+      // ── PORTUGUÊS ──────────────────────────────
+      {
+        id: 'subj_pb2_pt',
+        name: 'Português',
+        flashcards: [],
+        topics: [
+      {
+        id: 'subj_pb2_port_comp',
+        name: 'Compreensão de Textos',
+        flashcards: [
+          card('pb2_pc_1', 'O que é compreensão textual?', 'Capacidade de entender o significado global do texto, suas ideias principais e a intenção do autor.'),
+          card('pb2_pc_2', 'O que é gênero narrativo?', 'Texto que relata ações e eventos em sequência temporal. Possui narrador, personagens e enredo.'),
+          card('pb2_pc_3', 'O que é gênero descritivo?', 'Texto que apresenta características estáticas de pessoas, lugares ou objetos, sem necessariamente narrar ações.'),
+          card('pb2_pc_4', 'O que é gênero dissertativo?', 'Texto que argumenta sobre um tema, apresentando tese, argumentos e conclusão de forma lógica.'),
+          card('pb2_pc_5', 'O que é texto injuntivo?', 'Texto que instrui ou orienta o leitor sobre como fazer algo. Ex: receitas, manuais, regulamentos.'),
+          card('pb2_pc_6', 'O que é intertextualidade?', 'Relação entre textos quando um faz referência a outro, incorporando-o ou dialogando com ele.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_port_tip',
+        name: 'Tipos Textuais',
+        flashcards: [
+          card('pb2_pt_1', 'Quais são os tipos textuais?', 'Narração, descrição, dissertação, exposição e injunção.'),
+          card('pb2_pt_2', 'O que caracteriza um texto expositivo?', 'Apresenta informações de forma objetiva e clara, sem argumentar. Ex: verbetes de enciclopédia.'),
+          card('pb2_pt_3', 'Qual a diferença entre tipo e gênero textual?', 'Tipo é a estrutura (narrar, descrever, argumentar). Gênero é a forma social do texto (carta, artigo, receita).'),
+          card('pb2_pt_4', 'O que é coesão textual?', 'Ligação e harmonia entre as partes do texto por meio de conectivos, pronomes e outros recursos linguísticos.'),
+          card('pb2_pt_5', 'O que é coerência textual?', 'Lógica e sentido do texto como um todo. Um texto coerente não tem contradições de ideias.'),
+          card('pb2_pt_6', 'O que é progressão temática?', 'Desenvolvimento gradual do tema do texto, acrescentando informações novas a cada parágrafo.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_port_ort',
+        name: 'Ortografia Oficial',
+        flashcards: [
+          card('pb2_po_1', 'O que rege a ortografia brasileira atual?', 'O Acordo Ortográfico de 1990, em vigor no Brasil desde 2009, unificando a ortografia dos países lusófonos.'),
+          card('pb2_po_2', 'Quando usar "s" ou "z"?', '"S" em palavras como casa, mesa. "Z" em verbos terminados em -izar (realizar, organizar) e sufixo -ez (frieza).'),
+          card('pb2_po_3', 'Quando usar "g" ou "j"?', '"G" antes de e/i em palavras de origem latina/grega (gelo, gíria). "J" em palavras de origem árabe/africana (jiboia).'),
+          card('pb2_po_4', 'Quando usar "ss" ou "ç"?', '"SS" entre vogais (passar, osso). "Ç" após a, o, u (açúcar, poço, açude) ou início de sílaba.'),
+          card('pb2_po_5', 'Quando usar "x" ou "ch"?', '"X" após ditongo (caixote, peixe), após "en" (enxada). "Ch" em palavras de origem estrangeira (chave, chefe).'),
+          card('pb2_po_6', 'O que é hífen? Quando usar?', 'Sinal gráfico que une elementos de palavras compostas e prefixos. Ex: guarda-chuva, anti-inflamatório.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_port_cl',
+        name: 'Classes de Palavras',
+        flashcards: [
+          card('pb2_pcl_1', 'Quais são as 10 classes de palavras?', 'Substantivo, adjetivo, artigo, numeral, pronome, verbo, advérbio, preposição, conjunção e interjeição.'),
+          card('pb2_pcl_2', 'O que é advérbio?', 'Palavra que modifica verbo, adjetivo ou outro advérbio. Indica modo, tempo, lugar, intensidade, etc.'),
+          card('pb2_pcl_3', 'O que é pronome relativo?', 'Substitui um antecedente e introduz oração subordinada. Ex: que, quem, cujo, onde, o qual.'),
+          card('pb2_pcl_4', 'O que é numeral?', 'Palavra que indica quantidade ou ordem de seres. Ex: dois, primeiro, dobro, terço.'),
+          card('pb2_pcl_5', 'O que é artigo?', 'Palavra que precede o substantivo, indicando gênero e número. Ex: o, a, os, as (definidos); um, uma (indefinidos).'),
+          card('pb2_pcl_6', 'O que é interjeição?', 'Palavra ou expressão que traduz emoções ou sentimentos. Ex: Ah!, Oh!, Viva!, Ui!'),
+        ],
+      },
+      {
+        id: 'subj_pb2_port_mor',
+        name: 'Morfossintaxe: Estrutura da Oração',
+        flashcards: [
+          card('pb2_pmo_1', 'O que é sujeito?', 'Termo sobre o qual se declara algo. Concorda com o verbo em pessoa e número.'),
+          card('pb2_pmo_2', 'O que é predicado?', 'Tudo que se declara sobre o sujeito. Inclui o verbo e seus complementos.'),
+          card('pb2_pmo_3', 'O que é objeto direto?', 'Complemento verbal sem preposição. Ex: "O enfermeiro aplicou a vacina."'),
+          card('pb2_pmo_4', 'O que é objeto indireto?', 'Complemento verbal com preposição obrigatória. Ex: "Ele gosta de estudar."'),
+          card('pb2_pmo_5', 'O que é adjunto adverbial?', 'Termo que indica circunstância da ação (tempo, lugar, modo). Ex: "Chegou cedo ao hospital."'),
+          card('pb2_pmo_6', 'O que é aposto?', 'Termo que explica ou esclarece outro. Ex: "Dr. Paulo, o cirurgião, operou o paciente."'),
+        ],
+      },
+      {
+        id: 'subj_pb2_port_reg',
+        name: 'Regência Verbal e Nominal',
+        flashcards: [
+          card('pb2_prv_1', 'O que é regência?', 'Relação de dependência entre um verbo ou nome e seus complementos, com ou sem preposição.'),
+          card('pb2_prv_2', 'O verbo "assistir" no sentido de ver pede qual preposição?', '"A". Ex: "Assistiu ao procedimento." — Transitivo indireto.'),
+          card('pb2_prv_3', 'O verbo "obedecer" pede preposição?', 'Sim, é transitivo indireto. Ex: "O paciente obedeceu ao médico."'),
+          card('pb2_prv_4', 'O verbo "visar" no sentido de objetivar pede qual preposição?', '"A". Ex: "Visamos à melhora do paciente."'),
+          card('pb2_prv_5', 'O que é regência nominal de "necessidade"?', '"Necessidade de". Ex: "Há necessidade de repouso."'),
+          card('pb2_prv_6', 'O que é regência nominal de "apto"?', '"Apto a/para". Ex: "O enfermeiro está apto ao serviço."'),
+        ],
+      },
+      {
+        id: 'subj_pb2_port_conc',
+        name: 'Concordância',
+        flashcards: [
+          card('pb2_pco_1', 'O que é concordância verbal?', 'O verbo deve concordar em número e pessoa com o sujeito. Ex: "Os enfermeiros chegaram."'),
+          card('pb2_pco_2', 'O que é concordância nominal?', 'Adjetivo, artigo e pronome concordam em gênero e número com o substantivo.'),
+          card('pb2_pco_3', 'Como concordar com sujeito composto antes do verbo?', 'Verbo vai para o plural. Ex: "Pedro e Maria estudaram juntos."'),
+          card('pb2_pco_4', 'Como concordar com sujeito composto depois do verbo?', 'Verbo pode ficar no singular ou plural. Ex: "Chegou o médico e a enfermeira." ou "Chegaram..."'),
+          card('pb2_pco_5', 'O adjetivo qualifica dois substantivos de gêneros diferentes. Como fica?', 'Vai para o masculino plural. Ex: "Homens e mulheres dedicados."'),
+          card('pb2_pco_6', 'Como concordar com "a maioria de"?', 'O verbo pode concordar com o núcleo (maioria) ou com o complemento. Ex: "A maioria dos alunos passou/passaram."'),
+        ],
+      },
+      {
+        id: 'subj_pb2_port_sin',
+        name: 'Pontuação',
+        flashcards: [
+          card('pb2_pp_1', 'Quando usar vírgula antes de "mas"?', 'Sempre. A vírgula separa as orações coordenadas adversativas. Ex: "Estudei, mas não passei."'),
+          card('pb2_pp_2', 'Quando NÃO usar vírgula entre sujeito e verbo?', 'Nunca separe sujeito de seu verbo com vírgula. Ex: "Os alunos estudaram." (sem vírgula).'),
+          card('pb2_pp_3', 'Quando usar ponto e vírgula?', 'Para separar orações coordenadas longas ou itens de uma enumeração mais complexa.'),
+          card('pb2_pp_4', 'Quando usar dois pontos?', 'Antes de enumeração, citação, explicação ou fala de personagem.'),
+          card('pb2_pp_5', 'O vocativo exige vírgula?', 'Sim, sempre. Ex: "João, venha aqui." / "Venha aqui, João." / "Venha, João, aqui."'),
+          card('pb2_pp_6', 'O aposto explicativo exige vírgula?', 'Sim, é isolado por vírgulas. Ex: "São Paulo, a maior cidade do Brasil, é muito populosa."'),
+        ],
+      },
+        ], // end topics for Português
+      }, // end Português subject
+      // ── MATEMÁTICA ─────────────────────────────
+      {
+        id: 'subj_pb2_mat',
+        name: 'Matemática',
+        flashcards: [],
+        topics: [
+      {
+        id: 'subj_pb2_mat_conj',
+        name: 'Conjuntos Numéricos',
+        flashcards: [
+          card('pb2_mc_1', 'O que são números naturais (ℕ)?', 'Números inteiros não negativos usados para contar. ℕ = {0, 1, 2, 3, ...}'),
+          card('pb2_mc_2', 'O que são números inteiros (ℤ)?', 'Incluem naturais e negativos. ℤ = {..., -2, -1, 0, 1, 2, ...}'),
+          card('pb2_mc_3', 'O que são números racionais (ℚ)?', 'Podem ser escritos como fração p/q (q≠0). Ex: 1/2, -3, 0,75.'),
+          card('pb2_mc_4', 'O que são números irracionais?', 'Não podem ser escritos como fração. Ex: √2, π, e.'),
+          card('pb2_mc_5', 'O que são números reais (ℝ)?', 'União de racionais e irracionais. Representam todos os pontos da reta numérica.'),
+          card('pb2_mc_6', 'Qual a hierarquia dos conjuntos numéricos?', 'ℕ ⊂ ℤ ⊂ ℚ ⊂ ℝ (naturais estão dentro de inteiros, que estão dentro de racionais, que estão dentro dos reais).'),
+        ],
+      },
+      {
+        id: 'subj_pb2_mat_func',
+        name: 'Funções',
+        flashcards: [
+          card('pb2_mf_1', 'O que é função do 1º grau?', 'f(x) = ax + b, com a≠0. Gráfico é uma reta. Crescente se a>0, decrescente se a<0.'),
+          card('pb2_mf_2', 'O que é função do 2º grau?', 'f(x) = ax² + bx + c, com a≠0. Gráfico é uma parábola.'),
+          card('pb2_mf_3', 'O que é função exponencial?', 'f(x) = aˣ, com a>0 e a≠1. Usada em crescimento/decaimento. Ex: juros compostos, radioatividade.'),
+          card('pb2_mf_4', 'O que é função logarítmica?', 'f(x) = logₐx, inversa da exponencial. Ex: log₁₀100 = 2, pois 10² = 100.'),
+          card('pb2_mf_5', 'Como encontrar raízes de função do 2º grau?', 'Usar Bhaskara: x = (-b ± √Δ) / 2a, onde Δ = b² - 4ac.'),
+          card('pb2_mf_6', 'O que o discriminante (Δ) indica?', 'Δ>0: duas raízes reais. Δ=0: uma raiz real. Δ<0: sem raízes reais.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_mat_eq',
+        name: 'Equações e Sistemas',
+        flashcards: [
+          card('pb2_meq_1', 'O que é equação do 1º grau?', 'ax + b = 0, com a≠0. Tem sempre uma solução. Ex: 2x + 4 = 0 → x = -2.'),
+          card('pb2_meq_2', 'O que é sistema linear?', 'Conjunto de equações com as mesmas incógnitas. Solução é o ponto que satisfaz todas as equações.'),
+          card('pb2_meq_3', 'Quais os métodos de resolução de sistemas?', 'Substituição, adição (eliminação) e determinantes (Regra de Cramer).'),
+          card('pb2_meq_4', 'O que são sistemas equivalentes?', 'Sistemas que possuem o mesmo conjunto solução, independente de operações realizadas.'),
+          card('pb2_meq_5', 'O que é equação polinomial?', 'Equação do tipo aₙxⁿ + ... + a₁x + a₀ = 0. O grau é determinado pelo maior expoente.'),
+          card('pb2_meq_6', 'O que é matriz?', 'Arranjo retangular de números em linhas e colunas. Usada para resolver sistemas e transformações.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_mat_pa_pg',
+        name: 'Progressões (PA e PG)',
+        flashcards: [
+          card('pb2_mpg_1', 'O que é PA (Progressão Aritmética)?', 'Sequência onde a diferença entre termos consecutivos é constante (razão r). Ex: 2, 5, 8, 11 (r=3).'),
+          card('pb2_mpg_2', 'Qual a fórmula do termo geral da PA?', 'aₙ = a₁ + (n-1)·r'),
+          card('pb2_mpg_3', 'Qual a fórmula da soma dos termos da PA?', 'Sₙ = n·(a₁ + aₙ)/2'),
+          card('pb2_mpg_4', 'O que é PG (Progressão Geométrica)?', 'Sequência onde o quociente entre termos consecutivos é constante (razão q). Ex: 2, 6, 18 (q=3).'),
+          card('pb2_mpg_5', 'Qual a fórmula do termo geral da PG?', 'aₙ = a₁ · q^(n-1)'),
+          card('pb2_mpg_6', 'Qual a fórmula da soma da PG finita?', 'Sₙ = a₁·(qⁿ - 1)/(q - 1), para q≠1.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_mat_comb',
+        name: 'Análise Combinatória',
+        flashcards: [
+          card('pb2_mcb_1', 'O que é fatorial?', 'n! = n × (n-1) × ... × 2 × 1. Ex: 5! = 120. Por definição, 0! = 1.'),
+          card('pb2_mcb_2', 'O que é permutação simples?', 'Número de formas de arranjar n elementos distintos. Pₙ = n!'),
+          card('pb2_mcb_3', 'O que é arranjo?', 'Seleção ordenada de p elementos entre n. A(n,p) = n!/(n-p)!'),
+          card('pb2_mcb_4', 'O que é combinação?', 'Seleção não-ordenada de p elementos entre n. C(n,p) = n!/[p!·(n-p)!]'),
+          card('pb2_mcb_5', 'Qual a diferença entre arranjo e combinação?', 'Arranjo considera a ordem dos elementos; combinação não considera a ordem.'),
+          card('pb2_mcb_6', 'O que é evento independente em probabilidade?', 'Dois eventos são independentes quando a ocorrência de um não afeta a probabilidade do outro.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_mat_trig',
+        name: 'Trigonometria',
+        flashcards: [
+          card('pb2_mtr_1', 'O que é seno?', 'Razão entre cateto oposto e hipotenusa. sen(θ) = CO/HIP.'),
+          card('pb2_mtr_2', 'O que é cosseno?', 'Razão entre cateto adjacente e hipotenusa. cos(θ) = CA/HIP.'),
+          card('pb2_mtr_3', 'O que é tangente?', 'Razão entre seno e cosseno. tg(θ) = sen/cos = CO/CA.'),
+          card('pb2_mtr_4', 'Qual a identidade trigonométrica fundamental?', 'sen²(θ) + cos²(θ) = 1.'),
+          card('pb2_mtr_5', 'Quais os valores de sen(30°), sen(45°) e sen(60°)?', 'sen(30°)=1/2, sen(45°)=√2/2, sen(60°)=√3/2.'),
+          card('pb2_mtr_6', 'O que é lei dos senos?', 'Em qualquer triângulo: a/sen(A) = b/sen(B) = c/sen(C).'),
+        ],
+      },
+      {
+        id: 'subj_pb2_mat_geo',
+        name: 'Geometria Plana e Espacial',
+        flashcards: [
+          card('pb2_mgp_1', 'Qual a área do triângulo?', 'A = base × altura / 2.'),
+          card('pb2_mgp_2', 'Qual a área do círculo?', 'A = π × r².'),
+          card('pb2_mgp_3', 'Qual o volume da esfera?', 'V = (4/3) × π × r³.'),
+          card('pb2_mgp_4', 'Qual o volume do cilindro?', 'V = π × r² × h.'),
+          card('pb2_mgp_5', 'O que é geometria analítica?', 'Estudo de figuras geométricas por meio de coordenadas cartesianas e equações algébricas.'),
+          card('pb2_mgp_6', 'Qual a equação da reta?', 'y = mx + b, onde m é o coeficiente angular (inclinação) e b é o coeficiente linear.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_mat_fin',
+        name: 'Financeira',
+        flashcards: [
+          card('pb2_mfi_1', 'O que é capital?', 'Valor inicial aplicado ou emprestado, também chamado de principal.'),
+          card('pb2_mfi_2', 'O que são juros simples?', 'Juros calculados sempre sobre o capital inicial. J = C × i × t.'),
+          card('pb2_mfi_3', 'O que são juros compostos?', 'Juros calculados sobre o montante acumulado. M = C × (1+i)^t.'),
+          card('pb2_mfi_4', 'O que é montante?', 'Capital + Juros. Valor total ao final da aplicação.'),
+          card('pb2_mfi_5', 'O que é taxa de juros?', 'Percentual aplicado sobre o capital para calcular os juros. Pode ser mensal, anual, etc.'),
+          card('pb2_mfi_6', 'Qual a diferença entre desconto simples e composto?', 'Desconto simples é calculado sobre o valor nominal. Composto é calculado sobre o valor presente acumulado.'),
+        ],
+      },
+        ], // end topics for Matemática
+      }, // end Matemática subject
+      // ── CONHECIMENTOS ESPECÍFICOS ───────────────
+      {
+        id: 'subj_pb2_enf',
+        name: 'Enfermagem',
+        flashcards: [],
+        topics: [
+      {
+        id: 'subj_pb2_enf_urg',
+        name: 'Urgências e Emergências',
+        flashcards: [
+          card('pb2_eu_1', 'O que é atendimento pré-hospitalar?', 'Conjunto de ações realizadas fora do hospital para estabilizar e transportar a vítima com segurança.'),
+          card('pb2_eu_2', 'Qual a diferença entre urgência e emergência?', 'Urgência: risco à saúde sem risco imediato de morte. Emergência: risco imediato de morte.'),
+          card('pb2_eu_3', 'Quais os passos do BLS (Suporte Básico de Vida)?', 'C-A-B: Compressões torácicas, Abertura das vias aéreas, Ventilação (Breathing).'),
+          card('pb2_eu_4', 'Qual a frequência das compressões na RCP?', '100 a 120 compressões por minuto, com profundidade de 5 a 6 cm.'),
+          card('pb2_eu_5', 'O que é triagem de Manchester?', 'Sistema de triagem hospitalar que classifica pacientes por prioridade de atendimento em 5 níveis por cores.'),
+          card('pb2_eu_6', 'O que é choque hipovolêmico?', 'Queda acentuada do volume sanguíneo circulante, causando hipotensão, taquicardia e redução da perfusão.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_enf_epid',
+        name: 'Epidemiologia',
+        flashcards: [
+          card('pb2_ee_1', 'O que é epidemiologia?', 'Ciência que estuda distribuição, frequência e determinantes de doenças em populações.'),
+          card('pb2_ee_2', 'O que é incidência?', 'Número de casos novos de uma doença em determinada população e período de tempo.'),
+          card('pb2_ee_3', 'O que é prevalência?', 'Total de casos (novos + antigos) de uma doença em determinado momento.'),
+          card('pb2_ee_4', 'O que é letalidade?', 'Proporção de mortes entre os casos confirmados de uma doença. Mede a gravidade.'),
+          card('pb2_ee_5', 'O que é mortalidade?', 'Frequência de mortes em uma população em determinado período, independente de doença específica.'),
+          card('pb2_ee_6', 'O que é vigilância epidemiológica?', 'Sistema de coleta, análise e disseminação de informações para controle de doenças e agravos.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_enf_saude_col',
+        name: 'Saúde Coletiva',
+        flashcards: [
+          card('pb2_esc_1', 'O que é saúde coletiva?', 'Campo de conhecimento que articula epidemiologia, ciências sociais e políticas de saúde para cuidar de populações.'),
+          card('pb2_esc_2', 'O que são doenças transmissíveis?', 'Doenças causadas por agentes infecciosos transmitidos de pessoa a pessoa ou por vetores.'),
+          card('pb2_esc_3', 'O que são doenças não transmissíveis (DCNT)?', 'Doenças crônicas sem transmissão entre pessoas. Ex: diabetes, hipertensão, câncer, doenças cardiovasculares.'),
+          card('pb2_esc_4', 'O que é promoção de saúde?', 'Processo que permite às pessoas aumentar o controle sobre sua saúde. Vai além do tratamento de doenças.'),
+          card('pb2_esc_5', 'O que é prevenção primária em saúde?', 'Ações que evitam o surgimento da doença. Ex: vacinação, saneamento, educação em saúde.'),
+          card('pb2_esc_6', 'O que é prevenção secundária?', 'Detecção precoce e tratamento da doença para evitar agravamento. Ex: rastreamento, diagnóstico precoce.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_enf_trab',
+        name: 'Saúde do Trabalhador',
+        flashcards: [
+          card('pb2_et_1', 'O que é saúde do trabalhador?', 'Campo que visa compreender e intervir nas relações entre trabalho, saúde e doença.'),
+          card('pb2_et_2', 'O que é doença ocupacional?', 'Doença produzida ou desencadeada pelo exercício do trabalho peculiar a determinada atividade.'),
+          card('pb2_et_3', 'O que é acidente de trabalho?', 'Ocorrência brusca e imprevista que causa lesão corporal ou perturbação funcional ao trabalhador.'),
+          card('pb2_et_4', 'O que são EPIs?', 'Equipamentos de Proteção Individual — dispositivos para proteger o trabalhador de riscos à saúde e segurança.'),
+          card('pb2_et_5', 'O que é CIPA?', 'Comissão Interna de Prevenção de Acidentes — previne acidentes e doenças do trabalho nas empresas.'),
+          card('pb2_et_6', 'O que é SIPAT?', 'Semana Interna de Prevenção de Acidentes do Trabalho — evento anual promovido pela CIPA.'),
+        ],
+      },
+      {
+        id: 'subj_pb2_enf_imun',
+        name: 'Imunização e Vigilância',
+        flashcards: [
+          card('pb2_ei_1', 'O que é imunização?', 'Processo pelo qual o organismo adquire proteção contra doenças infecciosas por vacinas ou soros.'),
+          card('pb2_ei_2', 'O que é imunidade ativa?', 'Imunidade adquirida pelo próprio organismo após contato com antígeno (doença ou vacina). Duradoura.'),
+          card('pb2_ei_3', 'O que é imunidade passiva?', 'Imunidade adquirida por transferência de anticorpos prontos. Ex: soro antiofídico, leite materno. Temporária.'),
+          card('pb2_ei_4', 'O que é rede de frio?', 'Sistema de conservação de vacinas em temperatura adequada (2°C a 8°C) do fabricante ao ponto de aplicação.'),
+          card('pb2_ei_5', 'O que é vigilância sanitária?', 'Conjunto de ações para eliminar, diminuir ou prevenir riscos à saúde relacionados a produtos e serviços.'),
+          card('pb2_ei_6', 'O que é notificação compulsória?', 'Comunicação obrigatória às autoridades de doenças e agravos previstos em lista nacional do Ministério da Saúde.'),
+        ],
+      },
+        ], // end topics for Enfermagem
+      }, // end Enfermagem subject
+    ],
+  },
+  {
+    id: 'deck_exemplo',
+    name: 'Deck Exemplo',
+    category: 'Exemplo',
+    isExample: true,
+    isUserCreated: false,
+    subjects: [
+      {
+        id: 'subj_exemplo_01',
+        name: 'Como usar o app',
+        flashcards: [
+          {
+            id: 'ex_001',
+            question: 'O que são flashcards?',
+            answer: 'São cartões de estudo com uma pergunta de um lado e a resposta do outro. Você toca no card para revelar a resposta e depois avalia se acertou, errou ou quase acertou deslizando para os lados ou para cima.',
+            level: 0, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0,
+          },
+          {
+            id: 'ex_002',
+            question: 'Como avaliar um card após ver a resposta?',
+            answer: '→ Direita — Acertei\n← Esquerda — Errei\n↑ Cima — Quase\n\nCards marcados como Errei ou Quase voltam ao fim da pilha e reaparecem até serem acertados. Só o Acertei avança o card.',
+            level: 1, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0,
+          },
+          {
+            id: 'ex_003',
+            question: 'O que é o sistema de repetição espaçada (SRS)?',
+            answer: 'Um método que mostra os cards com intervalos crescentes conforme você acerta. O que você sabe bem aparece menos, o que precisa revisar aparece mais — maximizando seu tempo de estudo.',
+            level: 2, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0,
+          },
+          {
+            id: 'ex_004',
+            question: 'Como funciona o sistema de níveis?',
+            answer: 'Cada card vai do Nível 0 (Marco Zero) ao Nível 5 (Dominado). Acertando, o card sobe de nível e aparece com menos frequência. Errando, ele regride. Este card está no Nível 3.',
+            level: 3, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0,
+          },
+          {
+            id: 'ex_005',
+            question: 'Como organizar meus estudos no app?',
+            answer: 'Crie um Deck para cada concurso ou área. Dentro do deck, crie Matérias por disciplina. Dentro de cada matéria, adicione seus Flashcards. Na aba Início, toque em "Criar deck" para começar.',
+            level: 4, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0,
+          },
+          {
+            id: 'ex_006',
+            question: 'O que significa um card no Nível 5?',
+            answer: 'Nível 5 é o topo — significa que você dominou este conteúdo. Cards neste nível aparecem raramente, só para reforço de longo prazo. Este card está no Nível 5 (Dominado). Parabéns, você chegou ao fim do tutorial!',
+            level: 5, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0,
+          },
+        ],
+      },
+    ],
+  },
 ];
-
-
-export default initialData;

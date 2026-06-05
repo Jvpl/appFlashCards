@@ -1,14 +1,377 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Button } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, Pressable,
+  StyleSheet, ScrollView, KeyboardAvoidingView, Dimensions, LayoutAnimation, Keyboard, BackHandler,
+  Animated,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { SvgXml } from 'react-native-svg';
 import { getAppData, saveAppData } from '../services/storage';
+import { getCustomCategories, saveCustomCategories } from '../config/categories';
 import { CustomAlert } from '../components/ui/CustomAlert';
-import styles from '../styles/globalStyles';
+import GlowIcon from '../components/ui/GlowIcon';
+import { CATEGORY_TILE_SVG, CATEGORY_TILE_SELECTED_SVG } from '../assets/svg-cards/categoryCardSvgs';
 import theme from '../styles/theme';
 
-export const AddDeckScreen = ({ navigation }) => {
-  const [name, setName] = useState('');
+// Dados dos ícones para Skia GlowIcon
+import {
+  administrativoIcon,
+  educacaoIcon,
+  fiscalIcon,
+  justicaIcon,
+  militarIcon,
+  operacionalIcon,
+  saudeIcon,
+  segurancaIcon,
+} from '../assets/svgIconPaths';
 
-  const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
+
+const { width, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
+const COL_GAP = 10;
+
+
+
+const CATEGORIES = [
+  { id: 'seguranca', name: 'Segurança Pública', icon: segurancaIcon },
+  { id: 'justica', name: 'Justiça & Direito', icon: justicaIcon },
+  { id: 'administrativo', name: 'Administrativo', icon: administrativoIcon },
+  { id: 'fiscal', name: 'Fiscal & Controle', icon: fiscalIcon },
+  { id: 'operacional', name: 'Operacional & Logística', icon: operacionalIcon },
+  { id: 'saude', name: 'Saúde', icon: saudeIcon },
+  { id: 'educacao', name: 'Educação', icon: educacaoIcon },
+  { id: 'militar', name: 'Militar', icon: militarIcon },
+];
+
+// ── Category tile ─────────────────────────────────────────────────
+
+const CategoryTile = React.memo(({ item, selected, onPress, onBlurInput, deckCount = 0, onScrollToInput, showArrow }) => (
+  <TouchableOpacity
+    onPress={() => { onPress(); onBlurInput?.(); Keyboard.dismiss(); }}
+    activeOpacity={0.75}
+    style={s.catTile}
+  >
+    <SvgXml xml={CATEGORY_TILE_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />
+    {selected && <SvgXml xml={CATEGORY_TILE_SELECTED_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
+    {selected && (
+      <View style={s.catTileCheck}>
+        <Ionicons name="checkmark" size={10} color="#0F0F0F" />
+      </View>
+    )}
+    {/* Seta para cima — scroll até o input — aparece só quando input saiu da tela */}
+    {selected && showArrow && (
+      <TouchableOpacity style={s.catTileArrow} onPress={e => { e.stopPropagation(); onScrollToInput?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="chevron-up" size={16} color={theme.primary} />
+      </TouchableOpacity>
+    )}
+    <View style={s.catTileContent}>
+      <GlowIcon iconData={item.icon} size={44} color={theme.primary} glowBlur={5} />
+      <Text style={[s.catTileLabel, selected && s.catTileLabelSelected]} numberOfLines={2}>
+        {item.name}
+      </Text>
+    </View>
+    <View style={s.catTileBadge}>
+      <Text style={s.catTileBadgeText}>{String(deckCount).padStart(2, '0')}</Text>
+    </View>
+  </TouchableOpacity>
+), (prev, next) => prev.selected === next.selected && prev.deckCount === next.deckCount && prev.showArrow === next.showArrow);
+
+const CustomCategoryTile = React.memo(({ item, selected, onPress, onLongPress, onBlurInput, deckCount = 0, onScrollToInput, showArrow, deleteMode, deleteSelected }) => {
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const didSwipe = useRef(false);
+  return (
+  <TouchableOpacity
+    onPress={() => { if (didSwipe.current) return; onPress(); onBlurInput?.(); Keyboard.dismiss(); }}
+    onLongPress={() => { if (didSwipe.current) return; onLongPress?.(); Keyboard.dismiss(); }}
+    delayLongPress={400}
+    activeOpacity={0.75}
+    style={s.catTile}
+    onPressIn={e => { startX.current = e.nativeEvent.pageX; startY.current = e.nativeEvent.pageY; didSwipe.current = false; }}
+    onPressOut={e => {
+      const dx = Math.abs(e.nativeEvent.pageX - startX.current);
+      const dy = Math.abs(e.nativeEvent.pageY - startY.current);
+      if (dx > 8 || dy > 8) didSwipe.current = true;
+    }}
+  >
+    <SvgXml xml={CATEGORY_TILE_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />
+    {selected && !deleteMode && <SvgXml xml={CATEGORY_TILE_SELECTED_SVG} width="100%" height="100%" style={StyleSheet.absoluteFill} />}
+    {/* Modo normal: checkmark de seleção */}
+    {selected && !deleteMode && (
+      <View style={s.catTileCheck}>
+        <Ionicons name="checkmark" size={10} color="#0F0F0F" />
+      </View>
+    )}
+    {selected && !deleteMode && showArrow && (
+      <TouchableOpacity style={s.catTileArrow} onPress={e => { e.stopPropagation(); onScrollToInput?.(); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="chevron-up" size={16} color={theme.primary} />
+      </TouchableOpacity>
+    )}
+    {/* Modo deleção: círculo vermelho */}
+    {deleteMode && (
+      <View style={[s.catTileDeleteDot, deleteSelected && s.catTileDeleteDotActive]}>
+        {deleteSelected && <Ionicons name="checkmark" size={10} color="#fff" />}
+      </View>
+    )}
+    <View style={s.catTileContent}>
+      <Ionicons name={item.icon || 'folder-outline'} size={44} color={deleteMode ? 'rgba(93,214,44,0.4)' : theme.primary} />
+      <Text style={[s.catTileLabel, selected && !deleteMode && s.catTileLabelSelected, deleteMode && { color: theme.textMuted }]} numberOfLines={2}>
+        {item.name}
+      </Text>
+    </View>
+    <View style={s.catTileBadge}>
+      <Text style={s.catTileBadgeText}>{String(deckCount).padStart(2, '0')}</Text>
+    </View>
+  </TouchableOpacity>
+  );
+}, (prev, next) =>
+  prev.selected === next.selected &&
+  prev.deleteMode === next.deleteMode &&
+  prev.deleteSelected === next.deleteSelected &&
+  prev.deckCount === next.deckCount &&
+  prev.showArrow === next.showArrow
+);
+
+// ── Main screen ───────────────────────────────────────────────────
+
+export const AddDeckScreen = ({ route, navigation }) => {
+  const editDeckId = route?.params?.editDeckId || null;
+  const preselectedCategoryId = route?.params?.preselectedCategoryId || null;
+  const insets = useSafeAreaInsets();
+
+  // ── Wizard step (só para criação, não edição) ─────────────────────
+  const stepRef = useRef(1);
+  const [stepLabel, setStepLabel] = useState(1); // só para re-render do label
+  const slide1Anim = useRef(new Animated.Value(0)).current;
+  const slide2Anim = useRef(new Animated.Value(width)).current;
+
+  const goToStep2 = useCallback(() => {
+    Keyboard.dismiss();
+    stepRef.current = 2;
+    setStepLabel(2);
+    Animated.parallel([
+      Animated.timing(slide1Anim, { toValue: -width, duration: 280, useNativeDriver: true }),
+      Animated.timing(slide2Anim, { toValue: 0, duration: 280, useNativeDriver: true }),
+    ]).start();
+  }, [slide1Anim, slide2Anim]);
+
+  const goToStep1 = useCallback(() => {
+    stepRef.current = 1;
+    setStepLabel(1);
+    Animated.parallel([
+      Animated.timing(slide1Anim, { toValue: 0, duration: 280, useNativeDriver: true }),
+      Animated.timing(slide2Anim, { toValue: width, duration: 280, useNativeDriver: true }),
+    ]).start(() => {
+      scroll2Ref.current?.scrollTo({ y: 0, animated: false });
+    });
+  }, [slide1Anim, slide2Anim]);
+
+  const [name, setName] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const initialName = useRef('');
+  const initialCategory = useRef(null);
+  const confirmLeave = useRef(false);
+  const nameRef = useRef('');
+  const categoryRef = useRef(null);
+  const [customCatExpanded, setCustomCatExpanded] = useState(false);
+  const [customCatName, setCustomCatName] = useState('');
+  const [customCatIcon, setCustomCatIcon] = useState(null);
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false, title: '', message: '', buttons: [],
+  });
+  const [inputFocused, setInputFocused] = useState(false);
+  const [catInputFocused, setCatInputFocused] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [customCategories, setCustomCategories] = useState([]);
+  const customCategoriesRef = useRef([]);
+  const [deckCountMap, setDeckCountMap] = useState({}); // { categoryId: count }
+  const [catFilter, setCatFilter] = useState('preset'); // 'preset' | 'custom'
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [deleteSelected, setDeleteSelected] = useState(new Set()); // ids selecionados para deletar
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteSelectAll, setDeleteSelectAll] = useState(false);
+  const inputRef = useRef(null);
+  const scrollRef = useRef(null);
+  const scroll2Ref = useRef(null);
+  const catInputRef = useRef(null);
+  const catSectionY = useRef(0);
+  const catInputFocusedRef = useRef(false);
+  const preselectedCardRef = useRef(null);
+  const preselectedCardY = useRef(null);
+  const cardYMap = useRef({});
+  const pendingScrollToCard = useRef(false); // { categoryId: absoluteY }
+  const scrollY = useRef(0);
+  const inputSectionBottom = useRef(0);
+  const selectedCategoryRef = useRef(null);
+  const [showArrow, setShowArrow] = useState(false);
+  const [showLabel, setShowLabel] = useState(false);
+  const showLabelRef = useRef(false);
+  const showArrowRef = useRef(false);
+
+  // Carrega categorias customizadas e contagem de decks por categoria
+  useEffect(() => {
+    const load = async () => {
+      const [customs, allData] = await Promise.all([getCustomCategories(), getAppData()]);
+      setCustomCategories(customs);
+      const counts = {};
+      allData.forEach(d => {
+        const cat = d.category || 'personalizados';
+        counts[cat] = (counts[cat] || 0) + 1;
+      });
+      setDeckCountMap(counts);
+      // Pré-seleciona categoria se passada como param
+      if (preselectedCategoryId && !editDeckId) {
+        setSelectedCategory(preselectedCategoryId);
+        initialCategory.current = preselectedCategoryId;
+        if (preselectedCategoryId.startsWith('custom_')) {
+          setCatFilter('custom');
+        }
+        // Scroll até o card pré-selecionado após o layout renderizar
+        setTimeout(() => {
+          const y = preselectedCardY.current;
+          if (y !== null) {
+            scrollRef.current?.scrollTo({ y: y - 24, animated: true });
+          } else {
+            scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
+          }
+        }, 350);
+      }
+    };
+    load();
+  }, []);
+
+  // Pré-carrega dados ao editar
+  useEffect(() => {
+    if (!editDeckId) return;
+    getAppData().then(allData => {
+      const deck = allData.find(d => d.id === editDeckId);
+      if (!deck) return;
+      const cat = deck.category && deck.category !== 'personalizados' ? deck.category : null;
+      setName(deck.name || '');
+      setSelectedCategory(cat);
+      initialName.current = deck.name || '';
+      initialCategory.current = cat;
+    });
+  }, [editDeckId]);
+
+  const updateVisibility = useCallback(() => {
+    const sel = selectedCategoryRef.current;
+    const sy = scrollY.current;
+    const cardY = preselectedCardY.current;
+    const inputBottom = inputSectionBottom.current;
+
+    const nextArrow = !!(sel && inputBottom > 0 && sy > inputBottom);
+
+    if (nextArrow !== showArrowRef.current) { showArrowRef.current = nextArrow; setShowArrow(nextArrow); }
+  }, []);
+
+  // Referência estável para scroll ao input — usa ref para não quebrar memo dos tiles
+  const scrollToInput = useCallback(() => {
+    if (showArrowRef.current) scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, []);
+
+  const cardHeightMap = useRef({});
+  const scrollIfCoveredByFab = useCallback((cardId, getItems) => {
+    if (!cardId) return;
+    const allItems = typeof getItems === 'function' ? getItems() : getItems;
+    if (!allItems?.length) return;
+    const lastRowCount = allItems.length % 2 === 0 ? 2 : 1;
+    const lastRow = allItems.slice(-lastRowCount).map(i => i.id);
+    if (!lastRow.includes(cardId)) return;
+    setTimeout(() => {
+      scroll2Ref.current?.scrollToEnd({ animated: true });
+    }, 80);
+  }, []);
+
+  // Mantém refs sincronizados com state para o listener beforeRemove
+  useEffect(() => { nameRef.current = name; }, [name]);
+  useEffect(() => { customCategoriesRef.current = customCategories; }, [customCategories]);
+  useEffect(() => { categoryRef.current = selectedCategory; }, [selectedCategory]);
+
+  const hasChanges = () =>
+    nameRef.current.trim() !== initialName.current ||
+    categoryRef.current !== initialCategory.current;
+
+  const handleBack = () => {
+    if (!editDeckId && stepRef.current === 2) {
+      goToStep1();
+      return;
+    }
+    if (editDeckId && hasChanges()) {
+      setAlertConfig({
+        visible: true,
+        title: 'Sair sem salvar?',
+        message: 'Você fez alterações que não foram salvas.',
+        buttons: [
+          { text: 'Continuar editando', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+          { text: 'Sair sem salvar', style: 'destructive', onPress: () => { confirmLeave.current = true; setAlertConfig(p => ({ ...p, visible: false })); navigation.goBack(); } },
+        ],
+      });
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', e => {
+      const kh = e.endCoordinates.height;
+      setKeyboardHeight(kh);
+      if (catInputFocusedRef.current) {
+        setTimeout(() => {
+          scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
+        }, 50);
+      }
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  useEffect(() => {
+    const backSub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (deleteMode) {
+        setDeleteMode(false);
+        setDeleteSelected(new Set());
+        return true;
+      }
+      if (!editDeckId && stepRef.current === 2) {
+        goToStep1();
+        return true;
+      }
+      handleBack();
+      return true;
+    });
+    return () => backSub.remove();
+  }, [name, selectedCategory, deleteMode]);
+
+  // Intercepta gesto de swipe do React Navigation — usa refs para evitar re-registro
+  useEffect(() => {
+    if (!editDeckId) return;
+    const unsub = navigation.addListener('beforeRemove', (e) => {
+      if (confirmLeave.current) return;
+      const changed = nameRef.current.trim() !== initialName.current ||
+        categoryRef.current !== initialCategory.current;
+      if (!changed) return;
+      e.preventDefault();
+      setAlertConfig({
+        visible: true,
+        title: 'Sair sem salvar?',
+        message: 'Você fez alterações que não foram salvas.',
+        buttons: [
+          { text: 'Continuar editando', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
+          {
+            text: 'Sair sem salvar', style: 'destructive', onPress: () => {
+              confirmLeave.current = true;
+              setAlertConfig(p => ({ ...p, visible: false }));
+              navigation.dispatch(e.data.action);
+            }
+          },
+        ],
+      });
+    });
+    return unsub;
+  }, [editDeckId]);
 
   const handleSave = async () => {
     if (name.trim().length === 0) {
@@ -16,41 +379,1524 @@ export const AddDeckScreen = ({ navigation }) => {
         visible: true,
         title: 'Atenção',
         message: 'Por favor, insira um nome para o deck.',
-        buttons: [{ text: 'OK', onPress: () => setAlertConfig(prev => ({ ...prev, visible: false })) }]
+        buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
       });
       return;
     }
     const allData = await getAppData();
-    const newDeck = {
-      id: `deck_${Date.now()}`,
-      name: name.trim(),
-      subjects: [],
-      isUserCreated: true, 
-    };
-    
-    const newData = [...allData, newDeck];
-    await saveAppData(newData);
-    navigation.goBack();
+    const trimmedName = name.trim().toLowerCase();
+    const duplicateDeck = allData.find(d =>
+      !d.isExample &&
+      d.name?.trim().toLowerCase() === trimmedName &&
+      d.id !== editDeckId
+    );
+    if (duplicateDeck) {
+      setAlertConfig({
+        visible: true,
+        title: 'Nome já existe',
+        message: `Já existe um deck chamado "${name.trim()}". Escolha um nome diferente.`,
+        buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+      });
+      return;
+    }
+    if (editDeckId) {
+      // Modo edição — atualiza nome e categoria
+      const updated = allData.map(d => d.id === editDeckId
+        ? { ...d, name: name.trim(), category: selectedCategory || 'personalizados' }
+        : d
+      );
+      await saveAppData(updated);
+      navigation.goBack();
+    } else {
+      const newDeck = {
+        id: `deck_${Date.now()}`,
+        name: name.trim(),
+        category: selectedCategory || 'personalizados',
+        subjects: [],
+        isUserCreated: true,
+      };
+      await saveAppData([...allData, newDeck]);
+      navigation.replace('SubjectList', { deckId: newDeck.id, deckName: newDeck.name });
+    }
   };
 
+  const toggleCustomCat = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setCustomCatExpanded(prev => {
+      if (!prev) {
+        setTimeout(() => {
+          scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
+        }, 150);
+      } else {
+        catInputFocusedRef.current = false;
+      }
+      return !prev;
+    });
+  };
+
+  const DEFAULT_CAT_ICON = 'folder-outline';
+  const ICON_GROUPS = [
+    {
+      label: 'Estudo',
+      icons: ['book-outline', 'school-outline', 'document-text-outline', 'library-outline', 'pencil-outline', 'calculator-outline', 'flask-outline', 'language-outline', 'reader-outline', 'journal-outline', 'clipboard-outline', 'easel-outline'],
+    },
+    {
+      label: 'Objetivo',
+      icons: ['trophy-outline', 'star-outline', 'ribbon-outline', 'flag-outline', 'podium-outline', 'rocket-outline', 'diamond-outline', 'sparkles-outline', 'medal-outline', 'trending-up-outline', 'flame-outline', 'compass-outline'],
+    },
+    {
+      label: 'Organização',
+      icons: ['calendar-outline', 'checkmark-circle-outline', 'time-outline', 'people-outline', 'list-outline', 'albums-outline', 'folder-outline', 'bookmark-outline', 'filing-outline', 'grid-outline', 'layers-outline', 'filter-outline'],
+    },
+    {
+      label: 'Concurso',
+      icons: ['shield-outline', 'briefcase-outline', 'globe-outline', 'megaphone-outline', 'newspaper-outline', 'scale-outline', 'build-outline', 'id-card-outline', 'document-outline', 'people-circle-outline', 'chatbubbles-outline', 'pie-chart-outline'],
+    },
+    {
+      label: 'Outros',
+      icons: ['medkit-outline', 'cash-outline', 'hammer-outline', 'stats-chart-outline', 'heart-outline', 'bus-outline', 'car-outline', 'home-outline', 'leaf-outline', 'nutrition-outline', 'fitness-outline', 'bicycle-outline'],
+    },
+  ];
+  const [activeIconGroup, setActiveIconGroup] = useState(0);
+
+
   return (
-    <View style={styles.formContainer}>
-      <Text style={styles.formLabel}>Nome do Deck</Text>
-      <TextInput
-        style={styles.formInput}
-        placeholder="Ex: Concurso XYZ"
-        placeholderTextColor={theme.textMuted}
-        value={name}
-        onChangeText={setName}
+    <View style={s.root}>
+
+      {/* ── Header ──────────────────────────────────────────────── */}
+      <View style={[s.headerWrapper, { paddingTop: insets.top }]}>
+        <View style={s.headerInner}>
+          <TouchableOpacity onPress={handleBack} style={s.headerBtn} hitSlop={HIT_SLOP}>
+            <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>{editDeckId ? 'Editar Deck' : 'Novo Deck'}</Text>
+          <View style={s.headerBtn} />
+        </View>
+        <View style={s.headerDivider} />
+        {/* Barra de progresso com label centralizado — só na criação */}
+        {!editDeckId && (
+          <View style={s.stepProgressWrap}>
+            <View style={s.stepProgressTrack}>
+              <View style={[s.stepProgressFill, { width: stepLabel === 1 ? '50%' : '100%' }]} />
+            </View>
+            <Text style={s.stepProgressLabel}>
+              {'Passo ' + stepLabel + ' de 2: '}
+              <Text style={s.stepProgressLabelBold}>{stepLabel === 1 ? 'Criar deck' : 'Escolher categoria'}</Text>
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* ── Content ─────────────────────────────────────────────── */}
+      <View style={{ flex: 1, overflow: 'hidden' }}>
+
+        {/* ══ ETAPA 1: Nome ═══════════════════════════════════════ */}
+        <Animated.View style={[s.stepPane, { transform: [{ translateX: slide1Anim }] }]}>
+          {(true) && (
+            <ScrollView
+              ref={scrollRef}
+              style={s.scroll}
+              contentContainerStyle={[s.scrollContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + insets.bottom + 8 : insets.bottom + 24 }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onScroll={e => { scrollY.current = e.nativeEvent.contentOffset.y; updateVisibility(); }}
+            >
+            <Pressable onPress={() => inputRef.current?.blur()}>
+                {/* ── Nome ────────────────────────────────────────────── */}
+                <View style={s.section} onLayout={e => { inputSectionBottom.current = e.nativeEvent.layout.y + e.nativeEvent.layout.height; }}>
+
+                  {/* Cabeçalho da etapa */}
+                  {!editDeckId && (
+                    <View style={s.step1Hero}>
+                      <SvgXml xml={`<svg width="96" height="104" viewBox="0 0 96 104" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- carta mais atrás: rotação +7deg, deslocada direita+baixo -->
+  <rect x="14" y="8" width="62" height="80" rx="10" transform="rotate(7 14 8)" fill="#191919" stroke="#5DD62C" stroke-width="1.2" stroke-opacity="0.25"/>
+  <!-- carta do meio: rotação +4deg, levemente deslocada -->
+  <rect x="11" y="6" width="62" height="80" rx="10" transform="rotate(4 11 6)" fill="#1d1d1d" stroke="#5DD62C" stroke-width="1.2" stroke-opacity="0.42"/>
+  <!-- carta da frente: reta, posição base -->
+  <rect x="8" y="4" width="62" height="80" rx="10" fill="#232323" stroke="#5DD62C" stroke-width="1.2"/>
+  <!-- linhas de texto fake — cinza claro, comprimentos alternados -->
+  <line x1="20" y1="24" x2="58" y2="24" stroke="#9a9a9a" stroke-width="1.1" stroke-linecap="round"/>
+  <line x1="20" y1="34" x2="50" y2="34" stroke="#9a9a9a" stroke-width="1.1" stroke-linecap="round"/>
+  <line x1="20" y1="44" x2="56" y2="44" stroke="#9a9a9a" stroke-width="1.1" stroke-linecap="round"/>
+  <line x1="20" y1="54" x2="46" y2="54" stroke="#9a9a9a" stroke-width="1.1" stroke-linecap="round"/>
+</svg>`} width={96} height={104} />
+                      <Text style={s.step1Title}>Nome do seu deck</Text>
+                      <Text style={s.step1Desc}>Escolha um nome que represente o conteúdo que você vai estudar.</Text>
+                    </View>
+                  )}
+
+                  {/* Input — underline como era antes */}
+                  <View style={s.inputAreaWrap}>
+                    <View style={s.inputUnderlineWrap}>
+                      <View style={s.inputWrap}>
+                        <Ionicons name="create-outline" size={18} color={inputFocused ? theme.primary : theme.primaryDark} style={s.inputIcon} />
+                        <TextInput
+                          ref={inputRef}
+                          style={s.input}
+                          placeholder="Ex: Direito Constitucional"
+                          placeholderTextColor={theme.textMuted}
+                          value={name}
+                          onChangeText={t => setName(t.slice(0, 30))}
+                          onFocus={() => { setInputFocused(true); }}
+                          onBlur={() => setInputFocused(false)}
+                          returnKeyType={editDeckId ? 'done' : 'next'}
+                          onSubmitEditing={() => { if (!editDeckId && name.trim()) goToStep2(); }}
+                          maxLength={30}
+                          autoFocus={false}
+                        />
+                        {name.length > 0 && (
+                          <Text style={[s.charCount, name.length >= 25 && s.charCountWarn]}>
+                            {name.length}/30
+                          </Text>
+                        )}
+                      </View>
+                      <View style={[s.inputLine, { backgroundColor: inputFocused ? theme.primary : theme.primaryDark }]} />
+                    </View>
+                    {editDeckId && (
+                      <TouchableOpacity
+                        style={[s.saveBtnCircle, !name.trim() && s.saveBtnOff]}
+                        onPress={() => { Keyboard.dismiss(); handleSave(); }}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons name="checkmark" size={22} color="#0F0F0F" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {!editDeckId && (
+                    <TouchableOpacity
+                      style={[s.continueBtn, !name.trim() && s.continueBtnOff]}
+                      onPress={() => { if (name.trim()) goToStep2(); }}
+                      activeOpacity={0.85}
+                      disabled={!name.trim()}
+                    >
+                      <Text style={s.continueBtnText}>Continuar</Text>
+                      <Ionicons name="arrow-forward" size={18} color="#0F0F0F" />
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Dicas — preenchem o espaço vazio */}
+                  {!editDeckId && (
+                    <View style={s.step1Tips}>
+                      <View style={s.step1TipsHeader}>
+                        <Ionicons name="bulb-outline" size={14} color={theme.primary} />
+                        <Text style={s.step1TipsTitle}>DICAS PARA UM BOM NOME</Text>
+                      </View>
+                      {[
+                        { num: '1', text: 'Use o nome da matéria ou do concurso' },
+                        { num: '2', text: 'Seja específico — "Direito Penal: Crimes" é melhor do que "DP"' },
+                        { num: '3', text: 'Você pode renomear o deck a qualquer momento' },
+                      ].map((tip, i, arr) => (
+                        <View key={i}>
+                          <View style={s.step1TipRow}>
+                            <View style={s.step1TipNum}>
+                              <Text style={s.step1TipNumText}>{tip.num}</Text>
+                            </View>
+                            <Text style={s.step1TipText}>{tip.text}</Text>
+                          </View>
+                          {i < arr.length - 1 && <View style={s.step1TipDivider} />}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                {/* ── Categoria (só no editDeckId) ─────────────────── */}
+                {editDeckId && (
+                  <View style={s.section} onLayout={e => { catSectionY.current = e.nativeEvent.layout.y; }}>
+                    {/* Título + filtro na mesma linha */}
+                    <View style={s.catHeaderRow}>
+                      <Text style={s.sectionTitle}>CATEGORIA</Text>
+                      <View style={s.catFilterInline}>
+                        {['preset', 'custom'].map((f, i) => (
+                          <React.Fragment key={f}>
+                            {i > 0 && <View style={s.catFilterDivider} />}
+                            <TouchableOpacity
+                              onPress={() => {
+                                setCatFilter(f);
+                                setDeleteMode(false); setDeleteSelected(new Set());
+                                if (f === 'preset' && selectedCategoryRef.current?.startsWith('custom_')) {
+                                  preselectedCardY.current = null; selectedCategoryRef.current = null; setShowLabel(false); setShowArrow(false); showLabelRef.current = false; showArrowRef.current = false; setSelectedCategory(null);
+                                } else if (f === 'custom' && selectedCategoryRef.current && !selectedCategoryRef.current.startsWith('custom_')) {
+                                  preselectedCardY.current = null; selectedCategoryRef.current = null; setShowLabel(false); setShowArrow(false); showLabelRef.current = false; showArrowRef.current = false; setSelectedCategory(null);
+                                }
+                              }}
+                              activeOpacity={0.7}
+                              hitSlop={HIT_SLOP}
+                            >
+                              <Text style={[s.catFilterInlineText, catFilter === f && s.catFilterInlineTextActive]}>
+                                {f === 'preset' ? 'Padrão' : 'Personalizar'}
+                              </Text>
+                            </TouchableOpacity>
+                          </React.Fragment>
+                        ))}
+                      </View>
+                    </View>
+
+                    {/* 2-column tile grid — padrão */}
+                    {(() => {
+                      const left = CATEGORIES.filter((_, i) => i % 2 === 0);
+                      const right = CATEGORIES.filter((_, i) => i % 2 !== 0);
+                      return (
+                        <View style={[s.colsWrap, catFilter !== 'preset' && { display: 'none' }]}>
+                          <View style={s.col}>
+                            {left.map(item => (
+                              <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scrollRef.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                                <CategoryTile
+                                  item={item}
+                                  selected={selectedCategory === item.id}
+                                  onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, CATEGORIES); } }}
+                                  onBlurInput={() => inputRef.current?.blur()}
+                                  deckCount={deckCountMap[item.id] || 0}
+                                  showArrow={showArrow}
+                                  onScrollToInput={scrollToInput}
+                                />
+                              </View>
+                            ))}
+                          </View>
+                          <View style={s.col}>
+                            {right.map(item => (
+                              <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scrollRef.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                                <CategoryTile
+                                  item={item}
+                                  selected={selectedCategory === item.id}
+                                  onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, CATEGORIES); } }}
+                                  onBlurInput={() => inputRef.current?.blur()}
+                                  deckCount={deckCountMap[item.id] || 0}
+                                  showArrow={showArrow}
+                                  onScrollToInput={scrollToInput}
+                                />
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      );
+                    })()}
+
+                    {/* 2-column tile grid — customizadas */}
+                    {(() => {
+                      const left = customCategories.filter((_, i) => i % 2 === 0);
+                      const right = customCategories.filter((_, i) => i % 2 !== 0);
+                      return (
+                        <View style={catFilter !== 'custom' ? { display: 'none' } : undefined}>
+                          {/* Botão criar nova categoria — fixo no topo da aba Personalizar */}
+                          {!customCatExpanded ? (
+                            <TouchableOpacity
+                              style={s.newCatTrigger}
+                              onPress={toggleCustomCat}
+                              activeOpacity={0.75}
+                            >
+                              <Ionicons name="add-circle-outline" size={16} color="rgba(93,214,44,0.7)" />
+                              <Text style={s.newCatTriggerText}>Criar nova categoria</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <View style={s.newCatPanel}>
+                              <View style={s.panelHeader}>
+                                <Text style={s.panelTitle}>NOVA CATEGORIA</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                  {customCatName.length > 0 && (
+                                    <Text style={[s.charCount, customCatName.length >= 20 && s.charCountWarn]}>
+                                      {customCatName.length}/25
+                                    </Text>
+                                  )}
+                                  <TouchableOpacity onPress={toggleCustomCat} hitSlop={HIT_SLOP}>
+                                    <Ionicons name="close" size={18} color={theme.textMuted} />
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                              <View style={s.panelNameRow}>
+                                <TouchableOpacity
+                                  style={s.panelIconPreview}
+                                  onPress={() => setCustomCatIcon(p => p === '__picker__' ? null : '__picker__')}
+                                  activeOpacity={0.75}
+                                >
+                                  <Ionicons
+                                    name={customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : DEFAULT_CAT_ICON}
+                                    size={22}
+                                    color={customCatIcon && customCatIcon !== '__picker__' ? theme.primary : theme.textMuted}
+                                  />
+                                </TouchableOpacity>
+                                <View style={s.panelInputWrap}>
+                                  <TextInput
+                                    ref={catInputRef}
+                                    style={s.panelInput}
+                                    placeholder="Nome da categoria"
+                                    placeholderTextColor={theme.textMuted}
+                                    value={customCatName}
+                                    onChangeText={t => setCustomCatName(t.slice(0, 25))}
+                                    onFocus={() => {
+                                      catInputFocusedRef.current = true;
+                                      if (keyboardHeight > 0) {
+                                        setTimeout(() => {
+                                          scrollRef.current?.scrollTo({ y: catSectionY.current - 16, animated: true });
+                                        }, 50);
+                                      }
+                                    }}
+                                    onBlur={() => { catInputFocusedRef.current = false; }}
+                                    returnKeyType="done"
+                                    maxLength={25}
+                                  />
+                                </View>
+                              </View>
+                              {customCatIcon === '__picker__' && (
+                                <View style={s.iconPickerWrap}>
+                                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.iconTabsScroll} contentContainerStyle={s.iconTabsContent} keyboardShouldPersistTaps="always">
+                                    {ICON_GROUPS.map((g, i) => (
+                                      <TouchableOpacity
+                                        key={g.label}
+                                        style={[s.iconTab, activeIconGroup === i && s.iconTabActive]}
+                                        onPress={() => setActiveIconGroup(i)}
+                                        activeOpacity={0.75}
+                                      >
+                                        <Text style={[s.iconTabText, activeIconGroup === i && s.iconTabTextActive]}>{g.label}</Text>
+                                      </TouchableOpacity>
+                                    ))}
+                                  </ScrollView>
+                                  <View style={s.iconGrid}>
+                                    {ICON_GROUPS[activeIconGroup].icons.map(icon => (
+                                      <TouchableOpacity
+                                        key={icon}
+                                        style={s.iconOpt}
+                                        onPress={() => setCustomCatIcon(icon)}
+                                        activeOpacity={0.75}
+                                      >
+                                        <Ionicons name={icon} size={20} color={theme.textSecondary} />
+                                      </TouchableOpacity>
+                                    ))}
+                                  </View>
+                                </View>
+                              )}
+                              <TouchableOpacity
+                                style={[s.saveCatBtn, !customCatName.trim() && s.saveCatBtnOff]}
+                                onPress={async () => {
+                                  if (!customCatName.trim()) return;
+                                  const existing = await getCustomCategories();
+                                  if (existing.length >= 30) {
+                                    setAlertConfig({
+                                      visible: true,
+                                      title: 'Limite atingido',
+                                      message: 'Você já criou 30 categorias personalizadas. Exclua alguma para criar uma nova.',
+                                      buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+                                    });
+                                    return;
+                                  }
+                                  const nameLower = customCatName.trim().toLowerCase();
+                                  const duplicate = existing.find(c => c.name?.trim().toLowerCase() === nameLower);
+                                  if (duplicate) {
+                                    setAlertConfig({
+                                      visible: true,
+                                      title: 'Nome já existe',
+                                      message: `Já existe uma categoria chamada "${customCatName.trim()}". Escolha um nome diferente.`,
+                                      buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+                                    });
+                                    return;
+                                  }
+                                  const icon = customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : 'folder-outline';
+                                  const newId = `custom_${Date.now()}`;
+                                  const newCat = { id: newId, name: customCatName.trim(), icon, color: theme.primary, keywords: [], isCustom: true };
+                                  await saveCustomCategories([...existing, newCat]);
+                                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                  setCustomCategories(prev => [...prev, newCat]);
+                                  selectedCategoryRef.current = newId;
+                                  preselectedCardY.current = null;
+                                  pendingScrollToCard.current = true;
+                                  setSelectedCategory(newId);
+                                  setCustomCatExpanded(false);
+                                  setCustomCatName('');
+                                  setCustomCatIcon(null);
+                                  setCatFilter('custom');
+                                  // posição do card novo ainda não existe — onLayout vai atualizar e chamar updateVisibility
+                                }}
+                                activeOpacity={0.8}
+                              >
+                                <Ionicons name="checkmark" size={15} color={theme.primary} style={{ marginRight: 6 }} />
+                                <Text style={s.saveCatBtnText}>Salvar categoria</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          <View style={s.colsWrap}>
+                            <View style={s.col}>
+                              {left.map(item => (
+                                <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scrollRef.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                                  <CustomCategoryTile
+                                    item={item}
+                                    selected={selectedCategory === item.id}
+                                    onPress={() => {
+                                      if (deleteMode) {
+                                        setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; });
+                                        return;
+                                      }
+                                      const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility();
+                                    }}
+                                    onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }}
+                                    onBlurInput={() => inputRef.current?.blur()}
+                                    deckCount={deckCountMap[item.id] || 0}
+                                    showArrow={showArrow}
+                                    onScrollToInput={scrollToInput}
+                                    deleteMode={deleteMode}
+                                    deleteSelected={deleteSelected.has(item.id)}
+                                  />
+                                </View>
+                              ))}
+                            </View>
+                            <View style={s.col}>
+                              {right.map(item => (
+                                <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; cardYMap.current[item.id] = y; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scrollRef.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                                  <CustomCategoryTile
+                                    item={item}
+                                    selected={selectedCategory === item.id}
+                                    onPress={() => {
+                                      if (deleteMode) {
+                                        setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; });
+                                        return;
+                                      }
+                                      const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility();
+                                    }}
+                                    onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }}
+                                    onBlurInput={() => inputRef.current?.blur()}
+                                    deckCount={deckCountMap[item.id] || 0}
+                                    showArrow={showArrow}
+                                    onScrollToInput={scrollToInput}
+                                    deleteMode={deleteMode}
+                                    deleteSelected={deleteSelected.has(item.id)}
+                                  />
+                                </View>
+                              ))}
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })()}
+                  </View>
+                )}
+
+          </Pressable>
+          </ScrollView>
+          )}
+
+        </Animated.View>
+
+        {/* ══ ETAPA 2: Categoria ══════════════════════════════════ */}
+        <Animated.View style={[s.stepPane, { transform: [{ translateX: slide2Anim }] }]}>
+          {!editDeckId && <ScrollView
+            ref={scroll2Ref}
+            style={s.scroll}
+            contentContainerStyle={[s.scrollContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + insets.bottom + 8 : selectedCategory ? insets.bottom + 80 : insets.bottom + 4 }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={e => { scrollY.current = e.nativeEvent.contentOffset.y; updateVisibility(); }}
+          >
+            <Pressable onPress={() => inputRef.current?.blur()}>
+              {/* Nome do deck como contexto */}
+              <View style={s.step2Header}>
+                <Text style={s.step2DeckName} numberOfLines={1}>{name}</Text>
+                <Text style={s.step2Subtitle}>Escolha uma categoria para organizar este deck</Text>
+                <Text style={s.step2Hint}>
+                  A categoria ajuda a agrupar decks por área de estudo. Os números indicam quantos decks você já tem em cada categoria.
+                </Text>
+              </View>
+
+              <View style={s.section} onLayout={e => { catSectionY.current = e.nativeEvent.layout.y; }}>
+                {/* Título + filtro */}
+                <View style={s.catHeaderRow}>
+                  <Text style={s.sectionTitle}>CATEGORIA</Text>
+                  <View style={s.catFilterInline}>
+                    {['preset', 'custom'].map((f, i) => (
+                      <React.Fragment key={f}>
+                        {i > 0 && <View style={s.catFilterDivider} />}
+                        <TouchableOpacity
+                          onPress={() => {
+                            setCatFilter(f);
+                            setDeleteMode(false); setDeleteSelected(new Set());
+                            if (f === 'preset' && selectedCategoryRef.current?.startsWith('custom_')) {
+                              preselectedCardY.current = null; selectedCategoryRef.current = null; setShowLabel(false); setShowArrow(false); showLabelRef.current = false; showArrowRef.current = false; setSelectedCategory(null);
+                            } else if (f === 'custom' && selectedCategoryRef.current && !selectedCategoryRef.current.startsWith('custom_')) {
+                              preselectedCardY.current = null; selectedCategoryRef.current = null; setShowLabel(false); setShowArrow(false); showLabelRef.current = false; showArrowRef.current = false; setSelectedCategory(null);
+                            }
+                          }}
+                          activeOpacity={0.7}
+                          hitSlop={HIT_SLOP}
+                        >
+                          <Text style={[s.catFilterInlineText, catFilter === f && s.catFilterInlineTextActive]}>
+                            {f === 'preset' ? 'Padrão' : 'Personalizar'}
+                          </Text>
+                        </TouchableOpacity>
+                      </React.Fragment>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Grid padrão */}
+                {(() => {
+                  const left = CATEGORIES.filter((_, i) => i % 2 === 0);
+                  const right = CATEGORIES.filter((_, i) => i % 2 !== 0);
+                  return (
+                    <View style={[s.colsWrap, catFilter !== 'preset' && { display: 'none' }]}>
+                      <View style={s.col}>
+                        {left.map(item => (
+                          <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; const h = e.nativeEvent.layout.height; cardYMap.current[item.id] = y; cardHeightMap.current[item.id] = h; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                            <CategoryTile
+                              item={item}
+                              selected={selectedCategory === item.id}
+                              onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, CATEGORIES); } }}
+                              onBlurInput={() => inputRef.current?.blur()}
+                              deckCount={deckCountMap[item.id] || 0}
+                              showArrow={showArrow}
+                              onScrollToInput={scrollToInput}
+                            />
+                          </View>
+                        ))}
+                      </View>
+                      <View style={s.col}>
+                        {right.map(item => (
+                          <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; const h = e.nativeEvent.layout.height; cardYMap.current[item.id] = y; cardHeightMap.current[item.id] = h; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                            <CategoryTile
+                              item={item}
+                              selected={selectedCategory === item.id}
+                              onPress={() => { const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, CATEGORIES); } }}
+                              onBlurInput={() => inputRef.current?.blur()}
+                              deckCount={deckCountMap[item.id] || 0}
+                              showArrow={showArrow}
+                              onScrollToInput={scrollToInput}
+                            />
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })()}
+
+                {/* Grid customizadas */}
+                {(() => {
+                  const left = customCategories.filter((_, i) => i % 2 === 0);
+                  const right = customCategories.filter((_, i) => i % 2 !== 0);
+                  return (
+                    <View style={catFilter !== 'custom' ? { display: 'none' } : undefined}>
+                      {!customCatExpanded ? (
+                        <TouchableOpacity style={s.newCatTrigger} onPress={toggleCustomCat} activeOpacity={0.75}>
+                          <Ionicons name="add-circle-outline" size={16} color="rgba(93,214,44,0.7)" />
+                          <Text style={s.newCatTriggerText}>Criar nova categoria</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={s.newCatPanel}>
+                          <View style={s.panelHeader}>
+                            <Text style={s.panelTitle}>NOVA CATEGORIA</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                              {customCatName.length > 0 && (
+                                <Text style={[s.charCount, customCatName.length >= 20 && s.charCountWarn]}>{customCatName.length}/25</Text>
+                              )}
+                              <TouchableOpacity onPress={toggleCustomCat} hitSlop={HIT_SLOP}>
+                                <Ionicons name="close" size={18} color={theme.textMuted} />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                          <View style={s.panelNameRow}>
+                            <TouchableOpacity style={s.panelIconPreview} onPress={() => setCustomCatIcon(p => p === '__picker__' ? null : '__picker__')} activeOpacity={0.75}>
+                              <Ionicons name={customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : DEFAULT_CAT_ICON} size={22} color={customCatIcon && customCatIcon !== '__picker__' ? theme.primary : theme.textMuted} />
+                            </TouchableOpacity>
+                            <View style={s.panelInputWrap}>
+                              <TextInput
+                                ref={catInputRef}
+                                style={s.panelInput}
+                                placeholder="Nome da categoria"
+                                placeholderTextColor={theme.textMuted}
+                                value={customCatName}
+                                onChangeText={t => setCustomCatName(t.slice(0, 25))}
+                                onFocus={() => { catInputFocusedRef.current = true; if (keyboardHeight > 0) { setTimeout(() => { scroll2Ref.current?.scrollTo({ y: catSectionY.current - 16, animated: true }); }, 50); } }}
+                                onBlur={() => { catInputFocusedRef.current = false; }}
+                                returnKeyType="done"
+                                maxLength={25}
+                              />
+                            </View>
+                          </View>
+                          {customCatIcon === '__picker__' && (
+                            <View style={s.iconPickerWrap}>
+                              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.iconTabsScroll} contentContainerStyle={s.iconTabsContent} keyboardShouldPersistTaps="always">
+                                {ICON_GROUPS.map((g, i) => (
+                                  <TouchableOpacity key={g.label} style={[s.iconTab, activeIconGroup === i && s.iconTabActive]} onPress={() => setActiveIconGroup(i)} activeOpacity={0.75}>
+                                    <Text style={[s.iconTabText, activeIconGroup === i && s.iconTabTextActive]}>{g.label}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </ScrollView>
+                              <View style={s.iconGrid}>
+                                {ICON_GROUPS[activeIconGroup].icons.map(icon => (
+                                  <TouchableOpacity key={icon} style={s.iconOpt} onPress={() => setCustomCatIcon(icon)} activeOpacity={0.75}>
+                                    <Ionicons name={icon} size={20} color={theme.textSecondary} />
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            </View>
+                          )}
+                          <TouchableOpacity
+                            style={[s.saveCatBtn, !customCatName.trim() && s.saveCatBtnOff]}
+                            onPress={async () => {
+                              if (!customCatName.trim()) return;
+                              const existing = await getCustomCategories();
+                              if (existing.length >= 30) { setAlertConfig({ visible: true, title: 'Limite atingido', message: 'Você já criou 30 categorias personalizadas. Exclua alguma para criar uma nova.', buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }] }); return; }
+                              const nameLower = customCatName.trim().toLowerCase();
+                              const duplicate = existing.find(c => c.name?.trim().toLowerCase() === nameLower);
+                              if (duplicate) { setAlertConfig({ visible: true, title: 'Nome já existe', message: `Já existe uma categoria chamada "${customCatName.trim()}". Escolha um nome diferente.`, buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }] }); return; }
+                              const icon = customCatIcon && customCatIcon !== '__picker__' ? customCatIcon : 'folder-outline';
+                              const newId = `custom_${Date.now()}`;
+                              const newCat = { id: newId, name: customCatName.trim(), icon, color: theme.primary, keywords: [], isCustom: true };
+                              await saveCustomCategories([...existing, newCat]);
+                              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                              setCustomCategories(prev => [...prev, newCat]);
+                              selectedCategoryRef.current = newId;
+                              preselectedCardY.current = null;
+                              pendingScrollToCard.current = true;
+                              setSelectedCategory(newId);
+                              setCustomCatExpanded(false);
+                              setCustomCatName('');
+                              setCustomCatIcon(null);
+                              setCatFilter('custom');
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="checkmark" size={15} color={theme.primary} style={{ marginRight: 6 }} />
+                            <Text style={s.saveCatBtnText}>Salvar categoria</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      <View style={s.colsWrap}>
+                        <View style={s.col}>
+                          {left.map(item => (
+                            <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; const h = e.nativeEvent.layout.height; cardYMap.current[item.id] = y; cardHeightMap.current[item.id] = h; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                              <CustomCategoryTile item={item} selected={selectedCategory === item.id} onPress={() => { if (deleteMode) { setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; }); return; } const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, () => customCategoriesRef.current); } }} onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }} onBlurInput={() => inputRef.current?.blur()} deckCount={deckCountMap[item.id] || 0} showArrow={showArrow} onScrollToInput={scrollToInput} deleteMode={deleteMode} deleteSelected={deleteSelected.has(item.id)} />
+                            </View>
+                          ))}
+                        </View>
+                        <View style={s.col}>
+                          {right.map(item => (
+                            <View key={item.id} onLayout={e => { const y = e.nativeEvent.layout.y + catSectionY.current; const h = e.nativeEvent.layout.height; cardYMap.current[item.id] = y; cardHeightMap.current[item.id] = h; if (selectedCategory === item.id || item.id === preselectedCategoryId) { preselectedCardY.current = y; updateVisibility(); if (pendingScrollToCard.current) { pendingScrollToCard.current = false; setTimeout(() => scroll2Ref.current?.scrollTo({ y: y - 24, animated: true }), 100); } } }}>
+                              <CustomCategoryTile item={item} selected={selectedCategory === item.id} onPress={() => { if (deleteMode) { setDeleteSelected(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; }); return; } const next = selectedCategoryRef.current === item.id ? null : item.id; const y = next ? (cardYMap.current[next] ?? null) : null; preselectedCardY.current = y; selectedCategoryRef.current = next; setShowLabel(!!(next && y !== null && y > SCREEN_HEIGHT)); setSelectedCategory(next); updateVisibility(); if (next) { scrollIfCoveredByFab(next, () => customCategoriesRef.current); } }} onLongPress={() => { setDeleteMode(true); setDeleteSelected(new Set([item.id])); }} onBlurInput={() => inputRef.current?.blur()} deckCount={deckCountMap[item.id] || 0} showArrow={showArrow} onScrollToInput={scrollToInput} deleteMode={deleteMode} deleteSelected={deleteSelected.has(item.id)} />
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })()}
+              </View>
+
+            </Pressable>
+          </ScrollView>}
+        </Animated.View>
+      </View>{/* fim flex:1 overflow:hidden */}
+
+      {/* ── FAB Criar deck — fixo no fundo, step 2 ── */}
+      {!editDeckId && stepLabel === 2 && selectedCategory ? (
+        <View style={[s.createFabWrap, { paddingBottom: insets.bottom + 12 }]}>
+          <TouchableOpacity
+            style={s.createFab}
+            onPress={() => { Keyboard.dismiss(); handleSave(); }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#0F0F0F" />
+            <Text style={[s.createFabText, { color: '#0F0F0F' }]}>Criar deck</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {/* ── FAB de deleção — só no modo delete ── */}
+      {deleteMode && (
+        <View style={[s.deleteFabWrap, { bottom: 20 }]}>
+          <TouchableOpacity style={[s.deleteFab, deleteSelected.size === 0 && { opacity: 0.4 }]} onPress={() => { if (deleteSelected.size === 0) return; setDeleteSelectAll(false); setDeleteConfirmVisible(true); }} activeOpacity={0.85}>
+            <Ionicons name="trash-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.deleteFabCancel} onPress={() => { setDeleteMode(false); setDeleteSelected(new Set()); }} activeOpacity={0.8}>
+            <Ionicons name="close" size={20} color={theme.textMuted} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ── Modal de confirmação de deleção ── */}
+      {deleteConfirmVisible && (
+        <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', paddingTop: insets.top + 56 }]} pointerEvents="box-none">
+          <TouchableOpacity style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]} activeOpacity={1} onPress={() => setDeleteConfirmVisible(false)} />
+          <View style={s.deleteModal}>
+            <Text style={s.deleteModalTitle}>Excluir {deleteSelectAll ? customCategories.length : deleteSelected.size} categoria{(deleteSelectAll ? customCategories.length : deleteSelected.size) !== 1 ? 's' : ''}?</Text>
+            <Text style={s.deleteModalMsg}>Esta ação não pode ser desfeita.</Text>
+            <TouchableOpacity style={s.deleteSelectAllRow} onPress={() => setDeleteSelectAll(p => !p)} activeOpacity={0.75}>
+              <View style={[s.deleteCheckbox, deleteSelectAll && s.deleteCheckboxActive]}>
+                {deleteSelectAll && <Ionicons name="checkmark" size={12} color="#fff" />}
+              </View>
+              <Text style={s.deleteSelectAllText}>Selecionar todas as categorias personalizadas</Text>
+            </TouchableOpacity>
+            <View style={s.deleteModalBtns}>
+              <TouchableOpacity style={s.deleteModalCancel} onPress={() => setDeleteConfirmVisible(false)} activeOpacity={0.75}>
+                <Text style={s.deleteModalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.deleteModalConfirm} onPress={async () => {
+                const idsToDelete = deleteSelectAll ? new Set(customCategories.map(c => c.id)) : deleteSelected;
+                const remaining = customCategories.filter(c => !idsToDelete.has(c.id));
+                await saveCustomCategories(remaining);
+                setCustomCategories(remaining);
+                if (idsToDelete.has(selectedCategory)) { setSelectedCategory(null); selectedCategoryRef.current = null; preselectedCardY.current = null; setShowLabel(false); setShowArrow(false); }
+                setDeleteConfirmVisible(false);
+                setDeleteMode(false);
+                setDeleteSelected(new Set());
+              }} activeOpacity={0.85}>
+                <Text style={s.deleteModalConfirmText}>Excluir</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={() => setAlertConfig(p => ({ ...p, visible: false }))}
       />
-       <View style={{marginTop: 20}}>
-          <Button title="Salvar Deck" onPress={handleSave} color={theme.primary} />
-       </View>
-       <CustomAlert visible={alertConfig.visible} title={alertConfig.title} message={alertConfig.message} buttons={alertConfig.buttons} onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))} />
     </View>
   );
 };
 
-// =================================================================
+// ── Styles ────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.background },
+  stepPane: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+
+  // ── Header
+  headerWrapper: { backgroundColor: theme.background },
+  headerInner: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
+  headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: {
+    color: theme.textPrimary,
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  headerDivider: { height: 1, backgroundColor: theme.backgroundSecondary },
+
+  // ── Scroll
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 24 },
+
+  // ── Section
+  section: { marginBottom: 10 },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    color: theme.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1.3,
+    marginBottom: 0,
+  },
+  clearBtn: {
+    color: theme.textMuted,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+
+  // ── Name input
+  inputAreaWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  inputUnderlineWrap: {
+    flex: 1,
+  },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    paddingBottom: 6,
+  },
+  inputLine: {
+    height: 1.5,
+    borderRadius: 1,
+  },
+  inputIcon: { marginRight: 10 },
+  charCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.primaryDark,
+    marginLeft: 6,
+  },
+  charCountWarn: {
+    color: theme.primary,
+  },
+  input: {
+    flex: 1,
+    color: theme.textPrimary,
+    fontSize: 16,
+    fontWeight: '500',
+    paddingVertical: 0,
+  },
+
+  // ── 2-column tile grid
+  colsWrap: {
+    flexDirection: 'row',
+    gap: COL_GAP,
+  },
+  col: {
+    flex: 1,
+    gap: 10,
+  },
+
+  // ── Category tile — fundo via SVG, sem borda CSS
+  catTile: {
+    alignSelf: 'stretch',
+    aspectRatio: 1,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+
+  // Ícone + label centralizados na área principal (0 a 81.7% da altura)
+  catTileContent: {
+    position: 'absolute',
+    top: '8%',
+    left: 0,
+    right: 0,
+    bottom: '18.3%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  catIconArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // label
+  catTileLabel: {
+    color: theme.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.1,
+    textAlign: 'center',
+  },
+  catTileLabelSelected: {
+    color: theme.primary,
+  },
+
+  // Número de decks — centralizado na pill inferior esquerda
+  // Pill: x=0..22.4%, y=87.1..100% → centro x=11.2%, y=93.6%
+  catTileBadge: {
+    position: 'absolute',
+    top: '87.1%',
+    left: 0,
+    width: '22.4%',
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catTileBadgeText: {
+    color: theme.primary,
+    fontSize: 13,
+    fontFamily: theme.fontFamily.heading,
+    letterSpacing: 0.3,
+  },
+
+  // filtro inline (sem pill)
+  catHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  catFilterInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  catFilterDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: theme.primary,
+    opacity: 0.6,
+  },
+  catFilterInlineText: {
+    color: theme.textMuted,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.1,
+  },
+  catFilterInlineTextActive: { color: theme.primary },
+
+  // checkmark badge
+  catTileCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+
+  catTileArrow: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: 'rgba(93,214,44,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+
+  labelReservedArea: {
+    height: 26,
+    marginTop: 2,
+    overflow: 'visible',
+  },
+  selectedCatLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 22,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(93,214,44,0.45)',
+  },
+  selectedCatLabelText: {
+    color: theme.primary,
+    fontSize: 12,
+    fontWeight: '600',
+    maxWidth: 140,
+  },
+
+  // ── Create custom category trigger
+  newCatTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  newCatTriggerText: {
+    color: 'rgba(93,214,44,0.7)',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+
+  // ── Custom category panel
+  newCatPanel: {
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 16,
+    marginBottom: 12,
+  },
+  panelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  panelTitle: {
+    color: theme.primary,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  panelNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  panelIconPreview: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: theme.backgroundTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  panelInputWrap: {
+    flex: 1,
+    backgroundColor: theme.backgroundTertiary,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 46,
+    justifyContent: 'center',
+  },
+  panelInput: {
+    color: theme.textPrimary,
+    fontSize: 14,
+    fontWeight: '500',
+    paddingVertical: 0,
+  },
+  panelIconHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  panelIconHintText: {
+    color: theme.textMuted,
+    fontSize: 11,
+    flex: 1,
+    lineHeight: 15,
+  },
+  iconPicker: {
+    marginTop: 4,
+    gap: 8,
+  },
+  iconTabsScroll: {
+    flexGrow: 0,
+  },
+  iconTabsContent: {
+    gap: 6,
+    paddingBottom: 2,
+  },
+  iconTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: theme.backgroundTertiary,
+  },
+  iconTabActive: {
+    backgroundColor: 'rgba(93,214,44,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(93,214,44,0.4)',
+  },
+  iconTabText: {
+    color: theme.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  iconTabTextActive: {
+    color: theme.primary,
+  },
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  iconOpt: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: theme.backgroundTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  iconOptSelected: {
+    borderColor: theme.primary,
+    backgroundColor: 'rgba(93,214,44,0.12)',
+  },
+  saveCatBtn: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    height: 44,
+    borderWidth: 1.5,
+    borderColor: theme.primary,
+  },
+  saveCatBtnOff: { opacity: 0.3 },
+  saveCatBtnText: {
+    color: theme.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+
+  // ── Save deck circle button
+  saveBtnCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  saveBtnOff: { opacity: 0.35, shadowOpacity: 0 },
+
+  // ── Delete mode
+  catTileDeleteDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: '#e53935',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  catTileDeleteDotActive: {
+    backgroundColor: '#e53935',
+    borderColor: '#e53935',
+  },
+  catTileDeleteDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(229,57,53,0.4)',
+  },
+  deleteFabWrap: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'column-reverse',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteFabCancel: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#e53935',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#e53935',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  deleteModal: {
+    marginHorizontal: 16,
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  deleteModalTitle: {
+    color: theme.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  deleteModalMsg: {
+    color: theme.textMuted,
+    fontSize: 13,
+    marginBottom: 16,
+  },
+  deleteSelectAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  deleteCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCheckboxActive: {
+    backgroundColor: '#e53935',
+    borderColor: '#e53935',
+  },
+  deleteSelectAllText: {
+    color: theme.textSecondary,
+    fontSize: 13,
+    flex: 1,
+  },
+  deleteModalBtns: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  deleteModalCancel: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteModalCancelText: {
+    color: theme.textMuted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deleteModalConfirm: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: '#e53935',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteModalConfirmText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  // ── Progress bar com label centralizado
+  stepProgressWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+    gap: 8,
+  },
+  stepProgressTrack: {
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  stepProgressFill: {
+    height: 3,
+    backgroundColor: theme.primary,
+    borderRadius: 2,
+  },
+  stepProgressLabel: {
+    color: theme.textMuted,
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  stepProgressLabelBold: {
+    color: theme.primary,
+    fontWeight: '700',
+  },
+
+  // ── Step 1 hero
+  step1Hero: {
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  step1Title: {
+    color: theme.textPrimary,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  step1Desc: {
+    color: theme.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+  },
+
+  // ── Continue / criar deck button
+  continueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: theme.primary,
+    marginTop: 20,
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  continueBtnOff: {
+    opacity: 0.28,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  continueBtnText: {
+    color: '#0F0F0F',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+
+  // ── Dicas na etapa 1
+  step1Tips: {
+    marginTop: 28,
+    borderRadius: 14,
+    backgroundColor: theme.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+  step1TipsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  step1TipsTitle: {
+    color: theme.primary,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+  },
+  step1TipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  step1TipNum: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(93,214,44,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(93,214,44,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  step1TipNumText: {
+    color: theme.primary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  step1TipText: {
+    color: theme.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
+  step1TipDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginHorizontal: 16,
+  },
+
+  // ── Step 2 context header
+  step2Header: {
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.07)',
+  },
+  step2DeckName: {
+    color: theme.textPrimary,
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    marginBottom: 4,
+  },
+  step2Subtitle: {
+    color: theme.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  step2Hint: {
+    color: theme.textMuted,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  // ── FAB Criar deck (step 2)
+  createFabWrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 0,
+  },
+  createFab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: theme.primary,
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  createFabOff: {
+    backgroundColor: theme.backgroundSecondary,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  createFabText: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+
+  // ── Step hint (legado — mantido caso referenciado)
+  stepHint: {
+    color: theme.textMuted,
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+});
 
 export default AddDeckScreen;
