@@ -4,11 +4,12 @@ import {
   Animated, Easing, Modal, Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import theme from '../../styles/theme';
 
+const ICON_ACERTO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40.64 30.13"><path fill="#6fb631" d="M39.54,.95c-1.41-1.32-3.62-1.25-4.95,.16L15.13,21.84,5.73,14.08c-1.49-1.23-3.7-1.02-4.93,.47-1.23,1.49-1.02,3.7,.47,4.93l11.93,9.86c.65,.54,1.44,.8,2.23,.8,.94,0,1.87-.37,2.55-1.1L39.7,5.89c1.32-1.41,1.25-3.62-.16-4.95Z"/></svg>`;
 const ICON_QUASE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40.65 30.13"><path fill="#1cabcd" d="M5.32,10.13l5.75-2.55c2.27-1.01,5.39-.68,7.42,.77,2.45,1.75,5.52,2.67,8.57,2.67,1.99,0,3.97-.39,5.76-1.18l5.75-2.55c1.77-.78,2.56-2.85,1.78-4.62-.78-1.77-2.85-2.57-4.62-1.78l-5.75,2.55c-2.27,1.01-5.39,.68-7.42-.77C18.52-.23,12.76-.83,8.23,1.18L2.48,3.73C.72,4.51-.08,6.58,.7,8.35s2.85,2.56,4.62,1.78Z"/><path fill="#1cabcd" d="M35.33,20l-5.75,2.55c-2.27,1.01-5.39,.68-7.42-.77-4.04-2.9-9.8-3.49-14.33-1.49l-5.75,2.55c-1.77,.78-2.57,2.85-1.78,4.62,.78,1.77,2.85,2.56,4.62,1.78l5.75-2.55c2.27-1,5.39-.68,7.42,.77,2.45,1.75,5.52,2.67,8.57,2.67,1.99,0,3.97-.39,5.76-1.18l5.75-2.55c1.77-.78,2.57-2.85,1.78-4.62-.78-1.77-2.85-2.57-4.62-1.78Z"/></svg>`;
+const ICON_ERRO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 38.75 38.75"><path fill="#e94542" d="M24.32,19.37l13.4-13.4c1.37-1.37,1.37-3.58,0-4.95-1.37-1.37-3.58-1.37-4.95,0l-13.4,13.4L5.97,1.03C4.61-.34,2.39-.34,1.03,1.03-.34,2.39-.34,4.61,1.03,5.97l13.4,13.4L1.03,32.77c-1.37,1.37-1.37,3.58,0,4.95,.68,.68,1.58,1.03,2.47,1.03s1.79-.34,2.47-1.03l13.4-13.4,13.4,13.4c.68,.68,1.58,1.03,2.47,1.03s1.79-.34,2.47-1.03c1.37-1.37,1.37-3.58,0-4.95l-13.4-13.4Z"/></svg>`;
 
 const { width: W } = Dimensions.get('window');
 const TUTORIAL_KEY = '@FlashcardsApp:swipeTutorialSeen';
@@ -107,8 +108,8 @@ export const SwipeTutorial = forwardRef((props, ref) => {
 
             {/* ← Errei */}
             <Animated.View style={[s.sideLabel, { opacity: leftOp, alignItems: 'center' }]}>
-              <Ionicons name="close-circle" size={22} color="#EF4444" />
-              <Text style={[s.labelTxt, { color: '#EF4444' }]}>Errei</Text>
+              <SvgXml xml={ICON_ERRO_SVG} width={14} height={14} />
+              <Text style={[s.labelTxt, { color: '#e94542' }]}>Errei</Text>
             </Animated.View>
 
             {/* Centro: label topo + card + dedo */}
@@ -116,7 +117,7 @@ export const SwipeTutorial = forwardRef((props, ref) => {
 
               <View style={s.cardWrap}>
                 {/* ↑ Quase — absoluto acima do card */}
-                <Animated.View style={[{ opacity: upOp, position: 'absolute', top: -55, alignItems: 'center', alignSelf: 'center' }]}>
+                <Animated.View style={[{ opacity: upOp, position: 'absolute', top: -55, alignItems: 'center', alignSelf: 'center', gap: 5 }]}>
                   <SvgXml xml={ICON_QUASE_SVG} width={16} height={11} />
                   <Text style={[s.labelTxt, { color: '#1cabcd' }]}>Quase</Text>
                 </Animated.View>
@@ -143,8 +144,8 @@ export const SwipeTutorial = forwardRef((props, ref) => {
 
             {/* → Memorizado — renderizado depois do center para ficar na frente do dedo */}
             <Animated.View style={[s.sideLabel, { opacity: rightOp, alignItems: 'center' }]}>
-              <Ionicons name="checkmark-circle" size={22} color="#22C55E" />
-              <Text style={[s.labelTxt, { color: '#22C55E' }]}>Acertei</Text>
+              <SvgXml xml={ICON_ACERTO_SVG} width={16} height={11} />
+              <Text style={[s.labelTxt, { color: '#6fb631' }]}>Acertei</Text>
             </Animated.View>
 
           </View>
