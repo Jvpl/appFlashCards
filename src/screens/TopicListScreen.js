@@ -11,8 +11,7 @@ import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { getAppData, saveAppData } from '../services/storage';
 import { GlowFab } from '../components/ui/GlowFab';
 import { CustomAlert } from '../components/ui/CustomAlert';
-import TopicCard from '../components/home/TopicCard';
-import { MATERIA_CARD_WIDTH, MATERIA_CARD_HEIGHT } from '../components/home/MateriaCard';
+import MateriaCard, { MATERIA_CARD_WIDTH, MATERIA_CARD_HEIGHT } from '../components/home/MateriaCard';
 import theme from '../styles/theme';
 
 const { width } = Dimensions.get('window');
@@ -80,6 +79,7 @@ export const TopicListScreen = ({ route, navigation }) => {
 
   const [contextMenu, setContextMenu] = useState({ visible: false, topic: null, x: 0, y: 0 });
   const [renameModal, setRenameModal] = useState({ visible: false, topic: null, text: '' });
+  const [moveModal, setMoveModal] = useState({ visible: false, topic: null, subjects: [] });
   const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', buttons: [] });
 
   // ── Load ─────────────────────────────────────────────────────────
@@ -202,6 +202,44 @@ export const TopicListScreen = ({ route, navigation }) => {
     setRenameModal({ visible: false, topic: null, text: '' });
   }, [renameModal, topics, persistTopics]);
 
+  // ── Move ──────────────────────────────────────────────────────────
+
+  const handleMoveTopic = useCallback(async (topic) => {
+    const allData = await getAppData();
+    const deck = allData.find(d => d.id === deckId);
+    const otherSubjects = (deck?.subjects || []).filter(s => s.id !== subjectId);
+    if (otherSubjects.length === 0) {
+      setAlertConfig({
+        visible: true,
+        title: 'Sem outras matérias',
+        message: 'Não há outras matérias neste deck para mover o assunto.',
+        buttons: [{ text: 'OK', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+      });
+      return;
+    }
+    setMoveModal({ visible: true, topic, subjects: otherSubjects });
+  }, [deckId, subjectId]);
+
+  const handleMoveConfirm = useCallback(async (targetSubjectId) => {
+    const topic = moveModal.topic;
+    if (!topic) return;
+    const allData = await getAppData();
+    const newData = allData.map(deck => {
+      if (deck.id !== deckId) return deck;
+      return {
+        ...deck,
+        subjects: deck.subjects.map(s => {
+          if (s.id === subjectId) return { ...s, topics: (s.topics || []).filter(t => t.id !== topic.id) };
+          if (s.id === targetSubjectId) return { ...s, topics: [...(s.topics || []), topic] };
+          return s;
+        }),
+      };
+    });
+    await saveAppData(newData);
+    setTopics(prev => prev.filter(t => t.id !== topic.id));
+    setMoveModal({ visible: false, topic: null, subjects: [] });
+  }, [moveModal, deckId, subjectId]);
+
   // ── Delete ────────────────────────────────────────────────────────
 
   const handleDeleteTopic = useCallback((topic) => {
@@ -230,18 +268,18 @@ export const TopicListScreen = ({ route, navigation }) => {
     for (let i = 0; i < items.length; i += 2) {
       rows.push(
         <View key={i} style={s.gridRow}>
-          <TopicCard
+          <MateriaCard
             subject={items[i]}
-            parentName={subjectName}
+            deck={{ name: subjectName }}
             width={MATERIA_CARD_WIDTH}
             height={MATERIA_CARD_HEIGHT}
             onPress={() => handleStudy(items[i])}
             onMenuPress={(e) => handleMenuPress(items[i], e)}
           />
           {items[i + 1] ? (
-            <TopicCard
+            <MateriaCard
               subject={items[i + 1]}
-              parentName={subjectName}
+              deck={{ name: subjectName }}
               width={MATERIA_CARD_WIDTH}
               height={MATERIA_CARD_HEIGHT}
               onPress={() => handleStudy(items[i + 1])}
@@ -349,7 +387,7 @@ export const TopicListScreen = ({ route, navigation }) => {
         <TouchableWithoutFeedback onPress={closeContextMenu}>
           <View style={ctx.overlay}>
             {(() => {
-              const menuW = 200, menuH = 160;
+              const menuW = 200, menuH = 210;
               let menuLeft = contextMenu.x - menuW + 16;
               let menuTop = contextMenu.y - menuH - 10;
               if (menuLeft < 8) menuLeft = 8;
@@ -366,6 +404,11 @@ export const TopicListScreen = ({ route, navigation }) => {
                   <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (topic) setRenameModal({ visible: true, topic, text: topic.name || '' }); }}>
                     <Ionicons name="create-outline" size={16} color={theme.textPrimary} />
                     <Text style={ctx.itemText}>Renomear</Text>
+                  </TouchableOpacity>
+                  <View style={ctx.sep} />
+                  <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (topic) setTimeout(() => handleMoveTopic(topic), 50); }}>
+                    <Ionicons name="arrow-forward-circle-outline" size={16} color={theme.textPrimary} />
+                    <Text style={ctx.itemText}>Mover para matéria</Text>
                   </TouchableOpacity>
                   <View style={ctx.sep} />
                   <TouchableOpacity style={ctx.item} onPress={() => { closeContextMenu(); if (topic) setTimeout(() => handleDeleteTopic(topic), 50); }}>
@@ -412,6 +455,31 @@ export const TopicListScreen = ({ route, navigation }) => {
                     <Text style={ren.btnSaveTxt}>Salvar</Text>
                   </TouchableOpacity>
                 </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Move modal */}
+      <Modal transparent animationType="fade" visible={moveModal.visible} onRequestClose={() => setMoveModal(p => ({ ...p, visible: false }))} statusBarTranslucent>
+        <TouchableWithoutFeedback onPress={() => setMoveModal(p => ({ ...p, visible: false }))}>
+          <View style={mov.overlay}>
+            <TouchableWithoutFeedback>
+              <View style={mov.card}>
+                <Text style={mov.title}>Mover "{moveModal.topic?.name}" para:</Text>
+                <ScrollView style={mov.list} showsVerticalScrollIndicator={false}>
+                  {moveModal.subjects.map(s => (
+                    <TouchableOpacity key={s.id} style={mov.option} onPress={() => handleMoveConfirm(s.id)}>
+                      <Ionicons name="layers-outline" size={16} color={theme.primary} />
+                      <Text style={mov.optionText}>{s.name}</Text>
+                      <Ionicons name="arrow-forward" size={14} color={theme.textMuted} />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity style={mov.btnCancel} onPress={() => setMoveModal(p => ({ ...p, visible: false }))}>
+                  <Text style={mov.btnCancelTxt}>Cancelar</Text>
+                </TouchableOpacity>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -535,6 +603,26 @@ const ren = StyleSheet.create({
   btnSave: { flex: 1, height: 44, borderRadius: 10, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center' },
   btnSaveDisabled: { opacity: 0.4 },
   btnSaveTxt: { color: '#0F0F0F', fontSize: 14, fontWeight: '700' },
+});
+
+const mov = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  card: {
+    backgroundColor: theme.backgroundElevated, borderRadius: 16, padding: 20, width: '85%',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', maxHeight: '70%',
+  },
+  title: { color: theme.textPrimary, fontSize: 15, fontWeight: '700', marginBottom: 14 },
+  list: { maxHeight: 260 },
+  option: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  optionText: { flex: 1, color: theme.textPrimary, fontSize: 14 },
+  btnCancel: {
+    marginTop: 14, height: 44, borderRadius: 10,
+    backgroundColor: theme.backgroundTertiary, alignItems: 'center', justifyContent: 'center',
+  },
+  btnCancelTxt: { color: theme.textSecondary, fontSize: 14, fontWeight: '600' },
 });
 
 export default TopicListScreen;
