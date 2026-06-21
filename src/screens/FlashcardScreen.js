@@ -509,6 +509,20 @@ export const FlashcardScreen = ({ route, navigation }) => {
       );
       await saveAppData(newData);
     }
+    const ratings = sessionRatings.current;
+    const totalSwipes = ratings.right + ratings.up + ratings.left;
+    if (totalSwipes > 0) {
+      await saveStudySession({
+        deckId,
+        deckName: deckName || deckId,
+        subjectId: reviewAll ? 'all' : subjectId,
+        subjectName: reviewAll ? 'Revisão Geral' : (subjectName || subjectId),
+        count: totalSwipes,
+        acertos: ratings.right,
+        quases: ratings.up,
+        erros: ratings.left,
+      });
+    }
     if (clearUpdates) reviewUpdates.current = [];
     if (!clearUpdates) {
       saveInProgress.current = false;
@@ -634,16 +648,6 @@ export const FlashcardScreen = ({ route, navigation }) => {
         global.onDailyGoalReached?.();
         // Esconde o banner após 3 segundos
         setTimeout(() => setGoalAlreadyDoneToday(true), 3000);
-        saveStudySession({
-          deckId,
-          deckName: deckName || deckId,
-          subjectId: reviewAll ? 'all' : subjectId,
-          subjectName: reviewAll ? 'Revisão Geral' : (parentSubjectName || subjectName || subjectId),
-          count: correct,
-          acertos: sessionRatings.current.right,
-          quases: sessionRatings.current.up,
-          erros: sessionRatings.current.left,
-        });
       }
     }
 

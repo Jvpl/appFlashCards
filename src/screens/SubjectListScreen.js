@@ -9,7 +9,8 @@ import { useIsFocused } from '@react-navigation/native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getAppData, saveAppData } from '../services/storage';
+import { getAppData, saveAppData, clearProgressForSubjects, clearProgressForDecks, moveToTrash } from '../services/storage';
+import { CONCURSO_CATEGORIES, getCustomCategories } from '../config/categories';
 import { isDefaultDeck, canEditDefaultDecks } from '../config/constants';
 import { SkeletonItem } from '../components/ui/SkeletonItem';
 import { CustomAlert } from '../components/ui/CustomAlert';
@@ -241,13 +242,29 @@ export const SubjectListScreen = ({ route, navigation }) => {
     setTimeout(() => {
       setAlertConfig({
         visible: true, title: 'Excluir Deck',
-        message: `Excluir "${deckName}" e todos os seus flashcards permanentemente?`,
+        message: `Excluir "${deckName}"? Decks criados por você ficam na lixeira por 14 dias e podem ser restaurados em Configurações.`,
       buttons: [
         { text: 'Cancelar', style: 'cancel', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) },
         {
           text: 'Excluir', style: 'destructive', onPress: async () => {
             const allData = await getAppData();
+            const deck = allData.find(d => d.id === deckId);
             await saveAppData(allData.filter(d => d.id !== deckId));
+            await clearProgressForDecks([deckId]);
+            if (deck?.isUserCreated) {
+              const customCats = await getCustomCategories();
+              const catId = deck.category;
+              let catMeta = null;
+              if (catId && catId !== 'personalizados') {
+                const preset = CONCURSO_CATEGORIES.find(c => c.id === catId);
+                if (preset) catMeta = { id: preset.id, name: preset.name, isCustom: false };
+                else {
+                  const custom = customCats.find(c => c.id === catId);
+                  if (custom) catMeta = { id: custom.id, name: custom.name, icon: custom.icon, color: custom.color, isCustom: true };
+                }
+              }
+              await moveToTrash(deck, catMeta);
+            }
             setAlertConfig(p => ({ ...p, visible: false }));
             navigation.goBack();
           }
@@ -370,6 +387,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
           text: 'Apagar', style: 'destructive', onPress: async () => {
             const allData = await getAppData();
             await saveAppData(allData.map(d => d.id === deckId ? { ...d, subjects: d.subjects.filter(s => s.id !== subject.id) } : d));
+            await clearProgressForSubjects(deckId, [subject.id]);
             setSubjects(prev => prev.filter(s => s.id !== subject.id));
             setAlertConfig(p => ({ ...p, visible: false }));
           }
@@ -397,6 +415,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
           text: 'Confirmar', style: 'destructive', onPress: async () => {
             const allData = await getAppData();
             await saveAppData(allData.map(d => d.id === deckId ? { ...d, subjects: d.subjects.filter(sub => !selectedSubjects.includes(sub.id)) } : d));
+            await clearProgressForSubjects(deckId, selectedSubjects);
             setSubjects(prev => prev.filter(sub => !selectedSubjects.includes(sub.id)));
             exitSelection();
             setAlertConfig(p => ({ ...p, visible: false }));

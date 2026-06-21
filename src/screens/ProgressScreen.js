@@ -898,7 +898,8 @@ export const ProgressScreen = () => {
         else erros++;
       });
       const today = new Date().toISOString().split('T')[0];
-      const todayEntries = history.filter(s => s.date === today);
+      const realDeckIds = new Set(realDecks.map(d => d.id));
+      const todayEntries = history.filter(s => s.date === today && realDeckIds.has(s.deckId));
       setTodaySessions(todayEntries);
       setTotalToday(todayEntries.reduce((sum, s) => sum + s.count, 0));
       const hojeAcertos = todayEntries.reduce((sum, s) => sum + (s.acertos || 0), 0);
@@ -1000,7 +1001,7 @@ export const ProgressScreen = () => {
         if (!c.nextReview) return true;
         return new Date(c.nextReview) <= now;
       };
-      for (const deck of progressData) {
+      for (const deck of progressData.filter(d => !d.isExample)) {
         for (const subject of deck.subjects) {
           const cards = subject.topics?.length > 0
             ? subject.topics.flatMap(t => t.flashcards || [])
@@ -1411,14 +1412,14 @@ export const ProgressScreen = () => {
 
         <View style={{ height: 1, backgroundColor: '#2A2A2A', marginBottom: 16 }} />
         {/* DESEMPENHO GERAL: card esquerdo + contadores direito (sem card) lado a lado */}
-        <View style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'stretch' }}>
+        <View style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'stretch', gap: 12 }}>
 
           {/* Card esquerdo: arco */}
-          <View style={{ width: leftW, backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', paddingTop: 14, paddingBottom: ok ? 16 : 24 }}>
+          <View style={{ flex: 1, backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', paddingTop: 14, paddingBottom: ok ? 16 : 24 }}>
             <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, marginBottom: 10, alignSelf: 'center' }}>
               Desempenho Geral
             </Text>
-            <View style={{ width: leftW - 15, height: 1, backgroundColor: '#2A2A2A', marginBottom: 10 }} />
+            <View style={{ alignSelf: 'stretch', height: 1, backgroundColor: '#2A2A2A', marginBottom: 10, marginHorizontal: 8 }} />
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
               <View style={{ width: arcSize, height: arcSize * 0.94, marginTop: ok ? 8 : 2 }}>
                 <Svg width={arcSize} height={arcSize}>
@@ -1455,7 +1456,7 @@ export const ProgressScreen = () => {
                 )}
                 {!ok && (
                   <View style={{ position: 'absolute', bottom: -15, left: 0, right: 0, alignItems: 'center' }}>
-                    <Text style={{ color: theme.textPrimary, fontSize: 14, fontFamily: theme.fontFamily.uiMedium }}>
+                    <Text style={{ color: theme.textPrimary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium }}>
                       continue estudando
                     </Text>
                   </View>
@@ -1464,28 +1465,43 @@ export const ProgressScreen = () => {
             </View>
           </View>
 
-          {/* Direita: Acertos / Quases / Erros — sem card, fundo transparente */}
-          <View style={{ flex: 1, justifyContent: 'center', paddingLeft: 16 }}>
-            {[
-              { svg: ICON_ACERTO_SVG, val: totA, label: 'Acertos' },
-              { svg: ICON_QUASE_SVG, val: totQ, label: 'Quases' },
-              { svg: ICON_ERRO_SVG, val: totE, label: 'Erros' },
-            ].map((it, i) => (
-              <View key={i} style={{
-                flexDirection: 'row', alignItems: 'center',
-                paddingVertical: 26,
-                borderTopWidth: i > 0 ? 1 : 0,
-                borderTopColor: '#2A2A2A',
-              }}>
-                <SvgXml xml={it.svg} width={18} height={18} style={{ marginRight: 8, marginTop: 3 }} />
-                <Text style={{ flex: 1, color: '#aaa', fontSize: 14, fontFamily: theme.fontFamily.uiMedium }}>
-                  {it.label}
-                </Text>
-                <Text style={{ color: theme.textPrimary, fontSize: 17, fontFamily: theme.fontFamily.heading, paddingRight: 8 }}>
-                  {it.val}
-                </Text>
+          {/* Direita: Média de respostas */}
+          <View style={{ flex: 1 }}>
+            <View style={{ backgroundColor: '#1C1C1C', borderRadius: 16, borderWidth: 1, borderColor: '#2A2A2A', flex: 1, paddingHorizontal: 12, paddingTop: 14, paddingBottom: 0 }}>
+              <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.uiBold, textAlign: 'center', marginBottom: 10 }} numberOfLines={1}>
+                Precisão
+              </Text>
+              <View style={{ height: 1, backgroundColor: '#2A2A2A', marginHorizontal: -4 }} />
+              <View style={{ flex: 1, flexDirection: 'column', paddingVertical: 4 }}>
+                {(() => {
+                  const hA = statsData.hojeAcertos || 0;
+                  const hQ = statsData.hojeQuases || 0;
+                  const hE = statsData.hojeErros || 0;
+                  const hTot = hA + hQ + hE;
+                  return [
+                    { svg: ICON_ACERTO_SVG, val: hA, label: 'Acertos' },
+                    { svg: ICON_QUASE_SVG, val: hQ, label: 'Quases' },
+                    { svg: ICON_ERRO_SVG, val: hE, label: 'Erros' },
+                  ].map((it, i) => {
+                    const pct = hTot > 0 ? Math.round(it.val / hTot * 100) : 0;
+                    return (
+                      <React.Fragment key={i}>
+                        {i > 0 && <View style={{ height: 1, backgroundColor: '#2A2A2A' }} />}
+                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                          <SvgXml xml={it.svg} width={14} height={14} style={{ marginRight: 7 }} />
+                          <Text style={{ flex: 1, color: theme.textSecondary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium }}>
+                            {it.label}
+                          </Text>
+                          <Text style={{ color: theme.textPrimary, fontSize: 16, fontFamily: theme.fontFamily.heading, includeFontPadding: false }}>
+                            {pct}%
+                          </Text>
+                        </View>
+                      </React.Fragment>
+                    );
+                  });
+                })()}
               </View>
-            ))}
+            </View>
           </View>
 
         </View>
