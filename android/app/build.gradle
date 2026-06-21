@@ -87,14 +87,6 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    // cmake 3.30.5 tem suporte a caminhos longos no Windows (>260 chars)
-    // Necessário porque o caminho do projeto tem espaços e é longo
-    externalNativeBuild {
-        cmake {
-            version "3.30.5"
-        }
-    }
-
     namespace 'com.jvpl.flashcardsconcurso'
     defaultConfig {
         applicationId 'com.jvpl.flashcardsconcurso'
