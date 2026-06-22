@@ -1,4 +1,4 @@
-package com.jvpl.flashcardsconcurso
+package com.memorizia.app
 
 import android.os.Build
 import android.os.Bundle
