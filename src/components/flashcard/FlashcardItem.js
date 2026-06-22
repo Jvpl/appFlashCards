@@ -1,6 +1,7 @@
 import React, { memo, useRef, useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Dimensions, Platform, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming, Easing } from 'react-native-reanimated';
 import { Canvas, RoundedRect, BlurMask } from '@shopify/react-native-skia';
 import Svg, { Path as SvgPath } from 'react-native-svg';
@@ -256,7 +257,9 @@ const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.cardText}>{content}</Text>
-        <Text onPress={toggle} style={[styles.cardText, { color: '#5DD62C', marginTop: 12 }]}>ver menos</Text>
+        <View style={{ marginTop: 12, alignSelf: 'center' }}>
+          <Text onPress={toggle} style={[styles.cardText, { color: '#EF4444', fontWeight: '700' }]}>ver menos</Text>
+        </View>
       </ScrollView>
     );
   }
@@ -286,6 +289,7 @@ const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
 };
 
 export const FlashcardItem = ({ card, index, currentIndex, totalCards, completedCards, sessionTotal, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV, verMaisZoneSV, verMaisTriggerRef, cardOpacitySV, contentKey, onExpandChange, cardTopY }) => {
+  const [frontExpanded, setFrontExpanded] = useState(false);
   const [backExpanded, setBackExpanded] = useState(false);
   const editingRef = useRef(false);
   const rotate = useSharedValue(0);
@@ -393,6 +397,8 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
   useEffect(() => {
     if (index !== jsCurrentIndex) {
       editingRef.current = false;
+      setFrontExpanded(false);
+      setBackExpanded(false);
     }
   }, [jsCurrentIndex, index]);
 
@@ -451,11 +457,26 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
           style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle]}
           pointerEvents={isCurrentCard && jsIsFlipped ? 'none' : 'auto'}
         >
-          <View style={{ height: cardContentHeight, width: '100%' }}>
+          <View style={{ height: cardContentHeight, width: '100%', overflow: 'hidden' }}>
             {isHtml(card.question)
-              ? <ExpandableHtml key={contentKey} content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
-              : <ExpandableText content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
+              ? <ExpandableHtml key={contentKey} content={card.question} onExpandChange={(exp) => { setFrontExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
+              : <ExpandableText content={card.question} onExpandChange={(exp) => { setFrontExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
             }
+            {frontExpanded && (
+              <>
+                <LinearGradient
+                  colors={['#242427', 'rgba(36, 36, 39, 0)']}
+                  style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 40 }}
+                  pointerEvents="none"
+                />
+                <LinearGradient
+                  colors={['rgba(36, 36, 39, 0)', 'rgba(36, 36, 39, 0.4)', 'rgba(36, 36, 39, 0.8)', '#242427', '#242427']}
+                  locations={[0, 0.3, 0.6, 0.8, 1]}
+                  style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 110 }}
+                  pointerEvents="none"
+                />
+              </>
+            )}
           </View>
           {showLevel && (
             <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
@@ -486,11 +507,26 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
               </Animated.View>
             );
           })}
-          <Animated.View style={[{ height: cardContentHeight, width: '100%' }, backContentOpacity]} pointerEvents={backExpanded ? 'auto' : 'none'}>
+          <Animated.View style={[{ height: cardContentHeight, width: '100%', overflow: 'hidden' }, backContentOpacity]} pointerEvents={backExpanded ? 'auto' : 'none'}>
             {isHtml(card.answer)
               ? <ExpandableHtml key={contentKey} content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
               : <ExpandableText content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
             }
+            {backExpanded && (
+              <>
+                <LinearGradient
+                  colors={['#1E1E21', 'rgba(30, 30, 33, 0)']}
+                  style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 40 }}
+                  pointerEvents="none"
+                />
+                <LinearGradient
+                  colors={['rgba(30, 30, 33, 0)', 'rgba(30, 30, 33, 0.4)', 'rgba(30, 30, 33, 0.8)', '#1E1E21', '#1E1E21']}
+                  locations={[0, 0.3, 0.6, 0.8, 1]}
+                  style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 110 }}
+                  pointerEvents="none"
+                />
+              </>
+            )}
           </Animated.View>
           <Animated.View pointerEvents="none" style={[fi.swipeOverlay, swipeOverlayStyle]}>
             <Animated.View style={[fi.iconWrap, borderOpacityLeft]}>
