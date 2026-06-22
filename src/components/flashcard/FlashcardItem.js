@@ -457,7 +457,7 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
           style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle]}
           pointerEvents={isCurrentCard && jsIsFlipped ? 'none' : 'auto'}
         >
-          <View style={{ height: cardContentHeight, width: '100%', overflow: 'hidden' }}>
+          <View style={{ height: cardContentHeight, width: '100%', overflow: 'hidden', borderTopLeftRadius: cardRadius, borderTopRightRadius: cardRadius }}>
             {isHtml(card.question)
               ? <ExpandableHtml key={contentKey} content={card.question} onExpandChange={(exp) => { setFrontExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
               : <ExpandableText content={card.question} onExpandChange={(exp) => { setFrontExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
@@ -507,7 +507,7 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
               </Animated.View>
             );
           })}
-          <Animated.View style={[{ height: cardContentHeight, width: '100%', overflow: 'hidden' }, backContentOpacity]} pointerEvents={backExpanded ? 'auto' : 'none'}>
+          <Animated.View style={[{ height: cardContentHeight, width: '100%', overflow: 'hidden', borderTopLeftRadius: cardRadius, borderTopRightRadius: cardRadius }, backContentOpacity]} pointerEvents={backExpanded ? 'auto' : 'none'}>
             {isHtml(card.answer)
               ? <ExpandableHtml key={contentKey} content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
               : <ExpandableText content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
