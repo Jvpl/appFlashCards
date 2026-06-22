@@ -329,7 +329,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
         return (s.flashcards || []).map(c => ({ ...c, _subjectId: s.id }));
       }).sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
       if (isReturning) {
-        // Adiciona ao fim da fila apenas cards que não estão nela e não foram estudados
+        const allCardsMap = new Map(allCards.map(c => [c.id, c]));
+        // Atualiza conteúdo dos cards existentes na fila
+        _queue = _queue.map(c => allCardsMap.get(c.id) || c);
+        // Adiciona cards novos
         const queueIds = new Set(_queue.map(c => c.id));
         const newCards = allCards.filter(c => !queueIds.has(c.id) && !sessionStudiedIds.current.has(c.id));
         if (newCards.length > 0) {
@@ -338,6 +341,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
           setNextCard(_queue[1] ?? null);
           setTotalCardsInSession(prev => prev + newCards.length);
         }
+        // Atualiza currentCard com dados frescos
+        const freshCurrent = allCardsMap.get(currentCard?.id);
+        if (freshCurrent) setCurrentCard(freshCurrent);
       } else {
         setCards(allCards); _queue = [...allCards];
         setCurrentCard(allCards[0] ?? null); setNextCard(allCards[1] ?? null);
@@ -350,11 +356,13 @@ export const FlashcardScreen = ({ route, navigation }) => {
         const allSubjectCards = subject.flashcards || [];
         setTotalSubjectCards(allSubjectCards.length);
         if (isReturning) {
-          const storageIds = new Set(allSubjectCards.map(c => c.id));
+          const storageMap = new Map(allSubjectCards.map(c => [c.id, c]));
           // Remove da fila cards deletados no storage
           const queueBefore = _queue.length;
-          _queue = _queue.filter(c => storageIds.has(c.id));
+          _queue = _queue.filter(c => storageMap.has(c.id));
           const removed = queueBefore - _queue.length;
+          // Atualiza conteúdo dos cards existentes na fila (edição de texto, etc.)
+          _queue = _queue.map(c => storageMap.get(c.id) || c);
           // Adiciona cards novos
           const queueIds = new Set(_queue.map(c => c.id));
           const newCards = allSubjectCards.filter(c =>
@@ -375,8 +383,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
             cardOpacitySV.value = 1;
             return;
           }
-          // Atualiza currentCard se foi deletado
-          if (!storageIds.has(currentCard?.id)) {
+          // Atualiza currentCard com dados frescos do storage (inclui edições de texto)
+          const freshCurrent = storageMap.get(currentCard?.id);
+          if (freshCurrent) {
+            setCurrentCard(freshCurrent);
+          } else {
             setCurrentCard(_queue[0] ?? null);
           }
           setNextCard(_queue[1] ?? null);
