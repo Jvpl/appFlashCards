@@ -714,8 +714,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
         'worklet';
         if (!success || panActivated.value || footerPressedSV.value || isAnimatingOut.value || cardExpandedSV.value) return;
         const zone = verMaisZoneSV.value;
-        const yOk = zone.active && _e.absoluteY >= zone.y - 8 && _e.absoluteY <= zone.y + zone.h + 8;
-        const xOk = zone.active && (zone.w === 0 || (_e.absoluteX >= zone.x - 8 && _e.absoluteX <= zone.x + zone.w + 8));
+        const yOk = zone.active && _e.absoluteY >= zone.y - 3 && _e.absoluteY <= zone.y + zone.h + 3;
+        const xOk = zone.active && (zone.w === 0 || (_e.absoluteX >= zone.x - 3 && _e.absoluteX <= zone.x + zone.w + 3));
         if (yOk && xOk) {
           runOnJS(triggerVerMais)();
           return;
@@ -1169,8 +1169,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
         <Animated.View
           ref={cardWrapperRef}
           style={[styles.cardWrapper, { marginBottom: 80 + insets.bottom }]}
-          onLayout={() => {
-            cardWrapperRef.current?.measure((_x, _y, _w, _h, _px, py) => { cardTopY.value = py; });
+          onLayout={(e) => {
+            const { height } = e.nativeEvent.layout;
+            cardWrapperRef.current?.measure((_x, _y, _w, _h, _px, py) => {
+              cardTopY.value = py + (height - 460) / 2;
+            });
           }}
         >
           {/* Pilha decorativa — pos 2+ atrás do skeleton */}
@@ -1270,6 +1273,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
               verMaisZoneSV={verMaisZoneSV}
               verMaisTriggerRef={verMaisTriggerRef}
               cardOpacitySV={cardOpacitySV}
+              cardTopY={cardTopY}
               onEdit={isExample ? undefined : () => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCard?.id })}
               onExpandChange={(expanded) => { setCardExpanded(expanded); cardExpandedSV.value = expanded; }}
             />

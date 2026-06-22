@@ -161,10 +161,9 @@ const HTML_INJECTED_JS = `(function(){
   window.ReactNativeWebView.postMessage(JSON.stringify({t:'ov',v:true,y:vmR.top,h:vmR.height,x:vmR.left,w:vmR.width}));
 })();true;`;
 
-const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTriggerRef, isActiveFace }) => {
+const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTriggerRef, isActiveFace, cardLeft, cardTopY }) => {
   const [expanded, setExpanded] = useState(false);
   const [vmPos, setVmPos] = useState(null); // nunca limpa depois de setado
-  const containerRef = useRef(null);
 
   const toggle = useCallback(() => {
     const next = !expanded;
@@ -173,28 +172,26 @@ const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
   }, [expanded, onExpandChange]);
 
   useEffect(() => {
-    if (!verMaisZoneSV || !verMaisTriggerRef) return;
-    if (isActiveFace && vmPos && !expanded && containerRef.current) {
-      containerRef.current.measure((_x, _y, _w, _h, pageX, pageY) => {
-        verMaisZoneSV.value = {
-          active: true,
-          y: pageY + vmPos.y,
-          h: vmPos.h,
-          x: pageX + vmPos.x,
-          w: vmPos.w,
-        };
-        verMaisTriggerRef.current = toggle;
-      });
+    if (!verMaisZoneSV || !verMaisTriggerRef || !cardTopY) return;
+    if (isActiveFace && vmPos && !expanded) {
+      verMaisZoneSV.value = {
+        active: true,
+        y: cardTopY.value + vmPos.y,
+        h: vmPos.h,
+        x: cardLeft + vmPos.x,
+        w: vmPos.w,
+      };
+      verMaisTriggerRef.current = toggle;
     } else {
       if (isActiveFace) {
         verMaisZoneSV.value = { active: false, y: 0, h: 0, x: 0, w: 0 };
         if (!expanded) verMaisTriggerRef.current = null;
       }
     }
-  }, [vmPos, isActiveFace, expanded, toggle, verMaisZoneSV, verMaisTriggerRef]);
+  }, [vmPos, isActiveFace, expanded, toggle, verMaisZoneSV, verMaisTriggerRef, cardLeft, cardTopY]);
 
   return (
-    <View ref={containerRef} style={{ flex: 1, width: '100%' }}>
+    <View style={{ flex: 1, width: '100%' }}>
       <WebView
         key={expanded ? 'e' : 'c'}
         originWhitelist={['*']}
@@ -216,10 +213,10 @@ const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
   );
 };
 
-const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTriggerRef, isActiveFace }) => {
+const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTriggerRef, isActiveFace, cardLeft, cardTopY }) => {
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
-  const verMaisRef = useRef(null);
+  const [relativePos, setRelativePos] = useState(null);
 
   const toggle = useCallback(() => {
     const next = !expanded;
@@ -227,35 +224,29 @@ const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
     onExpandChange && onExpandChange(next);
   }, [expanded, onExpandChange]);
 
-  const measureVerMais = useCallback(() => {
-    if (isActiveFace && overflows && !expanded && verMaisRef.current) {
-      verMaisRef.current.measure((_x, _y, w, h, pageX, pageY) => {
-        if (pageX !== undefined && pageY !== undefined) {
-          verMaisZoneSV.value = {
-            active: true,
-            y: pageY,
-            h: h,
-            x: pageX,
-            w: w,
-          };
-          verMaisTriggerRef.current = toggle;
-        }
-      });
-    }
-  }, [isActiveFace, overflows, expanded, verMaisZoneSV, verMaisTriggerRef, toggle]);
+  const handleLayout = useCallback((e) => {
+    const { x, y, width, height } = e.nativeEvent.layout;
+    setRelativePos({ x, y, w: width, h: height });
+  }, []);
 
   useEffect(() => {
-    if (!verMaisZoneSV || !verMaisTriggerRef) return;
-    if (isActiveFace && overflows && !expanded) {
-      const timer = setTimeout(measureVerMais, 50);
-      return () => clearTimeout(timer);
+    if (!verMaisZoneSV || !verMaisTriggerRef || !cardTopY) return;
+    if (isActiveFace && overflows && !expanded && relativePos) {
+      verMaisZoneSV.value = {
+        active: true,
+        y: cardTopY.value + relativePos.y,
+        h: relativePos.h,
+        x: cardLeft + relativePos.x,
+        w: relativePos.w,
+      };
+      verMaisTriggerRef.current = toggle;
     } else {
       if (isActiveFace) {
         verMaisZoneSV.value = { active: false, y: 0, h: 0, x: 0, w: 0 };
         if (!expanded) verMaisTriggerRef.current = null;
       }
     }
-  }, [isActiveFace, overflows, expanded, measureVerMais, verMaisZoneSV, verMaisTriggerRef]);
+  }, [isActiveFace, overflows, expanded, relativePos, verMaisZoneSV, verMaisTriggerRef, cardLeft, cardTopY]);
 
   if (expanded) {
     return (
@@ -283,10 +274,9 @@ const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
       </Text>
       {overflows && (
         <View
-          ref={verMaisRef}
           collapsable={false}
-          onLayout={measureVerMais}
-          style={{ marginTop: 4 }}
+          onLayout={handleLayout}
+          style={{ marginTop: 4, alignSelf: 'center' }}
         >
           <Text onPress={toggle} style={[styles.cardText, { color: '#5DD62C' }]}>ver mais</Text>
         </View>
@@ -295,7 +285,7 @@ const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
   );
 };
 
-export const FlashcardItem = ({ card, index, currentIndex, totalCards, completedCards, sessionTotal, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV, verMaisZoneSV, verMaisTriggerRef, cardOpacitySV, contentKey, onExpandChange }) => {
+export const FlashcardItem = ({ card, index, currentIndex, totalCards, completedCards, sessionTotal, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV, verMaisZoneSV, verMaisTriggerRef, cardOpacitySV, contentKey, onExpandChange, cardTopY }) => {
   const [backExpanded, setBackExpanded] = useState(false);
   const editingRef = useRef(false);
   const rotate = useSharedValue(0);
@@ -423,6 +413,8 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
   const glowPad = glowBlur * 2;
   const isMax = (card.level || 0) === 5;
 
+  const cardLeft = (screenWidth - cardW) / 2;
+
   const lineY = 89.11 * (cardW / 975.35);
   const cardContentHeight = 365 + lineY;
 
@@ -461,8 +453,8 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
         >
           <View style={{ height: cardContentHeight, width: '100%' }}>
             {isHtml(card.question)
-              ? <ExpandableHtml key={contentKey} content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} />
-              : <ExpandableText content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} />
+              ? <ExpandableHtml key={contentKey} content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
+              : <ExpandableText content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
             }
           </View>
           {showLevel && (
@@ -496,8 +488,8 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
           })}
           <Animated.View style={[{ height: cardContentHeight, width: '100%' }, backContentOpacity]} pointerEvents={backExpanded ? 'auto' : 'none'}>
             {isHtml(card.answer)
-              ? <ExpandableHtml key={contentKey} content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} />
-              : <ExpandableText content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} />
+              ? <ExpandableHtml key={contentKey} content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
+              : <ExpandableText content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} cardLeft={cardLeft} cardTopY={cardTopY} />
             }
           </Animated.View>
           <Animated.View pointerEvents="none" style={[fi.swipeOverlay, swipeOverlayStyle]}>
