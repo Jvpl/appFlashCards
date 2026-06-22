@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Flashcards Concurso",
+    "name": "Memorizia",
     "owner": "flashcards-team",
-    "slug": "flashcards-concurso",
+    "slug": "memorizia",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -20,7 +20,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A202C"
       },
-      "package": "com.jvpl.flashcardsconcurso",
+      "package": "com.memorizia.app",
       "softwareKeyboardLayoutMode": "nothing"
     },
     "web": {
