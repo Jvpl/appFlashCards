@@ -1,9 +1,8 @@
-import React, { memo, useRef, useEffect } from 'react';
+import React, { memo, useRef, useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Dimensions, Platform, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Animated, { useAnimatedStyle, interpolate, useSharedValue, useDerivedValue, useAnimatedReaction, withTiming, Easing } from 'react-native-reanimated';
 import { Canvas, RoundedRect, BlurMask } from '@shopify/react-native-skia';
-import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path as SvgPath } from 'react-native-svg';
 import { CardFooter } from '../ui/CardFooter';
 import { katexScript, katexStyles as katexFullStyles } from '../editor/editorTemplates';
@@ -39,7 +38,225 @@ const SwipeIcon = ({ paths, color, size = 80 }) => (
 
 const screenWidth = Dimensions.get('window').width;
 
-export const FlashcardItem = ({ card, index, currentIndex, totalCards, completedCards, sessionTotal, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV, cardOpacitySV, contentKey }) => {
+const MAX_LINES = 6;
+
+const VIEWER_MAX_H = 290;
+
+const buildHtml = (content, scrollable) => `<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<style>${katexFullStyles}</style>
+<script>var module=undefined;var exports=undefined;var define=undefined;${katexScript};window.katex=window.katex||globalThis.katex||self.katex;</script>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html, body { margin: 0; padding: 0; }
+body {
+  margin: 0; padding: 0;
+  background-color: transparent;
+  font-family: 'Roboto', sans-serif;
+  color: white; font-size: 20px;
+  ${scrollable
+    ? 'height: auto; overflow: auto; display: block;'
+    : 'overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center;'}
+}
+#viewer {
+  padding: ${scrollable ? '20px 16px' : '16px'};
+  line-height: 1.6; word-wrap: break-word; overflow-wrap: anywhere;
+  width: 100%; text-align: center;
+  ${scrollable ? '' : `max-height: ${VIEWER_MAX_H}px; overflow: hidden;`}
+}
+.katex { font-size: 1.0em !important; color: white !important; }
+.katex .mfrac { font-size: 1.25em !important; }
+.katex svg { color: white; }
+.katex svg path { fill: white !important; stroke: none !important; }
+.katex-mathml { display: none !important; }
+.math-atom { vertical-align: middle; margin: 0 2px; display: inline-block; cursor: default; white-space: nowrap; font-size: 1.1em; }
+img { max-width: 100%; height: auto; }
+.invisible-char, .sentinela-anti-caps { display: none; }
+mark, span.destaque { background-color: #5DD62C !important; color: #000 !important; border-radius: 2px; padding: 0 2px; }
+</style>
+</head>
+<body data-mode="${scrollable ? 'scroll' : 'clip'}">
+<div id="viewer">${content}</div>
+<script>
+document.querySelectorAll('.math-atom[data-latex]').forEach(function(el) {
+  var latex = el.getAttribute('data-latex');
+  var isDisplay = el.getAttribute('data-display') === 'true';
+  try { katex.render(latex, el, { throwOnError: false, displayMode: isDisplay }); } catch(e) {}
+});
+</script>
+</body>
+</html>`;
+
+const HTML_INJECTED_JS = `(function(){
+  if(document.body.getAttribute('data-mode')!=='scroll'){
+    document.body.style.height=(window.innerHeight||document.documentElement.clientHeight||365)+'px';
+  }
+  document.querySelectorAll('.katex svg path').forEach(function(p){p.setAttribute('fill','white');p.setAttribute('stroke','white');});
+  document.querySelectorAll('.katex').forEach(function(el){el.style.color='white';});
+  document.querySelectorAll('.katex-mathml').forEach(function(el){el.style.display='none';});
+  if(document.body.getAttribute('data-mode')==='scroll'){
+    var vv=document.getElementById('viewer');
+    if(vv){
+      var last=vv.lastElementChild||vv;
+      var sm=document.createElement('span');
+      sm.textContent=' ver menos';
+      sm.style.cssText='color:#EF4444;font-weight:700;';
+      sm.addEventListener('click',function(){window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({t:'vm0'}));});
+      last.appendChild(sm);
+    }
+    window.ReactNativeWebView.postMessage(JSON.stringify({t:'ov',v:false}));
+    return;
+  }
+  var v = document.getElementById('viewer');
+  if(!v){window.ReactNativeWebView.postMessage(JSON.stringify({t:'ov',v:false}));return;}
+  var MAX_H = 290;
+  var savedHtml = v.innerHTML;
+  // Remove max-height antes de medir — overflow:hidden pode distorcer scrollHeight
+  v.style.maxHeight = 'none';
+  v.style.overflow = 'visible';
+  var trueH = v.scrollHeight;
+  if(trueH <= MAX_H){
+    v.style.maxHeight = '';
+    v.style.overflow = '';
+    window.ReactNativeWebView.postMessage(JSON.stringify({t:'ov',v:false}));
+    return;
+  }
+  var fullText = v.textContent.trim().replace(/\\s+/g,' ');
+  // Guard: texto muito curto não precisa de truncamento
+  if(fullText.length < 80){
+    v.innerHTML = savedHtml;
+    v.style.maxHeight = '';
+    v.style.overflow = '';
+    window.ReactNativeWebView.postMessage(JSON.stringify({t:'ov',v:false}));
+    return;
+  }
+  var lo=0, hi=fullText.length;
+  while(lo < hi-1){
+    var mid=Math.floor((lo+hi)/2);
+    v.textContent = fullText.slice(0,mid)+'... ver mais';
+    if(v.scrollHeight<=MAX_H) lo=mid; else hi=mid;
+  }
+  // Guard: truncamento muito pequeno — exibe conteúdo completo
+  if(lo < 50){
+    v.innerHTML = savedHtml;
+    v.style.maxHeight = '';
+    v.style.overflow = '';
+    window.ReactNativeWebView.postMessage(JSON.stringify({t:'ov',v:false}));
+    return;
+  }
+  var trunc = fullText.slice(0,lo).replace(/\\s+$/,'');
+  var sp = trunc.lastIndexOf(' ');
+  if(sp>0 && (trunc.length-sp)<20) trunc=trunc.slice(0,sp);
+  v.innerHTML='';
+  v.style.maxHeight='';
+  v.style.overflow='';
+  v.appendChild(document.createTextNode(trunc+'... '));
+  var s=document.createElement('span');
+  s.id='vm';s.textContent='ver mais';
+  s.style.cssText='color:#5DD62C;font-weight:600;';
+  v.appendChild(s);
+  var vmR=s.getBoundingClientRect();
+  window.ReactNativeWebView.postMessage(JSON.stringify({t:'ov',v:true,y:vmR.top,h:vmR.height,x:vmR.left,w:vmR.width}));
+})();true;`;
+
+const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTriggerRef, isActiveFace }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [vmPos, setVmPos] = useState(null); // nunca limpa depois de setado
+  const containerRef = useRef(null);
+
+  const toggle = useCallback(() => {
+    const next = !expanded;
+    setExpanded(next);
+    onExpandChange && onExpandChange(next);
+  }, [expanded, onExpandChange]);
+
+  useEffect(() => {
+    if (!verMaisZoneSV || !verMaisTriggerRef) return;
+    if (isActiveFace && vmPos && !expanded && containerRef.current) {
+      containerRef.current.measure((_x, _y, _w, _h, _pageX, pageY) => {
+        verMaisZoneSV.value = {
+          active: true,
+          y: pageY + vmPos.y,
+          h: vmPos.h,
+          x: 0,
+          w: 0,
+        };
+        verMaisTriggerRef.current = toggle;
+      });
+    } else {
+      verMaisZoneSV.value = { active: false, y: 0, h: 0 };
+      if (!expanded) verMaisTriggerRef.current = null;
+    }
+  }, [vmPos, isActiveFace, expanded, toggle, verMaisZoneSV, verMaisTriggerRef]);
+
+  return (
+    <View ref={containerRef} style={{ flex: 1, width: '100%' }}>
+      <WebView
+        key={expanded ? 'e' : 'c'}
+        originWhitelist={['*']}
+        source={{ html: buildHtml(content, expanded) }}
+        style={{ backgroundColor: 'transparent', flex: 1 }}
+        scrollEnabled={expanded}
+        nestedScrollEnabled={expanded}
+        pointerEvents={expanded ? 'auto' : 'none'}
+        injectedJavaScript={HTML_INJECTED_JS}
+        onMessage={(e) => {
+          try {
+            const d = JSON.parse(e.nativeEvent.data);
+            if (d.t === 'ov' && d.v) setVmPos({ y: d.y, h: d.h, x: d.x, w: d.w });
+            else if (d.t === 'vm0') toggle();
+          } catch {}
+        }}
+      />
+    </View>
+  );
+};
+
+const ExpandableText = ({ content, onExpandChange }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  const toggle = useCallback(() => {
+    const next = !expanded;
+    setExpanded(next);
+    onExpandChange && onExpandChange(next);
+  }, [expanded, onExpandChange]);
+
+  if (expanded) {
+    return (
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.cardText}>{content}</Text>
+        <Text onPress={toggle} style={[styles.cardText, { color: '#5DD62C', marginTop: 12 }]}>ver menos</Text>
+      </ScrollView>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+      <Text
+        style={styles.cardText}
+        numberOfLines={MAX_LINES}
+        onTextLayout={(e) => {
+          if (e.nativeEvent.lines.length >= MAX_LINES) setOverflows(true);
+        }}
+      >
+        {content}
+      </Text>
+      {overflows && (
+        <Text onPress={toggle} style={[styles.cardText, { color: '#5DD62C', marginTop: 4 }]}>ver mais</Text>
+      )}
+    </View>
+  );
+};
+
+export const FlashcardItem = ({ card, index, currentIndex, totalCards, completedCards, sessionTotal, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV, verMaisZoneSV, verMaisTriggerRef, cardOpacitySV, contentKey, onExpandChange }) => {
+  const [backExpanded, setBackExpanded] = useState(false);
   const editingRef = useRef(false);
   const rotate = useSharedValue(0);
   const position = useDerivedValue(() => index - currentIndex.value);
@@ -141,106 +358,7 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
 
   if (!card) return null;
 
-  const renderContent = (content) => {
-    const hasHtml = /<[a-z][\s\S]*>/i.test(content) || content.includes('math-atom') || content.includes('&nbsp;');
-
-    if (content && typeof content === 'string' && hasHtml) {
-      const readOnlyHtml = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-            <style>${katexFullStyles}</style>
-            <script>var module=undefined;var exports=undefined;var define=undefined;${katexScript};window.katex=window.katex||globalThis.katex||self.katex;</script>
-            <style>
-                * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-                html, body {
-                    height: 100%;
-                    margin: 0;
-                    padding: 0;
-                    background-color: transparent;
-                    font-family: 'Times New Roman', serif;
-                    color: white;
-                    font-size: 20px;
-                    overflow: hidden;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    align-items: center;
-                }
-                #viewer {
-                    padding: 10px;
-                    line-height: 1.6;
-                    word-wrap: break-word;
-                    overflow-wrap: anywhere;
-                    width: 100%;
-                    text-align: center;
-                }
-                .katex { font-size: 1.0em !important; color: white !important; }
-                .katex .mfrac { font-size: 1.25em !important; }
-                .katex svg { color: white; }
-                .katex svg path { fill: white !important; stroke: none !important; }
-                .katex-mathml { display: none !important; }
-                .math-atom {
-                    vertical-align: middle;
-                    margin: 0 2px;
-                    display: inline-block;
-                    cursor: default;
-                    white-space: nowrap;
-                    font-size: 1.1em;
-                }
-                img { max-width: 100%; height: auto; }
-                .invisible-char, .sentinela-anti-caps { display: none; }
-            </style>
-            </head>
-            <body>
-            <div id="viewer">${content}</div>
-            <script>
-              document.querySelectorAll('.math-atom[data-latex]').forEach(function(el) {
-                var latex = el.getAttribute('data-latex');
-                var isDisplay = el.getAttribute('data-display') === 'true';
-                try { katex.render(latex, el, { throwOnError: false, displayMode: isDisplay }); } catch(e) {}
-              });
-            </script>
-            </body>
-            </html>`;
-
-      return (
-        <View style={{ width: '100%', minHeight: 180, flex: 1 }}>
-          <WebView
-            originWhitelist={['*']}
-            source={{ html: readOnlyHtml }}
-            style={{ backgroundColor: 'transparent', flex: 1 }}
-            scrollEnabled={false}
-            nestedScrollEnabled={false}
-            pointerEvents="none"
-            onMessage={(e) => console.log('WebView msg:', e.nativeEvent.data)}
-            injectedJavaScript={`
-                        (function() {
-                            document.querySelectorAll('.katex svg path').forEach(function(p) {
-                                p.setAttribute('fill', 'white');
-                                p.setAttribute('stroke', 'white');
-                            });
-                            document.querySelectorAll('.katex').forEach(function(el) {
-                                el.style.color = 'white';
-                            });
-                            document.querySelectorAll('.katex-mathml').forEach(function(el) {
-                                el.style.display = 'none';
-                            });
-                            document.querySelectorAll('.katex-html').forEach(function(el) {
-                                el.removeAttribute('aria-hidden');
-                            });
-                            window.ReactNativeWebView.postMessage('katex-html count:' + document.querySelectorAll('.katex-html').length);
-                        })();
-                        true;
-                    `}
-          />
-        </View>
-      );
-    }
-
-    return <Text style={styles.cardText}>{content}</Text>;
-  };
+  const isHtml = (content) => /<[a-z][\s\S]*>/i.test(content) || content?.includes('math-atom') || content?.includes('&nbsp;');
 
   useEffect(() => {
     if (index !== jsCurrentIndex) {
@@ -298,9 +416,10 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
           style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle]}
           pointerEvents={isCurrentCard && jsIsFlipped ? 'none' : 'auto'}
         >
-          <ScrollView key={contentKey} style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent} pointerEvents="none">
-            {renderContent(card.question)}
-          </ScrollView>
+          {isHtml(card.question)
+            ? <ExpandableHtml key={contentKey} content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} />
+            : <ExpandableText content={card.question} onExpandChange={onExpandChange} />
+          }
           {showLevel && <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
         </Animated.View>
 
@@ -326,10 +445,11 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
               </Animated.View>
             );
           })}
-          <Animated.View style={[{ flex: 1, width: '100%' }, backContentOpacity]} pointerEvents="none">
-            <ScrollView key={contentKey} style={styles.cardContentScrollView} contentContainerStyle={styles.cardContent} pointerEvents="none">
-              {renderContent(card.answer)}
-            </ScrollView>
+          <Animated.View style={[{ flex: 1, width: '100%' }, backContentOpacity]} pointerEvents={backExpanded ? 'auto' : 'none'}>
+            {isHtml(card.answer)
+              ? <ExpandableHtml key={contentKey} content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} />
+              : <ExpandableText content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} />
+            }
           </Animated.View>
           <Animated.View pointerEvents="none" style={[fi.swipeOverlay, swipeOverlayStyle]}>
             <Animated.View style={[fi.iconWrap, borderOpacityLeft]}>
@@ -376,5 +496,6 @@ const fi = StyleSheet.create({
     bottom: FOOTER_H,
   },
 });
+
 
 export default FlashcardItem;

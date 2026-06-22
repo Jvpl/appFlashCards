@@ -246,6 +246,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
 
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
+  const [cardExpanded, setCardExpanded] = useState(false);
+  const cardExpandedSV = useSharedValue(false);
   const tutorialRef = useRef(null);
 
   // No deck exemplo, sempre mostrar o tutorial ao entrar
@@ -312,6 +314,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
       resetKey.value = resetKey.value + 1;
       setJsCurrentIndex(0);
       setJsIsFlipped(false);
+      setCardExpanded(false);
+      cardExpandedSV.value = false;
     }
 
     const data = allData;
@@ -580,6 +584,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const onFlip = useCallback(() => { isFlipped.value = !isFlipped.value; }, [isFlipped]);
   const footerPressedSV = useSharedValue(false);
+  const verMaisZoneSV = useSharedValue({ active: false, y: 0, h: 0 });
+  const verMaisTriggerRef = useRef(null);
+  const triggerVerMais = useCallback(() => { verMaisTriggerRef.current?.(); }, []);
 
   const getNextReviewText = useCallback((nextReview) => {
     if (!nextReview) return 'Volta imediatamente';
@@ -690,6 +697,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
     setSwipeCount(prev => prev + 1);
     if (_queue.length <= 1) insertAnim.value = 0;
     resetKey.value = resetKey.value + 1;
+    setCardExpanded(false);
+    cardExpandedSV.value = false;
     setCurrentCard(_queue[0] ?? null);
     setNextCard(_queue[1] ?? null);
   }, [handleReview]);
@@ -703,10 +712,16 @@ export const FlashcardScreen = ({ route, navigation }) => {
       .maxDistance(20)
       .onEnd((_e, success) => {
         'worklet';
-        if (!success || panActivated.value || footerPressedSV.value || isAnimatingOut.value) return;
+        if (!success || panActivated.value || footerPressedSV.value || isAnimatingOut.value || cardExpandedSV.value) return;
+        const zone = verMaisZoneSV.value;
+        const yOk = zone.active && _e.absoluteY >= zone.y - 8 && _e.absoluteY <= zone.y + zone.h + 8;
+        if (yOk) {
+          runOnJS(triggerVerMais)();
+          return;
+        }
         runOnJS(onFlip)();
       }),
-    [onFlip, panActivated, footerPressedSV, isAnimatingOut]);
+    [onFlip, panActivated, footerPressedSV, isAnimatingOut, triggerVerMais]);
 
   const gesture = useMemo(() => {
     const pan = Gesture.Pan().withRef(panGestureRef)
@@ -715,7 +730,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       .onFinalize(() => { 'worklet'; panActivated.value = false; })
       .onUpdate((event) => {
         'worklet';
-        if (!isFlipped.value) return;
+        if (!isFlipped.value || cardExpandedSV.value) return;
         translateX.value = event.translationX;
         translateY.value = event.translationY;
         const xAbs = Math.abs(event.translationX);
@@ -817,7 +832,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
         }
       });
     return Gesture.Simultaneous(tapGesture, pan);
-  }, [tapGesture, panActivated, handleReviewByIndexStable, isFlipped, translateX, translateY, currentIndex, swipeProgress, swipeDirection, totalCardsInSessionSV, previewWrongSV, previewEasySV, previewHardSV]);
+  }, [tapGesture, panActivated, handleReviewByIndexStable, isFlipped, translateX, translateY, currentIndex, swipeProgress, swipeDirection, totalCardsInSessionSV, previewWrongSV, previewEasySV, previewHardSV, cardExpandedSV]);
 
   const handleReviewComplete = useCallback(async () => {
     if (!reviewMode || !subjectId) {
@@ -1251,8 +1266,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
               swipeProgress={swipeProgress}
               swipeDirection={swipeDirection}
               footerPressedSV={footerPressedSV}
+              verMaisZoneSV={verMaisZoneSV}
+              verMaisTriggerRef={verMaisTriggerRef}
               cardOpacitySV={cardOpacitySV}
               onEdit={isExample ? undefined : () => navigation.navigate('ManageFlashcards', { deckId, subjectId, cardId: currentCard?.id })}
+              onExpandChange={(expanded) => { setCardExpanded(expanded); cardExpandedSV.value = expanded; }}
             />
           )}
         </Animated.View>
