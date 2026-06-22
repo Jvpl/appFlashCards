@@ -715,7 +715,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
         if (!success || panActivated.value || footerPressedSV.value || isAnimatingOut.value || cardExpandedSV.value) return;
         const zone = verMaisZoneSV.value;
         const yOk = zone.active && _e.absoluteY >= zone.y - 8 && _e.absoluteY <= zone.y + zone.h + 8;
-        if (yOk) {
+        const xOk = zone.active && (zone.w === 0 || (_e.absoluteX >= zone.x - 8 && _e.absoluteX <= zone.x + zone.w + 8));
+        if (yOk && xOk) {
           runOnJS(triggerVerMais)();
           return;
         }

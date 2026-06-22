@@ -57,7 +57,7 @@ body {
   font-family: 'Roboto', sans-serif;
   color: white; font-size: 20px;
   ${scrollable
-    ? 'height: auto; overflow: auto; display: block;'
+    ? 'height: auto; overflow: auto; display: block; padding-bottom: 60px;'
     : 'overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center;'}
 }
 #viewer {
@@ -175,19 +175,21 @@ const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
   useEffect(() => {
     if (!verMaisZoneSV || !verMaisTriggerRef) return;
     if (isActiveFace && vmPos && !expanded && containerRef.current) {
-      containerRef.current.measure((_x, _y, _w, _h, _pageX, pageY) => {
+      containerRef.current.measure((_x, _y, _w, _h, pageX, pageY) => {
         verMaisZoneSV.value = {
           active: true,
           y: pageY + vmPos.y,
           h: vmPos.h,
-          x: 0,
-          w: 0,
+          x: pageX + vmPos.x,
+          w: vmPos.w,
         };
         verMaisTriggerRef.current = toggle;
       });
     } else {
-      verMaisZoneSV.value = { active: false, y: 0, h: 0 };
-      if (!expanded) verMaisTriggerRef.current = null;
+      if (isActiveFace) {
+        verMaisZoneSV.value = { active: false, y: 0, h: 0, x: 0, w: 0 };
+        if (!expanded) verMaisTriggerRef.current = null;
+      }
     }
   }, [vmPos, isActiveFace, expanded, toggle, verMaisZoneSV, verMaisTriggerRef]);
 
@@ -214,9 +216,10 @@ const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
   );
 };
 
-const ExpandableText = ({ content, onExpandChange }) => {
+const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTriggerRef, isActiveFace }) => {
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
+  const verMaisRef = useRef(null);
 
   const toggle = useCallback(() => {
     const next = !expanded;
@@ -224,11 +227,41 @@ const ExpandableText = ({ content, onExpandChange }) => {
     onExpandChange && onExpandChange(next);
   }, [expanded, onExpandChange]);
 
+  const measureVerMais = useCallback(() => {
+    if (isActiveFace && overflows && !expanded && verMaisRef.current) {
+      verMaisRef.current.measure((_x, _y, w, h, pageX, pageY) => {
+        if (pageX !== undefined && pageY !== undefined) {
+          verMaisZoneSV.value = {
+            active: true,
+            y: pageY,
+            h: h,
+            x: pageX,
+            w: w,
+          };
+          verMaisTriggerRef.current = toggle;
+        }
+      });
+    }
+  }, [isActiveFace, overflows, expanded, verMaisZoneSV, verMaisTriggerRef, toggle]);
+
+  useEffect(() => {
+    if (!verMaisZoneSV || !verMaisTriggerRef) return;
+    if (isActiveFace && overflows && !expanded) {
+      const timer = setTimeout(measureVerMais, 50);
+      return () => clearTimeout(timer);
+    } else {
+      if (isActiveFace) {
+        verMaisZoneSV.value = { active: false, y: 0, h: 0, x: 0, w: 0 };
+        if (!expanded) verMaisTriggerRef.current = null;
+      }
+    }
+  }, [isActiveFace, overflows, expanded, measureVerMais, verMaisZoneSV, verMaisTriggerRef]);
+
   if (expanded) {
     return (
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.cardText}>{content}</Text>
@@ -249,7 +282,14 @@ const ExpandableText = ({ content, onExpandChange }) => {
         {content}
       </Text>
       {overflows && (
-        <Text onPress={toggle} style={[styles.cardText, { color: '#5DD62C', marginTop: 4 }]}>ver mais</Text>
+        <View
+          ref={verMaisRef}
+          collapsable={false}
+          onLayout={measureVerMais}
+          style={{ marginTop: 4 }}
+        >
+          <Text onPress={toggle} style={[styles.cardText, { color: '#5DD62C' }]}>ver mais</Text>
+        </View>
       )}
     </View>
   );
@@ -383,6 +423,9 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
   const glowPad = glowBlur * 2;
   const isMax = (card.level || 0) === 5;
 
+  const lineY = 89.11 * (cardW / 975.35);
+  const cardContentHeight = 365 + lineY;
+
   return (
     <Animated.View style={[styles.cardContainer, cardAnimatedStyle]}>
       {isMax && (
@@ -416,11 +459,17 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
           style={[styles.card, (card.level || 0) === 5 && styles.cardDominated, frontAnimatedStyle]}
           pointerEvents={isCurrentCard && jsIsFlipped ? 'none' : 'auto'}
         >
-          {isHtml(card.question)
-            ? <ExpandableHtml key={contentKey} content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} />
-            : <ExpandableText content={card.question} onExpandChange={onExpandChange} />
-          }
-          {showLevel && <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
+          <View style={{ height: cardContentHeight, width: '100%' }}>
+            {isHtml(card.question)
+              ? <ExpandableHtml key={contentKey} content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} />
+              : <ExpandableText content={card.question} onExpandChange={onExpandChange} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && !jsIsFlipped} />
+            }
+          </View>
+          {showLevel && (
+            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+              <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />
+            </View>
+          )}
         </Animated.View>
 
         {/* Face do verso — pointerEvents='none' quando não virado */}
@@ -445,10 +494,10 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
               </Animated.View>
             );
           })}
-          <Animated.View style={[{ flex: 1, width: '100%' }, backContentOpacity]} pointerEvents={backExpanded ? 'auto' : 'none'}>
+          <Animated.View style={[{ height: cardContentHeight, width: '100%' }, backContentOpacity]} pointerEvents={backExpanded ? 'auto' : 'none'}>
             {isHtml(card.answer)
               ? <ExpandableHtml key={contentKey} content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} />
-              : <ExpandableText content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} />
+              : <ExpandableText content={card.answer} onExpandChange={(exp) => { setBackExpanded(exp); onExpandChange && onExpandChange(exp); }} verMaisZoneSV={verMaisZoneSV} verMaisTriggerRef={verMaisTriggerRef} isActiveFace={isCurrentCard && jsIsFlipped} />
             }
           </Animated.View>
           <Animated.View pointerEvents="none" style={[fi.swipeOverlay, swipeOverlayStyle]}>
@@ -465,7 +514,11 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
               <Text style={[fi.swipeLabel, { color: SWIPE_COLORS[3] }]}>QUASE</Text>
             </Animated.View>
           </Animated.View>
-          {showLevel && <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />}
+          {showLevel && (
+            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+              <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />
+            </View>
+          )}
         </Animated.View>
       </View>
 
