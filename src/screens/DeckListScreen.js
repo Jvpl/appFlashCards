@@ -3,7 +3,7 @@ import { unstable_batchedUpdates } from 'react-native';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   TextInput, ScrollView, BackHandler, Dimensions,
-  InteractionManager, Modal, TouchableWithoutFeedback, StatusBar,
+  InteractionManager, Modal, TouchableWithoutFeedback, StatusBar, Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
@@ -164,10 +164,8 @@ const HomeHeader = ({ onMenuPress, multiSelectMode, selectedCount, onBack, inset
       ) : (
         <>
           <View style={hhStyles.logoRow}>
-            <View style={hhStyles.logoMark}>
-              <Ionicons name="flash" size={13} color={theme.background} />
-            </View>
-            <Text style={hhStyles.logoText}>Início</Text>
+            <Image source={require('../assets/icon.png')} style={hhStyles.logoMark} />
+            <Text style={hhStyles.logoText}>Memorizia</Text>
           </View>
           <TouchableOpacity onPress={onMenuPress} style={hhStyles.iconBtn} hitSlop={HIT_SLOP}>
             <Ionicons name="menu-outline" size={26} color={theme.textPrimary} />
@@ -2185,9 +2183,8 @@ const hhStyles = StyleSheet.create({
   },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   logoMark: {
-    width: 28, height: 28, borderRadius: 8,
-    backgroundColor: theme.primary,
-    alignItems: 'center', justifyContent: 'center',
+    width: 50, height: 50, borderRadius: 13,
+    overflow: 'hidden',
   },
   logoText: { color: theme.textPrimary, fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
   multiTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '600', flex: 1, textAlign: 'center' },

@@ -205,7 +205,8 @@
       "PowerShell(Copy-Item \"d:\\\\Aplicativo-de-concursos\\\\antigravity-app-flashcards\\\\appFlashCards\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\debug\\\\app-arm64-v8a-debug.apk\" \"$env:USERPROFILE\\\\Desktop\\\\APK Build\\\\app-debug.apk\" -Force)",
       "PowerShell($pid = \\(netstat -ano | Select-String \":8081\" | Where-Object { $_ -match \"LISTENING\" } | ForEach-Object { \\($_ -split \"\\\\s+\"\\)[-1] } | Select-Object -First 1\\); if \\($pid\\) { Stop-Process -Id $pid -Force; \"Processo $pid encerrado\" } else { \"Nenhum processo na porta 8081\" })",
       "PowerShell($procId = \\(netstat -ano | Select-String \":8081\" | Where-Object { $_ -match \"LISTENING\" } | ForEach-Object { \\($_ -split \"\\\\s+\"\\)[-1] } | Select-Object -First 1\\); if \\($procId\\) { Stop-Process -Id $procId -Force; \"Processo $procId encerrado\" } else { \"Nenhum processo na porta 8081\" })",
-      "Bash(git fetch *)"
+      "Bash(git fetch *)",
+      "Bash(git pull *)"
     ]
   }
 }
