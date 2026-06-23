@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "Memorizia",
+    "icon": "./assets/icon.png",
     "owner": "flashcards-team",
     "slug": "memorizia",
     "version": "1.0.0",
