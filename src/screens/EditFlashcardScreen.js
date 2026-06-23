@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Modal, TouchableWithoutFeedback, TextInput, Button, Keyboard, Vibration } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Modal, TouchableWithoutFeedback, TextInput, Button, Keyboard } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { getAppData, saveAppData } from '../services/storage';
@@ -127,7 +128,7 @@ export const EditFlashcardScreen = ({ route, navigation }) => {
 
     // SegmentedCounter e CollapsibleKeypad agora vêm de componentes compartilhados
     // Helper para vibração
-    const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
+    const tap = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
 
     // Função para calcular peso de fórmula (espelho do WebView)
     const calculateFormulaWeight = (latex) => {

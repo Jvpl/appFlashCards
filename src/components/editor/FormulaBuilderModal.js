@@ -9,8 +9,8 @@ import {
   StyleSheet,
   Platform,
   useWindowDimensions,
-  Vibration,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, Easing } from 'react-native-reanimated';
 import { useGenericKeyboardHandler, KeyboardController, AndroidSoftInputModes } from 'react-native-keyboard-controller';
 import { WebView } from 'react-native-webview';
@@ -19,7 +19,7 @@ import { previewHtml } from './editorTemplates';
 import theme from '../../styles/theme';
 
 // Tap háptico curto (12 ms) — feedback tátil nas teclas
-const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
+const tap = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
 
 // ─── Tokenizador LaTeX ────────────────────────────────────────────────────────
 // \left( e \right) são 1 token — cursor nunca cai no meio deles

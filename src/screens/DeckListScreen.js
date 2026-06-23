@@ -3,7 +3,7 @@ import { unstable_batchedUpdates } from 'react-native';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   TextInput, ScrollView, BackHandler, Dimensions,
-  InteractionManager, Modal, TouchableWithoutFeedback, StatusBar, Image,
+  InteractionManager, Modal, TouchableWithoutFeedback, Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
@@ -1455,8 +1455,7 @@ export const DeckListScreen = ({ navigation }) => {
                         hitSlop={HIT_SLOP}
                         onPress={() => {
                           catSortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
-                            const sbH = StatusBar.currentHeight || 0;
-                            setCatSortMenuPos({ x, y: y + bh + sbH, w: bw });
+                            setCatSortMenuPos({ x, y: y + bh, w: bw });
                             setCatSortMenuOpen(true);
                           });
                         }}
@@ -1576,8 +1575,7 @@ export const DeckListScreen = ({ navigation }) => {
                           hitSlop={HIT_SLOP}
                           onPress={() => {
                             sortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
-                              const sbH = StatusBar.currentHeight || 0;
-                              setSortMenuPos({ x, y: y + bh + sbH, w: bw });
+                              setSortMenuPos({ x, y: y + bh, w: bw });
                               setSortMenuOpen(true);
                             });
                           }}

@@ -5,7 +5,8 @@
  * Fornece painéis colapsáveis para inserção de letras e símbolos matemáticos
  */
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Vibration } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { getButtonStates } from '../../utils/inputValidation';
 import theme from '../../styles/theme';
 
@@ -33,11 +34,7 @@ export const CollapsibleKeypad = ({
 
   const buttonStates = getButtonStates(currentValue);
 
-  const tap = () => {
-    try {
-      Vibration.vibrate(12);
-    } catch (_) {}
-  };
+  const tap = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
 
   const handleInsert = (char) => {
     onInsert(char);
