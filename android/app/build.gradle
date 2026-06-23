@@ -90,7 +90,7 @@ android {
     namespace 'com.memorizia.app'
     defaultConfig {
         applicationId 'com.memorizia.app'
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion 26
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
@@ -110,7 +110,6 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            applicationIdSuffix ".stable"
             manifestPlaceholders = [testOnly: "false"]
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
