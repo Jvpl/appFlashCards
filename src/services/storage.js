@@ -3,7 +3,7 @@ import { initialData } from '../data/mockData';
 
 export const STORAGE_KEY = '@FlashcardsApp:data';
 const DATA_VERSION_KEY = '@FlashcardsApp:dataVersion';
-const CURRENT_DATA_VERSION = 'v7';
+const CURRENT_DATA_VERSION = 'v8';
 
 let _memoryCache = null;
 
@@ -102,6 +102,26 @@ export const getAppData = async () => {
         data = screenshotDecks;
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+
+        // Injeta histórico de estudo falso para screenshot (21 dias de streak)
+        const fakeHistory = [];
+        const subjects = [
+          { deckId: 'seed_concurso', subjectName: 'Princípios Fundamentais' },
+          { deckId: 'seed_concurso', subjectName: 'Direitos e Garantias Fundamentais' },
+          { deckId: 'seed_ingles', subjectName: 'Verbos mais usados' },
+          { deckId: 'seed_enem', subjectName: 'História do Brasil' },
+          { deckId: 'seed_enem', subjectName: 'Geografia' },
+        ];
+        for (let i = 20; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toISOString().split('T')[0];
+          const ts = d.getTime();
+          const sub = subjects[i % subjects.length];
+          fakeHistory.push({ ...sub, date: dateStr, timestamp: ts, lastSessionAt: ts, acertos: 4 + (i % 3), quases: 1, erros: i % 2, count: 6 + (i % 4) });
+        }
+        await AsyncStorage.setItem('@FlashcardsApp:studyHistory', JSON.stringify(fakeHistory));
+        await AsyncStorage.setItem('@FlashcardsApp:perfVersion', 'v4');
       }
 
       // Deck exemplo sempre vem do mockData (níveis fixos, nunca persistidos)
