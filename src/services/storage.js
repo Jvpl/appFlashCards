@@ -3,7 +3,7 @@ import { initialData } from '../data/mockData';
 
 export const STORAGE_KEY = '@FlashcardsApp:data';
 const DATA_VERSION_KEY = '@FlashcardsApp:dataVersion';
-const CURRENT_DATA_VERSION = 'v8';
+const CURRENT_DATA_VERSION = 'v9';
 
 let _memoryCache = null;
 
@@ -94,6 +94,51 @@ export const getAppData = async () => {
                 flashcards: [
                   { id: 'seed_e6', question: 'O que é o fenômeno El Niño?', answer: 'Aquecimento anormal das águas do Oceano Pacífico Equatorial que altera os padrões de chuva e temperatura no mundo. No Brasil, causa seca no Nordeste e chuvas excessivas no Sul.', level: 3, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 2, reviewStreak: 2 },
                   { id: 'seed_e7', question: 'Quais são os biomas brasileiros?', answer: '1. Amazônia — maior floresta tropical do mundo\n2. Cerrado — savana com grande biodiversidade\n3. Mata Atlântica — muito desmatada\n4. Caatinga — exclusivamente brasileiro\n5. Pampa — campos do Sul\n6. Pantanal — maior área úmida do mundo', level: 0, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0 },
+                ],
+              },
+            ],
+          },
+          {
+            id: 'seed_formulas',
+            name: 'Matemática & Física',
+            category: 'Exatas',
+            isUserCreated: true,
+            isExample: false,
+            subjects: [
+              {
+                id: 'seed_f_s1',
+                name: 'Fórmulas Essenciais',
+                flashcards: [
+                  {
+                    id: 'seed_f1',
+                    question: '<p>Fórmula de Bhaskara</p><p style="text-align:center"><span class="math-atom" data-latex="ax^2 + bx + c = 0" data-display="true"></span></p>',
+                    answer: '<p style="text-align:center"><span class="math-atom" data-latex="x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}" data-display="true"></span></p><p>Onde <span class="math-atom" data-latex="\\Delta = b^2 - 4ac"></span> é o discriminante.</p>',
+                    level: 4, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 3, reviewStreak: 3,
+                  },
+                  {
+                    id: 'seed_f2',
+                    question: '<p>Integral Gaussiana</p><p style="text-align:center"><span class="math-atom" data-latex="\\int_{-\\infty}^{+\\infty} e^{-x^2}\\, dx = \\, ?" data-display="true"></span></p>',
+                    answer: '<p style="text-align:center"><span class="math-atom" data-latex="\\int_{-\\infty}^{+\\infty} e^{-x^2}\\, dx = \\sqrt{\\pi}" data-display="true"></span></p><p>Resultado fundamental em probabilidade e estatística — base da distribuição normal.</p>',
+                    level: 2, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 1, reviewStreak: 1,
+                  },
+                  {
+                    id: 'seed_f3',
+                    question: '<p>Série de Taylor de <span class="math-atom" data-latex="e^x"></span></p>',
+                    answer: '<p style="text-align:center"><span class="math-atom" data-latex="e^x = \\sum_{n=0}^{\\infty} \\frac{x^n}{n!} = 1 + x + \\frac{x^2}{2!} + \\frac{x^3}{3!} + \\cdots" data-display="true"></span></p>',
+                    level: 3, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 2, reviewStreak: 2,
+                  },
+                  {
+                    id: 'seed_f4',
+                    question: '<p>Equação de Schrödinger independente do tempo</p>',
+                    answer: '<p style="text-align:center"><span class="math-atom" data-latex="\\hat{H}\\,|\\psi\\rangle = E\\,|\\psi\\rangle" data-display="true"></span></p><p>Expandida:</p><p style="text-align:center"><span class="math-atom" data-latex="-\\frac{\\hbar^2}{2m}\\nabla^2\\psi + V\\psi = E\\psi" data-display="true"></span></p>',
+                    level: 1, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 0, reviewStreak: 0,
+                  },
+                  {
+                    id: 'seed_f5',
+                    question: '<p>Identidade de Euler</p>',
+                    answer: '<p style="text-align:center"><span class="math-atom" data-latex="e^{i\\pi} + 1 = 0" data-display="true"></span></p><p>Conecta as cinco constantes matemáticas mais importantes: <span class="math-atom" data-latex="e"></span>, <span class="math-atom" data-latex="i"></span>, <span class="math-atom" data-latex="\\pi"></span>, <span class="math-atom" data-latex="1"></span> e <span class="math-atom" data-latex="0"></span>.</p>',
+                    level: 5, points: 0, lastReview: null, nextReview: null, consecutiveCorrect: 4, reviewStreak: 4,
+                  },
                 ],
               },
             ],
