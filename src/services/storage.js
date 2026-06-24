@@ -195,6 +195,22 @@ export const getAppData = async () => {
 
     await saveAppData(initialData);
     await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+    // Injeta histórico fake para fresh install (screenshots)
+    const freshHistory = [];
+    const freshSubjects = [
+      { deckId: 'seed_concurso', subjectName: 'Princípios Fundamentais' },
+      { deckId: 'seed_ingles', subjectName: 'Verbos mais usados' },
+      { deckId: 'seed_enem', subjectName: 'História do Brasil' },
+    ];
+    for (let i = 20; i >= 0; i--) {
+      const fd = new Date(); fd.setDate(fd.getDate() - i);
+      const dateStr = fd.toISOString().split('T')[0];
+      const ts = fd.getTime();
+      const sub = freshSubjects[i % freshSubjects.length];
+      freshHistory.push({ ...sub, date: dateStr, timestamp: ts, lastSessionAt: ts, acertos: 4 + (i % 3), quases: 1, erros: i % 2, count: 6 + (i % 4) });
+    }
+    await AsyncStorage.setItem('@FlashcardsApp:studyHistory', JSON.stringify(freshHistory));
+    await AsyncStorage.setItem('@FlashcardsApp:perfVersion', 'v4');
     _memoryCache = initialData;
     return initialData;
   } catch (e) { console.error("Failed to fetch data", e); return initialData; }
