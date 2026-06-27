@@ -11,7 +11,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions,
   Modal, TouchableWithoutFeedback, TextInput, FlatList, BackHandler,
-  StatusBar, KeyboardAvoidingView, Platform, Animated,
+  KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
 
 // Hook para animar overlay (fade) independente do sheet (slide) em modais bottom-sheet
@@ -742,15 +742,13 @@ export const CategoryDetailScreen = ({ route, navigation }) => {
         SUBJECT_SORT_LABELS={SUBJECT_SORT_LABELS}
         onSortPress={() => {
           sortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
-            const sbH = StatusBar.currentHeight || 0;
-            setSortMenuPos({ x, y: y + bh + sbH, w: bw });
+            setSortMenuPos({ x, y: y + bh, w: bw });
             setSortMenuOpen(true);
           });
         }}
         onSubjectSortPress={() => {
           subjectSortBtnRef.current?.measureInWindow((x, y, bw, bh) => {
-            const sbH = StatusBar.currentHeight || 0;
-            setSubjectSortMenuPos({ x, y: y + bh + sbH, w: bw });
+            setSubjectSortMenuPos({ x, y: y + bh, w: bw });
             setSubjectSortMenuOpen(true);
           });
         }}

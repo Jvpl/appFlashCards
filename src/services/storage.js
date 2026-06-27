@@ -3,7 +3,7 @@ import { initialData } from '../data/mockData';
 
 export const STORAGE_KEY = '@FlashcardsApp:data';
 const DATA_VERSION_KEY = '@FlashcardsApp:dataVersion';
-const CURRENT_DATA_VERSION = 'v6';
+const CURRENT_DATA_VERSION = 'v10';
 
 let _memoryCache = null;
 
@@ -18,7 +18,7 @@ export const getAppData = async () => {
       // Migração: remove decks antigos pré-carregados, mantém só user-created + exemplo
       const version = await AsyncStorage.getItem(DATA_VERSION_KEY);
       if (version !== CURRENT_DATA_VERSION) {
-        // v6: limpa todos os decks de teste — mantém apenas deck_exemplo
+        // v10: remove decks de teste, mantém apenas deck_exemplo
         data = data.filter(deck => deck.id === 'deck_exemplo');
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);

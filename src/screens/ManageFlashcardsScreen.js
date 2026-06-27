@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Vibration, ToastAndroid } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, Modal, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, ToastAndroid } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -237,7 +237,7 @@ export const ManageFlashcardsScreen = ({ route, navigation }) => {
   // CollapsibleKeypad agora vem de src/components/editor/CollapsibleKeypad.js
 
   // Helper para vibração (usado em outros lugares)
-  const tap = () => { try { Vibration.vibrate(12); } catch (_) { } };
+  const tap = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
   // ================================================
 
   // Estados para modo edição (quando cardId existe)
