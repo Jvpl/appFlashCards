@@ -70,8 +70,9 @@ export default function App() {
     PlusJakartaSans_700Bold,
   });
 
-  // ⚠️ TEMPORÁRIO — DEMO PLAY STORE: remova esta linha ao terminar os prints
-  useEffect(() => { runPlaystoreSeed(); }, []);
+  // ⚠️ TEMPORÁRIO — DEMO PLAY STORE: remova estas linhas ao terminar os prints
+  const [seedReady, setSeedReady] = React.useState(false);
+  useEffect(() => { runPlaystoreSeed().then(() => setSeedReady(true)); }, []);
 
   // Inicializa RevenueCat e restaura compras automaticamente ao abrir o app
   useEffect(() => {
@@ -137,6 +138,9 @@ export default function App() {
     }
     prepare(); // Executa a função prepare
   }, [fontsLoaded, fontError]); // Dependências corretas
+
+  // ⚠️ TEMPORÁRIO — aguarda seed antes de renderizar (remover junto com demo)
+  if (!seedReady) return null;
 
   // Se fontes não carregaram E não há erro, splash está visível
   if (!fontsLoaded && !fontError) {
