@@ -40,7 +40,7 @@ export async function runPlaystoreSeed() {
       ['@FlashcardsApp:performanceData',  JSON.stringify(DEMO_PERFORMANCE_DATA)],
       ['@FlashcardsApp:firstUseDate',     DEMO_FIRST_USE_DATE],
       ['@FlashcardsApp:cardsAvailability',JSON.stringify(DEMO_CARDS_AVAILABILITY)],
-      ['@FlashcardsApp:dataVersion',      'v6'],
+      ['@FlashcardsApp:dataVersion',      'v10'],
       [SEED_FLAG_KEY,                     'true'],
     ]);
 
