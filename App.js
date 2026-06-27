@@ -1,4 +1,6 @@
 import "./global.css";
+// ⚠️ TEMPORÁRIO — DEMO PLAY STORE: remova esta linha ao terminar os prints
+import { runPlaystoreSeed } from './src/utils/playstoreSeeder';
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -67,6 +69,9 @@ export default function App() {
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
   });
+
+  // ⚠️ TEMPORÁRIO — DEMO PLAY STORE: remova esta linha ao terminar os prints
+  useEffect(() => { runPlaystoreSeed(); }, []);
 
   // Inicializa RevenueCat e restaura compras automaticamente ao abrir o app
   useEffect(() => {
