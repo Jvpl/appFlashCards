@@ -3,6 +3,7 @@ import { View, Text, Keyboard, StatusBar, TouchableOpacity, StyleSheet } from 'r
 import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import { KeyboardEvents } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppTheme } from '../config/theme';
@@ -34,10 +35,8 @@ const TAB_CONFIG = [
 function CustomTabBar({ state, descriptors, navigation, isKeyboardVisible }) {
   const insets = useSafeAreaInsets();
 
-  if (isKeyboardVisible) return null;
-
   return (
-    <View style={tbStyles.outerWrap}>
+    <View style={[tbStyles.outerWrap, isKeyboardVisible && { opacity: 0, pointerEvents: 'none' }]}>
       <View style={[tbStyles.wrapper, { paddingBottom: insets.bottom || 16 }]}>
       <View style={tbStyles.container}>
         {state.routes.map((route, index) => {
@@ -88,8 +87,8 @@ function MainTabs() {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    const show = KeyboardEvents.addListener('keyboardWillShow', () => setKeyboardVisible(true));
+    const hide = KeyboardEvents.addListener('keyboardWillHide', () => setKeyboardVisible(false));
     return () => { show.remove(); hide.remove(); };
   }, []);
 
@@ -226,7 +225,13 @@ export function AppContent() {
 // ─────────────────────────────────────────────
 
 const tbStyles = StyleSheet.create({
-  outerWrap: { backgroundColor: theme.background },
+  outerWrap: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
+  },
   wrapper: {
     backgroundColor: theme.backgroundSecondary,
     borderTopLeftRadius: 24,

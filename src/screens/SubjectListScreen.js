@@ -93,7 +93,7 @@ const EmptyState = ({ onCreatePress }) => (
 );
 
 
-// ── InputBar — hook só ativo quando montado (isCreating) ─────────
+// ── InputBar ──
 
 function InputBar({ inputRef, value, onChange, saving, onSave }) {
   return (
@@ -143,7 +143,6 @@ export const SubjectListScreen = ({ route, navigation }) => {
   const { deckId, deckName, preloadedSubjects, isExample } = route.params;
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
-
   const [exampleModalVisible, setExampleModalVisible] = useState(false);
 
   const [subjects, setSubjects] = useState(preloadedSubjects || []);

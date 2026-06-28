@@ -363,7 +363,7 @@ export const TopicListScreen = ({ route, navigation }) => {
       )}
 
       {/* InputBar */}
-      <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
+      <KeyboardStickyView offset={{ closed: insets.bottom, opened: 0 }} style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
         {isCreating && (
           <InputBar
             inputRef={createInputRef}
