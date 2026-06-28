@@ -51,7 +51,7 @@ const buildHtml = (content, scrollable) => `<!DOCTYPE html>
 <script>var module=undefined;var exports=undefined;var define=undefined;${katexScript};window.katex=window.katex||globalThis.katex||self.katex;</script>
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-html, body { margin: 0; padding: 0; }
+html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 body {
   margin: 0; padding: 0;
   background-color: transparent;
@@ -59,7 +59,7 @@ body {
   color: white; font-size: 20px;
   ${scrollable
     ? 'height: auto; overflow: auto; display: block; padding-bottom: 60px;'
-    : 'overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; padding-top: 20px;'}
+    : 'height: 100vh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; padding-top: 20px;'}
 }
 #viewer {
   padding: ${scrollable ? '20px 16px' : '16px'};
@@ -91,9 +91,6 @@ document.querySelectorAll('.math-atom[data-latex]').forEach(function(el) {
 </html>`;
 
 const HTML_INJECTED_JS = `(function(){
-  if(document.body.getAttribute('data-mode')!=='scroll'){
-    document.body.style.height=(window.innerHeight||document.documentElement.clientHeight||365)+'px';
-  }
   document.querySelectorAll('.katex svg path').forEach(function(p){p.setAttribute('fill','white');p.setAttribute('stroke','white');});
   document.querySelectorAll('.katex').forEach(function(el){el.style.color='white';});
   document.querySelectorAll('.katex-mathml').forEach(function(el){el.style.display='none';});
@@ -199,7 +196,7 @@ const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
         key={expanded ? 'e' : 'c'}
         originWhitelist={['*']}
         source={{ html: buildHtml(content, expanded) }}
-        style={{ backgroundColor: 'transparent', flex: 1, opacity: ready ? 1 : 0 }}
+        style={{ backgroundColor: 'transparent', flex: 1 }}
         scrollEnabled={expanded}
         nestedScrollEnabled={expanded}
         pointerEvents={expanded ? 'auto' : 'none'}
@@ -213,6 +210,12 @@ const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
           } catch {}
         }}
       />
+      {!ready && (
+        <View
+          pointerEvents="none"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#242427' }}
+        />
+      )}
     </View>
   );
 };
