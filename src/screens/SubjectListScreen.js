@@ -550,8 +550,8 @@ export const SubjectListScreen = ({ route, navigation }) => {
       {!loading && (
         <>
           {/* Toolbar — search (8+) acima do grid, sort como linha cortada à direita */}
-          {subjectCount >= 8 && !isCreating && (
-            <View style={s.searchWrap}>
+          {subjectCount >= 8 && (
+            <View style={[s.searchWrap, isCreating && { opacity: 0, pointerEvents: 'none' }]}>
               <Ionicons name="search-outline" size={15} color={theme.textMuted} style={{ marginRight: 7 }} />
               <TextInput
                 style={s.searchInput}
@@ -567,7 +567,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
               )}
             </View>
           )}
-          {subjectCount >= 2 && !isCreating && (
+          {subjectCount >= 2 && (
             <View style={s.sortRow}>
               <View style={[s.sortLine, { flex: 1 }]} />
               <TouchableOpacity
@@ -638,7 +638,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
       )}
 
       {/* InputBar colada acima do teclado via KeyboardStickyView */}
-      <KeyboardStickyView offset={{ closed: 0, opened: tabBarHeight }}>
+      <KeyboardStickyView offset={{ closed: 120, opened: tabBarHeight }} style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
         {isCreating && (
           <InputBar
             inputRef={createInputRef}

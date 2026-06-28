@@ -1088,7 +1088,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
 
       {/* ── FAB Criar deck — fixo no fundo, step 2 ── */}
       {!editDeckId && stepLabel === 2 && selectedCategory ? (
-        <View style={[s.createFabWrap, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[s.createFabWrap, { paddingBottom: insets.bottom + 6 }]}>
           <TouchableOpacity
             style={s.createFab}
             onPress={() => { Keyboard.dismiss(); handleSave(); }}
