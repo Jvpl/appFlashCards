@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useContext } from 'react';
+import { TabBarHeightContext } from '../navigation/AppContent';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Platform, BackHandler, Dimensions, TextInput,
@@ -143,6 +144,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
   const { deckId, deckName, preloadedSubjects, isExample } = route.params;
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
+  const tabBarHeight = useContext(TabBarHeightContext);
   const [exampleModalVisible, setExampleModalVisible] = useState(false);
 
   const [subjects, setSubjects] = useState(preloadedSubjects || []);
@@ -451,7 +453,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
             subject={toDisplaySubject(items[i])} deck={deckObj}
             width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
             onPress={() => isSelectionMode ? handleToggleSelection(items[i].id) : handleStudy(items[i])}
-            onLongPress={(e) => { if (isExample) return; handleToggleSelection(items[i].id); handleMenuPress(items[i], e); }}
+            onLongPress={() => { if (isExample) return; handleToggleSelection(items[i].id); }}
             onMenuPress={(e) => handleMenuPress(items[i], e)}
             isSelected={selectedSubjects.includes(items[i].id)}
             selectMode={isSelectionMode}
@@ -461,7 +463,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
               subject={toDisplaySubject(items[i + 1])} deck={deckObj}
               width={MATERIA_CARD_WIDTH} height={MATERIA_CARD_HEIGHT}
               onPress={() => isSelectionMode ? handleToggleSelection(items[i + 1].id) : handleStudy(items[i + 1])}
-              onLongPress={(e) => { if (isExample) return; handleToggleSelection(items[i + 1].id); handleMenuPress(items[i + 1], e); }}
+              onLongPress={() => { if (isExample) return; handleToggleSelection(items[i + 1].id); }}
               onMenuPress={(e) => handleMenuPress(items[i + 1], e)}
               isSelected={selectedSubjects.includes(items[i + 1].id)}
               selectMode={isSelectionMode}
@@ -636,7 +638,7 @@ export const SubjectListScreen = ({ route, navigation }) => {
       )}
 
       {/* InputBar colada acima do teclado via KeyboardStickyView */}
-      <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
+      <KeyboardStickyView offset={{ closed: 0, opened: tabBarHeight }}>
         {isCreating && (
           <InputBar
             inputRef={createInputRef}

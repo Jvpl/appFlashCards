@@ -237,11 +237,7 @@ export function AppContent() {
 
 const tbStyles = StyleSheet.create({
   outerWrap: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: theme.background,
   },
   wrapper: {
     backgroundColor: theme.backgroundSecondary,

@@ -6,8 +6,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useContext } from 'react';
-import { TabBarHeightContext } from '../navigation/AppContent';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import { getAppData, saveAppData } from '../services/storage';
@@ -142,8 +140,6 @@ export const AddDeckScreen = ({ route, navigation }) => {
   const editDeckId = route?.params?.editDeckId || null;
   const preselectedCategoryId = route?.params?.preselectedCategoryId || null;
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useContext(TabBarHeightContext);
-
   // ── Wizard step (só para criação, não edição) ─────────────────────
   const stepRef = useRef(1);
   const [stepLabel, setStepLabel] = useState(1); // só para re-render do label
@@ -886,7 +882,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
           {!editDeckId && <ScrollView
             ref={scroll2Ref}
             style={s.scroll}
-            contentContainerStyle={[s.scrollContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + insets.bottom + 8 : selectedCategory ? tabBarHeight + 90 : tabBarHeight + 8 }]}
+            contentContainerStyle={[s.scrollContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + insets.bottom + 8 : selectedCategory ? insets.bottom + 90 : insets.bottom + 8 }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
@@ -1092,7 +1088,7 @@ export const AddDeckScreen = ({ route, navigation }) => {
 
       {/* ── FAB Criar deck — fixo no fundo, step 2 ── */}
       {!editDeckId && stepLabel === 2 && selectedCategory ? (
-        <View style={[s.createFabWrap, { bottom: (tabBarHeight > 30 ? tabBarHeight : 85) + 16 }]}>
+        <View style={[s.createFabWrap, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             style={s.createFab}
             onPress={() => { Keyboard.dismiss(); handleSave(); }}
