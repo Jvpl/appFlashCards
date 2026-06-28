@@ -132,23 +132,28 @@ export const CardFooter = ({ level, completedCards, sessionTotal, reviewMode, on
         >{name}</SvgText>
       </Svg>
 
-      {/* Lock badge no anel de nível em modo revisão */}
-      {reviewMode && (
-        <View style={{
-          position: 'absolute',
-          left: ringCX + ringR * 0.55 - 9,
-          top: ringCY - ringR * 0.55 - 9,
-          width: 18, height: 18,
-          backgroundColor: '#0F0F0F',
-          borderRadius: 9,
-          borderWidth: 1,
-          borderColor: 'rgba(93,214,44,0.5)',
-          justifyContent: 'center', alignItems: 'center',
-          pointerEvents: 'none',
-        }}>
-          <Ionicons name="lock-closed" size={9} color={theme.primary} />
-        </View>
-      )}
+      {/* Overlay de cadeado sobre o anel de nível em modo revisão */}
+      {reviewMode && (() => {
+        const coverR = ringR + (RING_STROKE * scale) / 2;
+        return (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: ringCX - coverR,
+              top: ringCY - coverR,
+              width: coverR * 2,
+              height: coverR * 2,
+              borderRadius: coverR,
+              backgroundColor: 'rgba(13,13,13,0.72)',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <Ionicons name="lock-closed" size={Math.round(ringR * 0.52)} color="rgba(93,214,44,0.9)" />
+          </View>
+        );
+      })()}
 
       {/* Lápis + divisor + contador */}
       <View style={{

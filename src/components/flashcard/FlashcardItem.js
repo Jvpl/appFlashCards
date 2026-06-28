@@ -165,6 +165,8 @@ const HTML_INJECTED_JS = `(function(){
 const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTriggerRef, isActiveFace, cardLeft, cardTopY }) => {
   const [expanded, setExpanded] = useState(false);
   const [vmPos, setVmPos] = useState(null); // nunca limpa depois de setado
+  const [ready, setReady] = useState(false);
+  useEffect(() => { setReady(false); }, [expanded]);
 
   const toggle = useCallback(() => {
     const next = !expanded;
@@ -197,12 +199,13 @@ const ExpandableHtml = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
         key={expanded ? 'e' : 'c'}
         originWhitelist={['*']}
         source={{ html: buildHtml(content, expanded) }}
-        style={{ backgroundColor: 'transparent', flex: 1 }}
+        style={{ backgroundColor: 'transparent', flex: 1, opacity: ready ? 1 : 0 }}
         scrollEnabled={expanded}
         nestedScrollEnabled={expanded}
         pointerEvents={expanded ? 'auto' : 'none'}
         injectedJavaScript={HTML_INJECTED_JS}
         onMessage={(e) => {
+          setReady(true);
           try {
             const d = JSON.parse(e.nativeEvent.data);
             if (d.t === 'ov' && d.v) setVmPos({ y: d.y, h: d.h, x: d.x, w: d.w });

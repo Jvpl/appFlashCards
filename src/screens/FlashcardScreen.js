@@ -852,6 +852,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const handleRepeatReview = useCallback(async () => {
     setReviewDoneModalVisible(false);
+    setLoading(true);
     const allData = await getAppData();
     const deck = allData.find(d => d.id === deckId);
     const unit = deck ? findStudyUnit(deck, subjectId) : null;
@@ -870,6 +871,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       currentIndex.value = 0;
       isFlipped.value = 0;
       insertAnim.value = 1;
+      setLoading(false);
       cardOpacitySV.value = 1;
     } else {
       navigation.goBack();
