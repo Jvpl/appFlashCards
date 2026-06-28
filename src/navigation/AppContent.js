@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, createContext } from 'react';
+
+export const TabBarHeightContext = createContext(0);
 import { View, Text, Keyboard, StatusBar, TouchableOpacity, StyleSheet } from 'react-native';
 import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -32,11 +34,17 @@ const TAB_CONFIG = [
 // Tab bar customizada premium
 // ─────────────────────────────────────────────
 
-function CustomTabBar({ state, descriptors, navigation, isKeyboardVisible }) {
+function CustomTabBar({ state, descriptors, navigation, isKeyboardVisible, onHeightChange }) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[tbStyles.outerWrap, isKeyboardVisible && { opacity: 0, pointerEvents: 'none' }]}>
+    <View
+      style={[tbStyles.outerWrap, isKeyboardVisible && { opacity: 0, pointerEvents: 'none' }]}
+      onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 30 && h < 250) onHeightChange?.(h);
+        }}
+    >
       <View style={[tbStyles.wrapper, { paddingBottom: insets.bottom || 16 }]}>
       <View style={tbStyles.container}>
         {state.routes.map((route, index) => {
@@ -85,6 +93,7 @@ function CustomTabBar({ state, descriptors, navigation, isKeyboardVisible }) {
 
 function MainTabs() {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [tabBarHeight, setTabBarHeight] = useState(0);
 
   useEffect(() => {
     const show = KeyboardEvents.addListener('keyboardWillShow', () => setKeyboardVisible(true));
@@ -93,9 +102,10 @@ function MainTabs() {
   }, []);
 
   return (
+    <TabBarHeightContext.Provider value={tabBarHeight}>
     <Tab.Navigator
       tabBar={(props) => (
-        <CustomTabBar {...props} isKeyboardVisible={isKeyboardVisible} />
+        <CustomTabBar {...props} isKeyboardVisible={isKeyboardVisible} onHeightChange={setTabBarHeight} />
       )}
       sceneContainerStyle={{ backgroundColor: theme.background }}
       screenOptions={{ headerShown: false }}
@@ -140,6 +150,7 @@ function MainTabs() {
         {() => <FadeInView><LojaScreen /></FadeInView>}
       </Tab.Screen>
     </Tab.Navigator>
+    </TabBarHeightContext.Provider>
   );
 }
 
