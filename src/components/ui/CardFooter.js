@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, useWindowDimensions } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
-import { Canvas, Path as SkiaPath, BlurMask, Skia } from '@shopify/react-native-skia';
+import { Canvas, Path as SkiaPath, Circle as SkiaCircle, BlurMask, Skia } from '@shopify/react-native-skia';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
@@ -100,22 +101,31 @@ export const CardFooter = ({ level, completedCards, sessionTotal, reviewMode, on
           d="M239.5,84.4H975.35v-5.29H239.49C237.97,35.23,201.82,0,157.58,0S77.19,35.23,75.67,79.11H0v5.29H75.66c1.29,44.09,37.53,79.56,81.92,79.56,11.7,0,22.82-2.48,32.9-6.91l12.65,19.83c2.13,3.34,5.78,5.34,9.74,5.35l24.92,.04v22.81c0,1.43,1.16,2.58,2.58,2.58s2.58-1.16,2.58-2.58v-54.48c0-1.43-1.16-2.58-2.58-2.58s-2.58,1.16-2.58,2.58v24.67l-24.91-.04c-1.57,0-3.01-.79-3.85-2.12l-12.22-19.16c24.79-13.56,41.83-39.57,42.7-69.55Zm-81.92,64.56c-36.93,0-66.98-30.05-66.98-66.98S120.65,15,157.58,15s66.98,30.05,66.98,66.98-30.05,66.98-66.98,66.98Z"
           fill="rgba(255,255,255,0.15)"
         />
-        {fill > 0 && (
+        {reviewMode ? (
           <Circle
             cx={CX} cy={CY} r={RING_R}
-            stroke={color} strokeWidth={RING_STROKE} fill="none"
-            strokeDasharray={`${CIRC * fill} ${CIRC * (1 - fill)}`}
-            strokeDashoffset={0}
-            strokeLinecap="round" rotation="-90" origin={`${CX}, ${CY}`}
+            stroke={theme.primary} strokeWidth={RING_STROKE} fill="none"
           />
+        ) : (
+          fill > 0 && (
+            <Circle
+              cx={CX} cy={CY} r={RING_R}
+              stroke={color} strokeWidth={RING_STROKE} fill="none"
+              strokeDasharray={`${CIRC * fill} ${CIRC * (1 - fill)}`}
+              strokeDashoffset={0}
+              strokeLinecap="round" rotation="-90" origin={`${CX}, ${CY}`}
+            />
+          )
         )}
-        <SvgText
-          x={CX} y={CY + 21}
-          textAnchor="middle"
-          fill="#F8F8F8"
-          fontSize={60}
-          fontWeight="700"
-        >{lvl}</SvgText>
+        {!reviewMode && (
+          <SvgText
+            x={CX} y={CY + 21}
+            textAnchor="middle"
+            fill="#F8F8F8"
+            fontSize={60}
+            fontWeight="700"
+          >{lvl}</SvgText>
+        )}
         <SvgText
           x={CX + R + 26} y={CY + 85}
           fill="#ffffffa1"
@@ -132,25 +142,30 @@ export const CardFooter = ({ level, completedCards, sessionTotal, reviewMode, on
         >{name}</SvgText>
       </Svg>
 
-      {/* Overlay de cadeado sobre o anel de nível em modo revisão */}
+      {/* Cadeado premium sutil centralizado no anel quando em modo revisão */}
       {reviewMode && (() => {
-        const coverR = ringR + (RING_STROKE * scale) / 2;
+        const innerR = R * scale;
+        const iconSize = Math.round(innerR * 0.85);
         return (
           <View
             pointerEvents="none"
             style={{
               position: 'absolute',
-              left: ringCX - coverR,
-              top: ringCY - coverR,
-              width: coverR * 2,
-              height: coverR * 2,
-              borderRadius: coverR,
-              backgroundColor: 'rgba(13,13,13,0.72)',
+              left: ringCX - innerR,
+              top: ringCY - innerR,
+              width: innerR * 2,
+              height: innerR * 2,
+              borderRadius: innerR,
+              backgroundColor: 'rgba(10, 10, 12, 0.45)',
               justifyContent: 'center',
               alignItems: 'center',
             }}
           >
-            <Ionicons name="lock-closed" size={Math.round(ringR * 0.52)} color="rgba(93,214,44,0.9)" />
+            <Ionicons
+              name="lock-closed"
+              size={iconSize}
+              color={theme.primary}
+            />
           </View>
         );
       })()}
