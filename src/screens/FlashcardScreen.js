@@ -172,6 +172,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
   // null = ainda verificando; true/false = resultado conhecido
   const [goalAlreadyDoneToday, setGoalAlreadyDoneToday] = useState(null);
   const [goalModalVisible, setGoalModalVisible] = useState(false);
+  const [reviewInfoModalVisible, setReviewInfoModalVisible] = useState(false);
+  const [reviewDoneModalVisible, setReviewDoneModalVisible] = useState(false);
   const [currentCard, setCurrentCard] = useState(initialState.cards[0] ?? null);
   const [nextCard, setNextCard] = useState(initialState.cards[1] ?? null);
   const cacheKey = reviewAll ? `${deckId}-all` : `${deckId}-${subjectId}`;
@@ -394,9 +396,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
           setQueueSize(_queue.length);
           setTotalCardsInSession(prev => prev - removed + newCards.length);
         } else {
-          const cardsToReview = allSubjectCards
-            .filter(c => isExample || ((c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now) && !studiedThisSession.has(c.id)))
-            .sort((a, b) => isExample ? (a.level || 0) - (b.level || 0) : (a.nextReview || 0) - (b.nextReview || 0));
+          const cardsToReview = reviewMode
+            ? [...allSubjectCards].sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0))
+            : allSubjectCards
+                .filter(c => isExample || ((c.level || 0) < 5 && (c.nextReview == null || new Date(c.nextReview) <= now) && !studiedThisSession.has(c.id)))
+                .sort((a, b) => isExample ? (a.level || 0) - (b.level || 0) : (a.nextReview || 0) - (b.nextReview || 0));
           setCards(cardsToReview); _queue = [...cardsToReview];
           setCurrentCard(cardsToReview[0] ?? null); setNextCard(cardsToReview[1] ?? null);
           setTotalCardsInSession(cardsToReview.length);
@@ -558,7 +562,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
       if (tutorialRef.current?.isVisible()) return;
 
       const hasStarted = swipeCount > 0;
-      const metaIncompleta = hasStarted && !dailyGoalSavedRef.current && !goalAlreadyDoneToday && !reviewAll && !sessionDone && !isExample;
+      const metaIncompleta = hasStarted && !dailyGoalSavedRef.current && !goalAlreadyDoneToday && !reviewAll && !reviewMode && !sessionDone && !isExample;
 
       if (metaIncompleta) {
         e.preventDefault();
@@ -610,8 +614,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
 
   const handleReview = useCallback((cardToReview, rating, isLast) => {
     if (!cardToReview) return;
-    const updatedCard = isExample ? { ...cardToReview } : calculateCardUpdate(cardToReview, rating);
-    if (!isExample) {
+    const updatedCard = (isExample || reviewMode) ? { ...cardToReview } : calculateCardUpdate(cardToReview, rating);
+    if (!isExample && !reviewMode) {
       const existingIndex = reviewUpdates.current.findIndex(c => c.id === updatedCard.id);
       if (existingIndex > -1) reviewUpdates.current[existingIndex] = updatedCard;
       else reviewUpdates.current.push(updatedCard);
@@ -652,8 +656,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
       }
     }
 
-    // Verifica meta diária: cards nível 3+ sempre contam 1x; nível 0-2: 1 card=3x, 2=2x cada, 3+=min(total,10)
-    if (!dailyGoalSavedRef.current) {
+    // Verifica meta diária — modo revisão não conta
+    if (!reviewMode && !dailyGoalSavedRef.current) {
       const total = originalSessionTotal.current || totalCardsInSessionSV.value;
       const highLevel = allCardsHighLevelRef.current;
       const goal = highLevel ? Math.min(total, 10) : total === 1 ? 3 : total === 2 ? 4 : Math.min(total, 10);
@@ -846,10 +850,45 @@ export const FlashcardScreen = ({ route, navigation }) => {
     return Gesture.Simultaneous(tapGesture, pan);
   }, [tapGesture, panActivated, handleReviewByIndexStable, isFlipped, translateX, translateY, currentIndex, swipeProgress, swipeDirection, totalCardsInSessionSV, previewWrongSV, previewEasySV, previewHardSV, cardExpandedSV]);
 
+  const handleRepeatReview = useCallback(async () => {
+    setReviewDoneModalVisible(false);
+    const allData = await getAppData();
+    const deck = allData.find(d => d.id === deckId);
+    const unit = deck ? findStudyUnit(deck, subjectId) : null;
+    if (unit?.flashcards?.length > 0) {
+      const freshCards = [...unit.flashcards];
+      _queue = freshCards;
+      setCards(freshCards);
+      setCurrentCard(freshCards[0]);
+      setNextCard(freshCards[1] ?? null);
+      setQueueSize(freshCards.length);
+      setTotalCardsInSession(freshCards.length);
+      originalSessionTotal.current = freshCards.length;
+      sessionStudiedIds.current = new Set();
+      sessionLastRating.current = {};
+      totalRightSwipesRef.current = 0;
+      currentIndex.value = 0;
+      isFlipped.value = 0;
+      insertAnim.value = 1;
+      cardOpacitySV.value = 1;
+    } else {
+      navigation.goBack();
+    }
+  }, [deckId, subjectId, navigation, currentIndex, isFlipped, insertAnim, cardOpacitySV]);
+
+  const handleExitReview = useCallback(async () => {
+    setReviewDoneModalVisible(false);
+    const allData = await getAppData();
+    await saveAppData(allData.map(d => {
+      if (d.id !== deckId) return d;
+      return { ...d, subjects: d.subjects.map(s => s.id === subjectId ? { ...s, reviewMode: false } : s) };
+    }));
+    navigation.goBack();
+  }, [deckId, subjectId, navigation]);
+
   const handleReviewComplete = useCallback(async () => {
     if (!reviewMode || !subjectId) {
       setDoneCardCount(sessionStudiedIds.current.size);
-      // Usa reviewUpdates diretamente — já tem os dados mais recentes da sessão
       const sessionCards = reviewUpdates.current;
       let earliest = null;
       const now = Date.now();
@@ -864,45 +903,8 @@ export const FlashcardScreen = ({ route, navigation }) => {
       setSessionResult({ done: true, nextReview: earliest });
       return;
     }
-    // Pergunta se quer continuar no modo revisão ou sair
-    setAlertConfig({
-      visible: true,
-      title: 'Revisão concluída!',
-      message: 'Você completou todos os cards. Deseja continuar no modo revisão ou sair dele?',
-      buttons: [
-        {
-          text: 'Continuar revisão',
-          onPress: async () => {
-            setAlertConfig(p => ({ ...p, visible: false }));
-            // Recarrega cards e reseta índice
-            const allData = await getAppData();
-            const deck = allData.find(d => d.id === deckId);
-            const unit = deck ? findStudyUnit(deck, subjectId) : null;
-            if (unit?.flashcards) {
-              setCards([...unit.flashcards]);
-              setTotalCardsInSession(unit.flashcards.length);
-              currentIndex.value = 0;
-              isFlipped.value = 0;
-            } else {
-              navigation.goBack();
-            }
-          },
-        },
-        {
-          text: 'Sair do modo revisão',
-          onPress: async () => {
-            setAlertConfig(p => ({ ...p, visible: false }));
-            const allData = await getAppData();
-            await saveAppData(allData.map(d => {
-              if (d.id !== deckId) return d;
-              return { ...d, subjects: d.subjects.map(s => s.id === subjectId ? { ...s, reviewMode: false } : s) };
-            }));
-            navigation.goBack();
-          },
-        },
-      ],
-    });
-  }, [reviewMode, subjectId, deckId, navigation, currentIndex, isFlipped, saveSessionProgress]);
+    setReviewDoneModalVisible(true);
+  }, [reviewMode, subjectId, saveSessionProgress]);
 
   useEffect(() => { handleReviewCompleteRef.current = handleReviewComplete; }, [handleReviewComplete]);
   useEffect(() => { totalCardsInSessionSV.value = totalCardsInSession; }, [totalCardsInSession]);
@@ -1141,11 +1143,25 @@ export const FlashcardScreen = ({ route, navigation }) => {
         </TouchableWithoutFeedback>
       </Modal>}
 
-      {!reviewAll && (() => {
+      {!reviewAll && (reviewMode ? (
+        <TouchableOpacity onPress={() => setReviewInfoModalVisible(true)} style={{
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+          gap: 8, paddingVertical: 8, paddingHorizontal: 16,
+          marginHorizontal: 20, marginTop: 10, marginBottom: 4,
+          backgroundColor: 'rgba(93,214,44,0.08)',
+          borderRadius: 12, borderWidth: 1,
+          borderColor: 'rgba(93,214,44,0.25)',
+        }}>
+          <Ionicons name="repeat-outline" size={16} color={theme.primary} />
+          <Text style={{ color: theme.primary, fontSize: 13, fontFamily: theme.fontFamily.uiMedium, lineHeight: 18 }}>
+            Modo Revisão
+          </Text>
+          <Ionicons name="information-circle-outline" size={14} color={theme.primary} />
+        </TouchableOpacity>
+      ) : (() => {
         if (goalAlreadyDoneToday !== false) return <View style={{ height: 38, marginTop: 10, marginBottom: 4 }} />;
         const total = originalSessionTotal.current || queueSize;
         const highLevel = allCardsHighLevelRef.current;
-        // Cards nível 3+ sempre contam 1x; nível 0-2: 1 card=3x, 2=2x cada, 3+=min(total,10)
         const goal = highLevel ? Math.min(total, 10) : total === 1 ? 3 : total === 2 ? 4 : Math.min(total, 10);
         const correct = (!highLevel && total <= 2) ? totalRightSwipesRef.current : sessionRatings.current.right;
         const started = swipeCount > 0;
@@ -1174,7 +1190,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
             <Ionicons name="information-circle-outline" size={14} color={goalReached ? theme.primary : theme.textMuted} />
           </TouchableOpacity>
         );
-      })()}
+      })())}
 
       <GestureDetector gesture={gesture}>
         <Animated.View
@@ -1272,6 +1288,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
               totalCards={queueSize}
               completedCards={queueSize}
               sessionTotal={originalSessionTotal.current || totalCardsInSession}
+              reviewMode={reviewMode}
               translateX={translateX} translateY={translateY}
               isFlipped={isFlipped}
               jsCurrentIndex={jsCurrentIndex}
@@ -1303,6 +1320,56 @@ export const FlashcardScreen = ({ route, navigation }) => {
       </View>
 
       <GoalInfoModal visible={goalModalVisible} onClose={() => setGoalModalVisible(false)} />
+
+      {/* Modal: Revisão concluída */}
+      <Modal transparent animationType="fade" visible={reviewDoneModalVisible} statusBarTranslucent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: '#1A1A1A', borderRadius: 22, padding: 28, width: '100%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', alignItems: 'center' }}>
+            <View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(93,214,44,0.1)', borderWidth: 1.5, borderColor: 'rgba(93,214,44,0.25)', justifyContent: 'center', alignItems: 'center', marginBottom: 18 }}>
+              <Ionicons name="checkmark-done" size={30} color={theme.primary} />
+            </View>
+            <Text style={{ color: theme.textPrimary, fontSize: 20, fontFamily: theme.fontFamily.uiBold, marginBottom: 8, letterSpacing: -0.3 }}>Revisão concluída!</Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 26 }}>
+              Você revisou todos os cards desta matéria.
+            </Text>
+            <TouchableOpacity
+              onPress={handleRepeatReview}
+              style={{ width: '100%', backgroundColor: theme.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 10 }}
+            >
+              <Text style={{ color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold, fontSize: 15 }}>Repetir revisão</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleExitReview}
+              style={{ width: '100%', borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}
+            >
+              <Text style={{ color: theme.textSecondary, fontFamily: theme.fontFamily.uiMedium, fontSize: 15 }}>Sair do modo revisão</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent animationType="fade" visible={reviewInfoModalVisible} onRequestClose={() => setReviewInfoModalVisible(false)} statusBarTranslucent>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 }} activeOpacity={1} onPress={() => setReviewInfoModalVisible(false)}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: '#1C1C1C', borderRadius: 18, padding: 24, width: '100%', borderWidth: 1, borderColor: 'rgba(93,214,44,0.2)', gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="repeat-outline" size={20} color={theme.primary} />
+              <Text style={{ color: theme.primary, fontSize: 16, fontFamily: theme.fontFamily.uiBold }}>Modo Revisão</Text>
+            </View>
+            <Text style={{ color: theme.textSecondary, fontSize: 14, fontFamily: theme.fontFamily.ui, lineHeight: 21 }}>
+              Neste modo, <Text style={{ color: theme.textPrimary }}>todos os cards da matéria</Text> são exibidos — independente de quando estavam agendados para aparecer.
+            </Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 14, fontFamily: theme.fontFamily.ui, lineHeight: 21 }}>
+              É ideal para revisar o conteúdo antes de uma prova ou quando quiser relembrar tudo de uma vez.
+            </Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 14, fontFamily: theme.fontFamily.ui, lineHeight: 21 }}>
+              Os <Text style={{ color: theme.textPrimary }}>níveis dos cards não são alterados</Text> — o progresso e o agendamento de cada card permanecem intactos.
+            </Text>
+            <TouchableOpacity onPress={() => setReviewInfoModalVisible(false)} style={{ marginTop: 4, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 28, backgroundColor: theme.primary, borderRadius: 10 }}>
+              <Text style={{ color: '#0F0F0F', fontFamily: theme.fontFamily.uiBold, fontSize: 14 }}>Entendi</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
 
       <SwipeTutorial ref={tutorialRef} requireButtons={isExample} />

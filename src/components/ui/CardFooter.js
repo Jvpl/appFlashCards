@@ -4,6 +4,7 @@ import { TouchableOpacity } from 'react-native-gesture-handler';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 import { Canvas, Path as SkiaPath, BlurMask, Skia } from '@shopify/react-native-skia';
 import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 
 const LEVEL_NAMES = [
@@ -29,7 +30,7 @@ const RING_R = 74.48;
 const CIRC = 2 * Math.PI * RING_R;
 const FOOTER_H = 95;
 
-export const CardFooter = ({ level, completedCards, sessionTotal, onEdit, onEditPressIn }) => {
+export const CardFooter = ({ level, completedCards, sessionTotal, reviewMode, onEdit, onEditPressIn }) => {
   const { width: screenW } = useWindowDimensions();
   const cardW = screenW * 0.9;
 
@@ -131,6 +132,24 @@ export const CardFooter = ({ level, completedCards, sessionTotal, onEdit, onEdit
         >{name}</SvgText>
       </Svg>
 
+      {/* Lock badge no anel de nível em modo revisão */}
+      {reviewMode && (
+        <View style={{
+          position: 'absolute',
+          left: ringCX + ringR * 0.55 - 9,
+          top: ringCY - ringR * 0.55 - 9,
+          width: 18, height: 18,
+          backgroundColor: '#0F0F0F',
+          borderRadius: 9,
+          borderWidth: 1,
+          borderColor: 'rgba(93,214,44,0.5)',
+          justifyContent: 'center', alignItems: 'center',
+          pointerEvents: 'none',
+        }}>
+          <Ionicons name="lock-closed" size={9} color={theme.primary} />
+        </View>
+      )}
+
       {/* Lápis + divisor + contador */}
       <View style={{
         position: 'absolute',
@@ -152,9 +171,7 @@ export const CardFooter = ({ level, completedCards, sessionTotal, onEdit, onEdit
           <Feather name="edit-2" size={15} color="#A0A0A0" />
         </TouchableOpacity>
         <View style={{ width: 1, height: 22, backgroundColor: 'rgba(255,255,255,0.15)', marginHorizontal: 8 }} />
-        <Text style={{ color: '#F8F8F8', fontSize: 15, fontWeight: '600' }}>
-          {completedCards ?? 0} / {sessionTotal ?? 1}
-        </Text>
+        <Text style={{ color: '#F8F8F8', fontSize: 15, fontWeight: '600' }}>{completedCards ?? 0} / {sessionTotal ?? 1}</Text>
       </View>
 
     </View>

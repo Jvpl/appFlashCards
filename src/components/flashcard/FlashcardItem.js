@@ -59,7 +59,7 @@ body {
   color: white; font-size: 20px;
   ${scrollable
     ? 'height: auto; overflow: auto; display: block; padding-bottom: 60px;'
-    : 'overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center;'}
+    : 'overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; padding-top: 20px;'}
 }
 #viewer {
   padding: ${scrollable ? '20px 16px' : '16px'};
@@ -265,7 +265,7 @@ const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
   }
 
   return (
-    <View style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+    <View style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center', paddingTop: 30, paddingBottom: 10, paddingHorizontal: 20 }}>
       <Text
         style={styles.cardText}
         numberOfLines={MAX_LINES}
@@ -288,7 +288,7 @@ const ExpandableText = ({ content, onExpandChange, verMaisZoneSV, verMaisTrigger
   );
 };
 
-export const FlashcardItem = ({ card, index, currentIndex, totalCards, completedCards, sessionTotal, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV, verMaisZoneSV, verMaisTriggerRef, cardOpacitySV, contentKey, onExpandChange, cardTopY }) => {
+export const FlashcardItem = ({ card, index, currentIndex, totalCards, completedCards, sessionTotal, reviewMode, translateX, translateY, isFlipped, jsCurrentIndex, jsIsFlipped, resetKey, showLevel = true, swipeProgress, swipeDirection, onEdit, footerPressedSV, verMaisZoneSV, verMaisTriggerRef, cardOpacitySV, contentKey, onExpandChange, cardTopY }) => {
   const [frontExpanded, setFrontExpanded] = useState(false);
   const [backExpanded, setBackExpanded] = useState(false);
   const editingRef = useRef(false);
@@ -480,7 +480,7 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
           </View>
           {showLevel && (
             <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-              <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />
+              <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} reviewMode={reviewMode} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />
             </View>
           )}
         </Animated.View>
@@ -544,7 +544,7 @@ export const FlashcardItem = ({ card, index, currentIndex, totalCards, completed
           </Animated.View>
           {showLevel && (
             <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-              <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />
+              <CardFooter level={card.level || 0} completedCards={completedCards} sessionTotal={sessionTotal} reviewMode={reviewMode} onEdit={handleEdit} onEditPressIn={handleEditPressIn} />
             </View>
           )}
         </Animated.View>

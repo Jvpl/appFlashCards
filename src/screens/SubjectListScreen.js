@@ -681,15 +681,38 @@ export const SubjectListScreen = ({ route, navigation }) => {
                   {/* Modo Revisão — só para matérias sem tópicos */}
                   {!hasTopics && (
                     <>
-                      <TouchableOpacity disabled={isExample} style={[ctx.item, ctx.itemReview, isReview && ctx.itemReviewActive, isExample && { opacity: 0.35 }]} onPress={() => { closeContextMenu(); if (sub) handleToggleReview(sub); }}>
-                        <View style={[ctx.reviewIconWrap, isReview && ctx.reviewIconWrapActive]}>
-                          <Ionicons name="repeat-outline" size={16} color={isReview ? '#0F0F0F' : theme.primary} />
-                        </View>
-                        <Text style={[ctx.itemText, ctx.reviewText, isReview && ctx.reviewTextActive]}>
-                          {isReview ? 'Desativar Revisão' : 'Modo Revisão'}
-                        </Text>
-                        {isReview && <Ionicons name="checkmark-circle" size={16} color={theme.primary} />}
-                      </TouchableOpacity>
+                      {(() => {
+                        const wasStudied = sub?.flashcards?.some(c => (c.level ?? 0) > 0 || c.lastReview);
+                        const locked = !wasStudied && !isReview;
+                        return (
+                          <TouchableOpacity
+                            disabled={isExample}
+                            style={[ctx.item, ctx.itemReview, isReview && ctx.itemReviewActive, (isExample || locked) && { opacity: locked ? 0.45 : 0.35 }]}
+                            onPress={() => {
+                              closeContextMenu();
+                              if (!sub) return;
+                              if (locked) {
+                                setAlertConfig({
+                                  visible: true,
+                                  title: 'Modo Revisão bloqueado',
+                                  message: 'Estude esta matéria pelo menos uma vez antes de ativar o Modo Revisão. Assim o sistema SRS terá dados suficientes para funcionar corretamente.',
+                                  buttons: [{ text: 'Entendi', onPress: () => setAlertConfig(p => ({ ...p, visible: false })) }],
+                                });
+                                return;
+                              }
+                              handleToggleReview(sub);
+                            }}
+                          >
+                            <View style={[ctx.reviewIconWrap, isReview && ctx.reviewIconWrapActive]}>
+                              <Ionicons name={locked ? 'lock-closed-outline' : 'repeat-outline'} size={16} color={isReview ? '#0F0F0F' : theme.primary} />
+                            </View>
+                            <Text style={[ctx.itemText, ctx.reviewText, isReview && ctx.reviewTextActive]}>
+                              {isReview ? 'Desativar Revisão' : 'Modo Revisão'}
+                            </Text>
+                            {isReview && <Ionicons name="checkmark-circle" size={16} color={theme.primary} />}
+                          </TouchableOpacity>
+                        );
+                      })()}
                       <View style={ctx.sep} />
                       <TouchableOpacity disabled={isExample} style={[ctx.item, isExample && { opacity: 0.35 }]} onPress={() => { closeContextMenu(); if (sub) navigation.navigate('ManageFlashcards', { deckId, subjectId: sub.id, preloadedCards: [], subjectName: sub.name }); }}>
                         <Ionicons name="add-circle-outline" size={16} color={theme.textPrimary} /><Text style={ctx.itemText}>Criar card</Text>
