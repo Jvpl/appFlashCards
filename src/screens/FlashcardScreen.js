@@ -206,6 +206,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
   const swipeDirection = useSharedValue(0);
   const isAnimatingOut = useSharedValue(false);
   const cardOpacitySV = useSharedValue(1);
+  const bgPlaceholderOpacity = useSharedValue(0);
+  const bgPlaceholderStyle = useAnimatedStyle(() => ({ opacity: bgPlaceholderOpacity.value }));
+  // queueLengthSV: espelha _queue.length no UI thread para o worklet decidir se ativa o placeholder
+  const queueLengthSV = useSharedValue(999);
   const insertAnim = useSharedValue(1);
   // SharedValues para preview texts — evita captura de previewTextsRef no worklet
   const previewWrongSV = useSharedValue('');
@@ -478,11 +482,10 @@ export const FlashcardScreen = ({ route, navigation }) => {
   });
 
   // Após React renderizar o novo card: torna visível no próximo frame de pintura
-  // Para o último card, só remove o skeleton DEPOIS que o card está visível (evita frame vazio)
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       cardOpacitySV.value = 1;
-      if (_queue.length <= 1) setNextCard(null);
+      bgPlaceholderOpacity.value = 0;
     });
     return () => cancelAnimationFrame(raf);
   }, [currentCard]);
@@ -715,9 +718,9 @@ export const FlashcardScreen = ({ route, navigation }) => {
     resetKey.value = resetKey.value + 1;
     setCardExpanded(false);
     cardExpandedSV.value = false;
+    queueLengthSV.value = _queue.length;
     setCurrentCard(_queue[0] ?? null);
-    // Quando é o último card, não remove o skeleton ainda — ele é removido após cardOpacitySV=1 no useEffect
-    if (_queue.length > 1) setNextCard(_queue[1] ?? null);
+    setNextCard(_queue[1] ?? null);
   }, [handleReview]);
   useEffect(() => { _handleReviewByIndex = handleReviewByIndex; }, [handleReviewByIndex]);
   const handleReviewByIndexStable = useCallback((...args) => _handleReviewByIndex?.(...args), []);
@@ -831,6 +834,7 @@ export const FlashcardScreen = ({ route, navigation }) => {
             'worklet';
             if (finished) {
               const cardIndex = Math.floor(currentIndex.value);
+              if (queueLengthSV.value > 1) bgPlaceholderOpacity.value = 1;
               cardOpacitySV.value = 0;
               translateX.value = 0;
               translateY.value = 0;
@@ -852,33 +856,28 @@ export const FlashcardScreen = ({ route, navigation }) => {
     return Gesture.Simultaneous(tapGesture, pan);
   }, [tapGesture, panActivated, handleReviewByIndexStable, isFlipped, translateX, translateY, currentIndex, swipeProgress, swipeDirection, totalCardsInSessionSV, previewWrongSV, previewEasySV, previewHardSV, cardExpandedSV]);
 
-  const handleRepeatReview = useCallback(async () => {
+  const handleRepeatReview = useCallback(() => {
+    // Em modo revisão os cards nunca mudam de nível, então reutilizamos o estado `cards` sem refetch
+    const freshCards = [...cardsRef.current];
+    if (freshCards.length === 0) { navigation.goBack(); return; }
+    _queue = freshCards;
+    setCurrentCard(freshCards[0]);
+    setNextCard(freshCards[1] ?? null);
+    setQueueSize(freshCards.length);
+    setTotalCardsInSession(freshCards.length);
+    setJsCurrentIndex(0);
+    originalSessionTotal.current = freshCards.length;
+    sessionStudiedIds.current = new Set();
+    sessionLastRating.current = {};
+    totalRightSwipesRef.current = 0;
+    currentIndex.value = 0;
+    isFlipped.value = 0;
+    insertAnim.value = 1;
+    bgPlaceholderOpacity.value = 0;
+    queueLengthSV.value = freshCards.length;
+    cardOpacitySV.value = 1;
     setReviewDoneModalVisible(false);
-    setLoading(true);
-    const allData = await getAppData();
-    const deck = allData.find(d => d.id === deckId);
-    const unit = deck ? findStudyUnit(deck, subjectId) : null;
-    if (unit?.flashcards?.length > 0) {
-      const freshCards = [...unit.flashcards];
-      _queue = freshCards;
-      setCards(freshCards);
-      setCurrentCard(freshCards[0]);
-      setNextCard(freshCards[1] ?? null);
-      setQueueSize(freshCards.length);
-      setTotalCardsInSession(freshCards.length);
-      originalSessionTotal.current = freshCards.length;
-      sessionStudiedIds.current = new Set();
-      sessionLastRating.current = {};
-      totalRightSwipesRef.current = 0;
-      currentIndex.value = 0;
-      isFlipped.value = 0;
-      insertAnim.value = 1;
-      setLoading(false);
-      cardOpacitySV.value = 1;
-    } else {
-      navigation.goBack();
-    }
-  }, [deckId, subjectId, navigation, currentIndex, isFlipped, insertAnim, cardOpacitySV]);
+  }, [navigation, currentIndex, isFlipped, insertAnim, cardOpacitySV, bgPlaceholderOpacity, queueLengthSV]);
 
   const handleExitReview = useCallback(async () => {
     setReviewDoneModalVisible(false);
@@ -1207,45 +1206,59 @@ export const FlashcardScreen = ({ route, navigation }) => {
             });
           }}
         >
-          {/* Pilha decorativa — pos 2+ atrás do skeleton */}
+          {/* Placeholder de fundo — visível só durante transição de swipe para evitar frame vazio no último card */}
+          <Animated.View
+            pointerEvents="none"
+            style={[{
+              position: 'absolute',
+              width: screenWidth * 0.9 - 10,
+              height: 460,
+              backgroundColor: '#242427',
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.06)',
+              transform: [{ translateY: -6 }],
+              zIndex: 1,
+            }, bgPlaceholderStyle]}
+          />
+          {/* Pilha decorativa — reflete o número real de cards restantes, com cap para decks grandes */}
           {(() => {
             const remaining = _queue.length - 1;
-            const MAX_STACK = 3;
-            const stackCount = Math.min(remaining, MAX_STACK);
+            // extraCount: quantos cards mostrar além do skeleton (pos 1)
+            // - remaining=1 → 0 (só skeleton)
+            // - remaining=2 → 1 (skeleton + InsertAnim em pos 2)
+            // - remaining=3 → 2 (+ decorativo em pos 3)
+            // - remaining≥4 → 2 (capped)
+            const MAX_EXTRA = 2;
+            const extraCount = Math.max(0, Math.min(remaining - 1, MAX_EXTRA));
             const views = [];
-            // Cards decorativos estáticos
-            for (let pos = stackCount; pos >= 2; pos--) {
-              const relPos = stackCount - pos + 2; // skeleton=1, decorativo mais próximo=2, etc
-              const translateY = -relPos * 6;
-              const width = screenWidth * 0.9 - relPos * 10;
-              const ratio = stackCount > 1 ? (relPos - 1) / stackCount : 0;
-              const opacity = 0.6 - ratio * 0.3;
-              const zIdx = stackCount - relPos + 1;
+            // Decorativo estático em pos 3 (aparece só quando extraCount = 2)
+            if (extraCount >= 2) {
               views.push(
-                <View key={pos} style={{
-                  position: 'absolute', width, height: 460,
-                  backgroundColor: '#242427ff', borderRadius: 20,
-                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)',
-                  transform: [{ translateY }],
-                  zIndex: zIdx,
-                  opacity,
+                <View key="dec3" style={{
+                  position: 'absolute',
+                  width: screenWidth * 0.9 - 30,
+                  height: 460,
+                  backgroundColor: '#242427ff',
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.06)',
+                  transform: [{ translateY: -18 }],
+                  zIndex: 1,
+                  opacity: 0.35,
                 }} />
               );
             }
-            // InsertAnimCard sempre na posição do último slot visível
-            if (stackCount >= 1) {
-              const lastRelPos = stackCount + 1;
-              const lastTranslateY = -lastRelPos * 6;
-              const lastWidth = screenWidth * 0.9 - lastRelPos * 11;
-              const lastOpacity = 0.6 - (stackCount / (stackCount + 1)) * 0.3;
+            // InsertAnimCard em pos 2 (aparece quando remaining ≥ 2)
+            if (extraCount >= 1) {
               views.push(
                 <InsertAnimCard
                   key="insert"
                   insertAnim={insertAnim}
-                  width={lastWidth}
+                  width={screenWidth * 0.9 - 20}
                   baseScale={1}
-                  baseTranslateY={lastTranslateY}
-                  opacity={lastOpacity}
+                  baseTranslateY={-12}
+                  opacity={extraCount >= 2 ? 0.45 : 0.55}
                   zIndex={0}
                 />
               );
