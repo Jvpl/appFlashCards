@@ -478,9 +478,11 @@ export const FlashcardScreen = ({ route, navigation }) => {
   });
 
   // Após React renderizar o novo card: torna visível no próximo frame de pintura
+  // Para o último card, só remove o skeleton DEPOIS que o card está visível (evita frame vazio)
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       cardOpacitySV.value = 1;
+      if (_queue.length <= 1) setNextCard(null);
     });
     return () => cancelAnimationFrame(raf);
   }, [currentCard]);
@@ -710,12 +712,12 @@ export const FlashcardScreen = ({ route, navigation }) => {
     saveSessionProgress(false);
     setQueueSize(_queue.length);
     setSwipeCount(prev => prev + 1);
-    if (_queue.length <= 1) insertAnim.value = 0;
     resetKey.value = resetKey.value + 1;
     setCardExpanded(false);
     cardExpandedSV.value = false;
     setCurrentCard(_queue[0] ?? null);
-    setNextCard(_queue[1] ?? null);
+    // Quando é o último card, não remove o skeleton ainda — ele é removido após cardOpacitySV=1 no useEffect
+    if (_queue.length > 1) setNextCard(_queue[1] ?? null);
   }, [handleReview]);
   useEffect(() => { _handleReviewByIndex = handleReviewByIndex; }, [handleReviewByIndex]);
   const handleReviewByIndexStable = useCallback((...args) => _handleReviewByIndex?.(...args), []);
